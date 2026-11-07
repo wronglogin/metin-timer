@@ -271,9 +271,21 @@ let H = {hist:{}, redo:{}};
 const HMAX = 120;
 const parsed = new Map();
 const parts = e => { if (!e || typeof e.p !== "string") return {}; let v = parsed.get(e.p); if (!v) { try { v = JSON.parse(e.p) || {}; } catch { v = {}; } parsed.set(e.p, v); } return v; };
+// undo/redo only covers timer marks (kill / reset); renames, times, adding or removing respawns are not undoable
+const isTimer = p => /^[^/]+\/t(\/|$)/.test(p);
+function tparts(e){
+  const out = {};
+  for (const [id, part] of Object.entries(parts(e))) {
+    if (!spots[id]) continue;                       // resp deleted since: nothing to restore
+    const b = {}, a = {};
+    for (const p of Object.keys(part.b || {})) if (isTimer(p)) { b[p] = part.b[p]; a[p] = (part.a || {})[p] ?? null; }
+    if (Object.keys(b).length) out[id] = {b, a};
+  }
+  return out;
+}
 const hkey = () => String(Math.round(now())).padStart(14, "0") + "-" + uid();
 const sortedKeys = o => Object.keys(o || {}).sort();
-const latestWith = (o, id) => sortedKeys(o).reverse().find(k => id ? parts(o[k])[id] : true);
+const latestWith = (o, id) => sortedKeys(o).reverse().find(k => { const t = tparts(o[k]); return id ? t[id] : Object.keys(t).length; });
 
 // apply a room-level change set: "spots/…", "hist/…", "redo/…"
 function doRoom(rc){
@@ -290,8 +302,12 @@ function spotPaths(ps, side){ const rc = {}; for (const part of Object.values(ps
 
 function commit(changes){
   if (!Object.keys(changes).length) return;
+  if (!Object.keys(changes).some(isTimer)) {           // not a timer change: apply without touching the history
+    const rc = {}; for (const [p, v] of Object.entries(changes)) rc["spots/" + p] = v;
+    return doRoom(rc);
+  }
   const ps = {};
-  for (const p of Object.keys(changes)) {
+  for (const p of Object.keys(changes).filter(isTimer)) {
     const id = p.split("/")[0], part = ps[id] || (ps[id] = {b:{}, a:{}});
     part.b[p] = clone(getPath(spots, p)); part.a[p] = clone(changes[p]);
   }
@@ -304,20 +320,20 @@ function commit(changes){
 }
 function undo(){
   const k = latestWith(H.hist); if (!k) return;
-  const ps = parts(H.hist[k]);
-  doRoom({...spotPaths(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: H.hist[k].p}});
+  const ps = tparts(H.hist[k]);
+  doRoom({...spotPaths(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
   toast("Cofnięto");
 }
 function redo(){
   const k = latestWith(H.redo); if (!k) return;
-  const ps = parts(H.redo[k]);
-  doRoom({...spotPaths(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: H.redo[k].p}});
+  const ps = tparts(H.redo[k]);
+  doRoom({...spotPaths(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
   toast("Ponowiono");
 }
 // undo/redo only the part of the latest step that touched this resp
 function spotStep(id, from, to, side, msg){
   const k = latestWith(H[from], id); if (!k) return;
-  const ps = parts(H[from][k]), part = ps[id], rest = {...ps}; delete rest[id];
+  const ps = tparts(H[from][k]), part = ps[id], rest = {...ps}; delete rest[id];
   const rc = spotPaths({[id]: part}, side);
   rc[`${from}/${k}`] = Object.keys(rest).length ? {at: H[from][k].at, p: JSON.stringify(rest)} : null;
   rc[`${to}/${hkey()}`] = {at: Math.round(now()), p: JSON.stringify({[id]: part})};
@@ -326,7 +342,7 @@ function spotStep(id, from, to, side, msg){
 }
 const spotUndo = id => spotStep(id, "hist", "redo", "b", "Cofnięto: ");
 const spotRedo = id => spotStep(id, "redo", "hist", "a", "Ponowiono: ");
-function histIds(o){ const s = new Set(); for (const k of Object.keys(o || {})) for (const id of Object.keys(parts(o[k]))) s.add(id); return s; }
+function histIds(o){ const s = new Set(); for (const k of Object.keys(o || {})) for (const id of Object.keys(tparts(o[k]))) s.add(id); return s; }
 function updateHistButtons(){
   $("#undo").disabled = !Object.keys(H.hist).length; $("#redo").disabled = !Object.keys(H.redo).length;
   const u = histIds(H.hist), r = histIds(H.redo);
@@ -629,7 +645,7 @@ function editSheet(s){
     const swap = j => { const o = ss[j]; close(); commit({[`${s.id}/o`]: o.o, [`${o.id}/o`]: s.o === o.o ? s.o + (j < idx ? 1 : -1) : s.o}); };
     el.querySelector("#e_up").onclick = () => swap(idx - 1);
     el.querySelector("#e_down").onclick = () => swap(idx + 1);
-    el.querySelector("#e_del").onclick = () => { close(); commit({[s.id]: null}); toast("Usunięto resp. Możesz cofnąć."); };
+    el.querySelector("#e_del").onclick = ev => { if (!ev.target.dataset.sure) { ev.target.dataset.sure = "1"; ev.target.textContent = "Na pewno? Tego nie da się cofnąć"; return; } close(); commit({[s.id]: null}); toast("Usunięto resp"); };
     el.querySelector("#e_ok").onclick = () => {
       const kind = el.querySelector("#e_kind").value, ch = {};
       if (kind !== s.kind) ch[`${s.id}/kind`] = kind;
@@ -691,7 +707,7 @@ function exportSheet(){
       Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } }); }; });
 }
 function importSheet(){
-  sheet(`<h2>Importuj respy</h2><p>Wklej kod. Obecne respy zostaną zastąpione (możesz to cofnąć).</p>
+  sheet(`<h2>Importuj respy</h2><p>Wklej kod. Obecne respy zostaną zastąpione. Tego nie da się cofnąć.</p>
     <div class="field"><textarea id="i_code" placeholder="Wklej kod tutaj"></textarea></div><p id="i_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="i_ok">Importuj respy</button></div>`,
   (el, close) => el.querySelector("#i_ok").onclick = () => {
