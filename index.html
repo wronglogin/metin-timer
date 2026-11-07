@@ -450,11 +450,26 @@ async function switchRoom(room){
 
 /* ---------- timers ---------- */
 const SOON = 4 * 60000;
+// daily reset: marks made before the latest 01:00 Polish time count as cleared (same on every device, no server job needed)
+const RESET_HOUR = 1, RESET_TZ = "Europe/Warsaw";
+function tzOffset(ts){
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {timeZone: RESET_TZ, hourCycle: "h23", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit"}).formatToParts(ts).map(x => [x.type, x.value]));
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(ts / 1000) * 1000;
+}
+function lastReset(ts){
+  const wall = new Date(ts + tzOffset(ts));                     // Polish wall clock expressed as UTC fields
+  let day = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate(), RESET_HOUR);
+  if (wall.getTime() < day) day -= 86400000;
+  return day - tzOffset(day - tzOffset(day));                  // back to a real timestamp (handles DST)
+}
+let resetAt = 0;
+const updateReset = () => { resetAt = lastReset(now()); };
 function status(s, c){
   // a kill stores the respawn time valid at that moment: {a: timestamp, mn, mx}; editing the row only affects the next kill
   const v = s.t && s.t[c];
   if (!v) return {cls:"idle", text:"--:--", label:"nie liczy"};
   const t = typeof v === "number" ? v : v.a;
+  if (t < resetAt) return {cls:"idle", text:"--:--", label:"nie liczy"};
   const el = now() - t, mn = (v.mn || s.min)*60000, mx = (v.mx || s.max)*60000;
   // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero
   if (el < mn - SOON) return {cls:"wait", text: fmt(mn - el), label:"odlicza", phase:0};
@@ -537,7 +552,7 @@ function render(){
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
   $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
-    <div class="legend"><span>Stuknij kanał, gdy zbijesz.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Szary</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
+    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Szary</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
 }
 function paneHtml(id){
   const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id];
@@ -595,6 +610,7 @@ function wikiHtml(){
 }
 document.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.wmap) d.open ? wikiOpen.add(d.dataset.wmap) : wikiOpen.delete(d.dataset.wmap); }, true);
 function tick(){
+  if (tick.n % 4 === 0) updateReset();
   if (view === "maps") document.querySelectorAll("[data-cell]").forEach(el => {
     const [id, c] = el.dataset.cell.split("|"), s = spots[id]; if (!s) return;
     const st = status(s, c), b = el.querySelector(".ct");
@@ -831,7 +847,7 @@ if (saved && !store.get("noColorsV1", false)) { for (const s of Object.values(sp
 if (!store.get("noColorsV1", false)) { settings.sound = 0; store.set("settings", settings); }
 store.set("noColorsV1", true);
 if (!saved) store.set("spots", spots);
-render(); setInterval(tick, 250); wake();
+updateReset(); render(); setInterval(tick, 250); wake();
 loadConfig(); setInterval(loadConfig, 60000);
 document.getElementById("roomSel").addEventListener("change", e => switchRoom(e.target.value));
 renderRoomSel();
