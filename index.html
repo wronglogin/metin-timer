@@ -68,7 +68,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .spn.win{background:var(--ready);color:#06210f;border-color:var(--ready);transform:scale(1.12)}
 .spinres{font-size:18px;color:var(--fg)!important;min-height:28px}
 .spinres.done b{color:var(--ready)}
-.field .rlp{display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;text-transform:none;letter-spacing:normal;font-size:16px;font-weight:600;color:var(--fg)}
+.field .rlp{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;cursor:pointer;text-transform:none;letter-spacing:normal;font-size:16px;font-weight:600;color:var(--fg)}
 .field .rlp input{flex:0 0 auto;width:20px;height:20px;min-height:0;padding:0;margin:0;accent-color:var(--ready)}
 #rl_p li,#rl_h li{padding:6px 10px}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
@@ -1649,7 +1649,7 @@ function rouletteSheet(){
     const skip = new Set();
     const draw = () => {
       const ps = people();
-      el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"}> ${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</label></li>`).join("") : '<li class="pme">Nikogo nie ma w pokoju.</li>';
+      el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("") : '<li class="pme">Nikogo nie ma w pokoju.</li>';
       const h = Object.values(remoteRoot.rlog || {}).sort((a, b) => b.at - a.at).slice(0, 5);
       el.querySelector("#rl_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b> <span class="pme">· pula ${esc(poolText(x.s, x.n))} · ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
     };
