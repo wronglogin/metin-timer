@@ -70,6 +70,21 @@ header{grid-template-columns:minmax(0,1fr)}
 .spn.win{background:var(--ready);color:#06210f;border-color:var(--ready);transform:scale(1.12)}
 .spinres{font-size:18px;color:var(--fg)!important;min-height:28px}
 .spinres.done b{color:var(--ready)}
+.gamebox .gbody{display:grid;gap:8px}
+.gline{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--rule);border-radius:6px;text-align:left}
+.gline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grow2{display:grid;gap:6px}
+.dice{font-size:30px;line-height:1;margin-left:auto;letter-spacing:2px}
+.coin{width:110px;height:110px;margin:6px auto;border-radius:50%;display:grid;place-items:center;font-size:19px;font-weight:700;background:var(--window);color:#2a2000;border:4px solid #b8962e}
+.coin.spinning{animation:coinflip .35s linear infinite;font-size:0}
+@keyframes coinflip{0%{transform:scaleX(1)}50%{transform:scaleX(.08)}100%{transform:scaleX(1)}}
+.reflexbtn{width:100%;min-height:180px;border-radius:10px;border:0;font-size:24px;font-weight:700;cursor:pointer}
+.reflexbtn.wait{background:var(--danger);color:#fff}
+.reflexbtn.go{background:var(--ready);color:#06210f}
+.gamelist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.rpsbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.rpsbtns .btn{flex:1;min-width:90px}
+.bignum{font-size:26px;color:var(--ready)}
 .field .rlp{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;cursor:pointer;text-transform:none;letter-spacing:normal;font-size:16px;font-weight:600;color:var(--fg)}
 .field .rlp input{flex:0 0 auto;width:20px;height:20px;min-height:0;padding:0;margin:0;accent-color:var(--ready)}
 #rl_p li,#rl_h li{padding:6px 10px}
@@ -255,6 +270,7 @@ main{padding-top:14px;display:grid;gap:14px}
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
+      <button class="btn" id="gamesBtn">Gry</button>
       <button class="btn" id="menuBtn">Menu</button>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -516,8 +532,8 @@ async function connect(db, room){
       if (kind === "put") setPath(remoteRoot, path, data);
       else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
       presence = remoteRoot.presence || {};
-      const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog");
-      onRoulette(path === "/" && kind === "put");
+      const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog") || k.startsWith("game") || k.startsWith("glog");
+      onRoulette(path === "/" && kind === "put"); onGame(path === "/" && kind === "put");
       const onlySide = side(path.slice(1)) || (path === "/" && kind === "patch" && Object.keys(data || {}).every(side));
       renderPresence();
       if (path === "/" || path.startsWith("/radio") || (kind === "patch" && Object.keys(data || {}).some(k => k.startsWith("radio")))) syncRadio(false);
@@ -909,7 +925,7 @@ document.addEventListener("keydown", e => {
   else if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
 });
 document.addEventListener("focusout", () => setTimeout(() => { if (renderPending && !editingInline()) render(); }, 0));
-$("#undo").onclick = undo; $("#redo").onclick = redo; $("#menuBtn").onclick = menuSheet;
+$("#undo").onclick = undo; $("#redo").onclick = redo; $("#menuBtn").onclick = menuSheet; $("#gamesBtn").onclick = gamesMenu;
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
@@ -965,9 +981,6 @@ function menuSheet(){
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
-    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <h2 style="font-size:19px">Rozrywka</h2>
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_roul">Ruletka</button>${online ? "" : '<span class="pme" style="font-size:13px;align-self:center">działa we wspólnym pokoju</span>'}</div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
@@ -1039,7 +1052,6 @@ function menuSheet(){
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
-    el.querySelector("#m_roul").onclick = () => { close(); rouletteSheet(); };
   });
 }
 /* ---------- export / import (own format + squadtimer.netlify.app) ----------
@@ -1172,9 +1184,9 @@ function resetSheet(){
   });
 }
 let toastT;
-function toast(msg){
+function toast(msg, ms = 2200){
   let el = document.querySelector(".toast"); if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
-  el.textContent = msg; clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2200);
+  el.textContent = msg; clearTimeout(toastT); toastT = setTimeout(() => el.remove(), ms);
 }
 let lock = null;
 async function wake(){
@@ -1596,7 +1608,7 @@ document.getElementById("radio").addEventListener("click", e => {
 });
 setInterval(() => { if (online && radioOn && ytReady) syncRadio(false); }, 5000);
 
-/* ---------- roulette (Menu → Rozrywka) ----------
+/* ---------- roulette (przycisk Gry) ----------
    rooms/<room>/roulette = {id, by, s: stake, p: {deviceId: nick}, w: winnerId, at}. The person who spins draws the
    winner with crypto randomness; everyone in the room sees the same animation and result. rlog keeps recent results. */
 let lastSpin = null, spinTimer = null;
@@ -1613,7 +1625,11 @@ function onRoulette(initial){
   lastSpin = r.id;
   const age = now() - (+r.at || now());
   if (initial && age > 8000) return;                     // joined later: don't replay old spins
-  if (age < 30000) showSpin(r, Math.max(0, age));
+  if (age >= 30000) return;
+  if (r.p && r.p[deviceId]) { showSpin(r, Math.max(0, age)); return; }
+  // not playing: just a short note with the result once the wheel has stopped for the players
+  const w = (r.p && r.p[r.w]) || "?";
+  setTimeout(() => toast(`Ruletka: wygrywa ${w} – pula ${poolText(r.s, Object.keys(r.p || {}).length)}`, 6000), Math.max(0, 6500 - age));
 }
 function showSpin(r, age){
   const players = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
@@ -1678,6 +1694,295 @@ function rouletteSheet(){
       push(rc);
       const local = {...spin, at: Math.round(now())}; setPath(remoteRoot, "roulette", local); setPath(remoteRoot, `rlog/${id}`, {...rc[`rlog/${id}`], at: local.at});
       lastSpin = id; close(); showSpin(local, 0);
+    };
+  });
+}
+
+/* ---------- room games (przycisk Gry) ----------
+   One game at a time per room in rooms/<room>/game:
+   {id, type, by: deviceId, byn: nick, s: stake, p: {deviceId: nick}, at, state, ...type fields}
+   Players get the game window; everyone else only a short note with the result. glog keeps recent results. */
+const GAMES = {
+  dice:   {name: "Kości",                  min: 2, duel: false},
+  coin:   {name: "Rzut monetą",            min: 2, duel: true},
+  reflex: {name: "Refleks",                min: 2, duel: false},
+  guess:  {name: "Zgadnij liczbę",         min: 2, duel: false},
+  rps:    {name: "Kamień, papier, nożyce", min: 2, duel: true},
+};
+const DIE = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+const RPS = {k: "Kamień", p: "Papier", n: "Nożyce"};
+const rpsBeats = (a, b) => (a === "k" && b === "n") || (a === "p" && b === "k") || (a === "n" && b === "p");
+const G = () => (remoteRoot && remoteRoot.game) || null;
+const gPlayers = g => Object.entries(g.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
+const nickOf = (g, id) => (g.p && g.p[id]) || "?";
+const amIn = g => !!(g && g.p && g.p[deviceId]);
+const secrets = store.get("gsec", {});                  // my hidden values (number to guess, rps choice) per game id
+const svNow = v => v && typeof v === "object" ? (v[".sv"] ? Math.round(now()) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, svNow(x)]))) : v;
+
+function gamePatch(rc){
+  const out = {};
+  for (const [p, v] of Object.entries(rc)) { out[p] = v; setPath(remoteRoot, p, clone(svNow(v))); }
+  if (online) push(out);
+  renderGame();
+}
+function logGame(g, winnerNick){
+  if (g.by !== deviceId || g.logged) return;            // only the starter writes the history line, once
+  const k = hkey(), n = Object.keys(g.p || {}).length;
+  const rc = {"game/logged": true, [`glog/${k}`]: {type: g.type, s: (g.s || "").slice(0, 30), n, w: String(winnerNick).slice(0, 20), at: {".sv": "timestamp"}}};
+  const old = sortedKeys(remoteRoot.glog || {}); for (const x of old.slice(0, Math.max(0, old.length + 1 - 30))) rc[`glog/${x}`] = null;
+  gamePatch(rc);
+}
+function startGame(type, players, stake, extra = {}, id = hkey()){
+  for (const k of Object.keys(secrets)) if (!k.startsWith(id)) delete secrets[k];
+  store.set("gsec", secrets);
+  const g = {id, type, by: deviceId, byn: myNick().slice(0, 20), s: (stake || "").slice(0, 30), p: Object.fromEntries(players.map(p => [p.id, p.n.slice(0, 20)])), at: {".sv": "timestamp"}, ...extra};
+  gamePatch({game: g});
+}
+
+/* game logic run by the starter right away (dice) or by whoever acts */
+function diceRounds(ids){
+  const rounds = []; let left = ids;
+  for (let guard = 0; guard < 8 && left.length; guard++) {
+    const r = {}; let best = 0;
+    for (const id of left) { const a = randInt(6) + 1, b = randInt(6) + 1; r[id] = [a, b]; best = Math.max(best, a + b); }
+    rounds.push(r);
+    left = left.filter(id => r[id][0] + r[id][1] === best);
+    if (left.length === 1) return {rounds, w: left[0]};
+  }
+  return {rounds, w: left[randInt(left.length)]};
+}
+
+/* work that must happen even with the game window closed: the starter settles results, players open their RPS choice */
+let settling = null;
+async function gameTick(){
+  const g = G(); if (!online || !g || !g.id || !amIn(g)) return;
+  const ps = gPlayers(g), host = g.by === deviceId;
+  if (g.type === "reflex" && g.state === "play" && host) {
+    const r = g.r || {}, all = ps.every(p => r[p.id] !== undefined);
+    if (all || now() > (+g.go || 0) + 5000) {
+      const ok = ps.filter(p => r[p.id] >= 0).sort((a, b) => r[a.id] - r[b.id]);
+      const w = ok.length ? ok[0].id : ps[randInt(ps.length)].id;     // everyone false-started: random winner
+      gamePatch({"game/w": w, "game/state": "done"});
+    }
+  }
+  if (g.type === "guess" && g.state === "play" && host && secrets[g.id]) {
+    const gs = g.g || {};
+    if (ps.every(p => gs[p.id] !== undefined)) settleGuess(g);
+  }
+  if (g.type === "rps" && g.state === "play") {
+    const [a, b] = rpsPair(g), c = g.c || {}, rv = g.rv || {}, sec = secrets[g.id + ":" + (g.round || 0)];
+    if (c[a] && c[b] && sec && !rv[deviceId]) gamePatch({[`game/rv/${deviceId}`]: {ch: sec.ch, salt: sec.salt}});
+    if (host && rv[a] && rv[b] && settling !== g.id + (g.round || 0)) { settling = g.id + (g.round || 0); rpsSettle(g); }
+  }
+  if (g.state === "done" && host && !g.logged && g.w && g.w !== "draw") logGame(g, nickOf(g, g.w));
+}
+setInterval(gameTick, 1000);
+const rpsPair = g => [g.by, Object.keys(g.p || {}).find(id => id !== g.by)];
+function settleGuess(g){
+  const ps = gPlayers(g), gs = g.g || {}, t = secrets[g.id].t;
+  const in_ = ps.filter(p => gs[p.id] !== undefined); if (!in_.length) { gamePatch({"game/state": "cancel"}); return; }
+  const best = Math.min(...in_.map(p => Math.abs(gs[p.id] - t))), tied = in_.filter(p => Math.abs(gs[p.id] - t) === best);
+  gamePatch({"game/t": t, "game/w": tied[randInt(tied.length)].id, "game/state": "done"});
+}
+
+let gameShown = null, gameTimer = null, reflexLocal = null;
+function onGame(initial){
+  const g = G();
+  if (!g || !g.id) { closeGame(); return; }
+  const age = now() - (+g.at || now());
+  if (initial && (g.state === "done" || g.state === "declined" || age > 10 * 60000)) { gameShown = g.id + ":seen"; return; }
+  renderGame(); gameTick();
+}
+function closeGame(){ const el = document.getElementById("gamewin"); if (el) el.remove(); clearTimeout(gameTimer); }
+function gameResultText(g){
+  const pool = poolText(g.s || "", Object.keys(g.p || {}).length);
+  const stake = g.s ? ` – zgarnia pulę ${pool}` : "";
+  if (g.type === "rps" && g.w === "draw") return "Remis";
+  return `Wygrywa ${nickOf(g, g.w)}${stake}`;
+}
+function renderGame(){
+  const g = G(); if (!g || !g.id || !online) return closeGame();
+  if (gameShown === g.id + ":seen") return;
+  const done = g.state === "done" || g.state === "declined" || g.state === "cancel";
+  if (!amIn(g)) {                                          // not playing: a short note with the result, once
+    if (done && g.state === "done" && gameShown !== g.id + ":note") { gameShown = g.id + ":note"; toast(`${GAMES[g.type].name}: ${gameResultText(g)}`, 6000); }
+    return;
+  }
+  let el = document.getElementById("gamewin");
+  if (!el || el.dataset.gid !== g.id) {
+    closeGame();
+    el = document.createElement("div"); el.id = "gamewin"; el.className = "scrim spin"; el.dataset.gid = g.id;
+    el.innerHTML = `<div class="sheet spinbox gamebox" role="dialog" aria-modal="true"><h2>${GAMES[g.type].name}</h2><div class="gbody"></div>
+      <div class="acts"><button class="btn" data-gclose>Zamknij</button></div></div>`;
+    document.body.appendChild(el);
+    el.addEventListener("click", gameClick);
+    gameShown = g.id;
+  }
+  const body = el.querySelector(".gbody");
+  const html = GAME_VIEW[g.type](g);
+  if (body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
+  if (done && g.state === "done" && !el.dataset.dinged) { el.dataset.dinged = 1; if (settings.sound) beep(settings.sound, false); }
+}
+const stakeLine = g => `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b> · ` : ""}gra ${esc(g.byn || "?")}</p>`;
+const resLine = g => `<p class="spinres done">${g.type === "rps" && g.w === "draw" ? "Remis!" : `Wygrywa <b>${esc(nickOf(g, g.w))}</b>${g.w === deviceId ? " (ty!)" : ""}${g.s ? ` – zgarnia pulę <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b>` : ""}`}</p>`;
+
+const GAME_VIEW = {
+  dice(g){
+    const ps = gPlayers(g), rounds = Object.values(g.rolls || {});
+    const age = now() - (+g.at || now()), shown = Math.min(rounds.length, Math.floor(age / 1600) + 1);
+    if (shown < rounds.length || age < 1600 * rounds.length) { clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 400); }
+    const rows = rounds.slice(0, shown).map((r, i) => `<div class="grow2">${rounds.length > 1 ? `<span class="pme">${i ? "dogrywka" : "rzut"} ${i + 1}</span>` : ""}
+      ${ps.filter(p => r[p.id]).map(p => { const d = Object.values(r[p.id]); return `<div class="gline"><span>${esc(p.n)}</span><span class="dice">${DIE[d[0]]}${DIE[d[1]]}</span><b>${d[0] + d[1]}</b></div>`; }).join("")}</div>`).join("");
+    return stakeLine(g) + rows + (shown >= rounds.length && age >= 1600 * rounds.length - 400 ? resLine(g) : `<p class="spinres">Rzucanie…</p>`);
+  },
+  coin(g){
+    const [a, b] = [g.by, Object.keys(g.p).find(id => id !== g.by)];
+    const pick = g.side, other = pick === "orzel" ? "reszka" : "orzel", label = x => x === "orzel" ? "Orzeł" : "Reszka";
+    const head = stakeLine(g) + `<p><b>${esc(nickOf(g, a))}</b>: ${label(pick)} · <b>${esc(nickOf(g, b))}</b>: ${label(other)}</p>`;
+    if (g.state === "invite") return head + (deviceId === b
+      ? `<p>${esc(nickOf(g, a))} wyzywa cię na rzut monetą.</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="decline">Odrzuć</button><button class="btn primary" data-gact="accept">Przyjmij</button></div>`
+      : `<p class="spinres">Czekam, aż ${esc(nickOf(g, b))} przyjmie wyzwanie…</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="cancel">Anuluj</button></div>`);
+    if (g.state === "declined") return head + `<p class="spinres">${esc(nickOf(g, b))} odrzucił wyzwanie.</p>`;
+    if (g.state === "cancel") return head + `<p class="spinres">Wyzwanie anulowane.</p>`;
+    const age = now() - (+g.ft || now());
+    if (age < 2000) { clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 2000 - age + 50); return head + `<div class="coin spinning">●</div><p class="spinres">Moneta w powietrzu…</p>`; }
+    return head + `<div class="coin">${label(g.res)}</div>` + resLine(g);
+  },
+  reflex(g){
+    const ps = gPlayers(g), r = g.r || {}, t = now(), go = +g.go || 0;
+    const mine = r[deviceId];
+    const all = ps.every(p => r[p.id] !== undefined), over = all || (go && t > go + 5000);
+    const list = ps.map(p => `<div class="gline"><span>${esc(p.n)}</span><b>${r[p.id] === undefined ? (over ? "brak" : "…") : r[p.id] < 0 ? "falstart" : r[p.id] + " ms"}</b></div>`).join("");
+    if (over || g.state === "done") return stakeLine(g) + list + (g.w ? resLine(g) : `<p class="spinres">Liczenie wyników…</p>`);
+    clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, mine === undefined && t < go ? Math.min(250, go - t + 5) : 400);
+    if (mine !== undefined) return stakeLine(g) + `<p class="spinres">Twój czas: <b>${mine < 0 ? "falstart" : mine + " ms"}</b>. Czekam na resztę…</p>` + list;
+    if (t < go - 1500) return stakeLine(g) + `<p>Stuknij duży przycisk, gdy zrobi się <b style="color:var(--ready)">zielony</b>. Za wczesne stuknięcie to falstart.</p><button class="reflexbtn wait" data-gact="tap">Przygotuj się…</button>`;
+    if (t < go) return stakeLine(g) + `<button class="reflexbtn wait" data-gact="tap">Czekaj…</button>`;
+    if (!reflexLocal || reflexLocal.id !== g.id) reflexLocal = {id: g.id, green: performance.now()};
+    return stakeLine(g) + `<button class="reflexbtn go" data-gact="tap">TERAZ!</button>`;
+  },
+  guess(g){
+    const ps = gPlayers(g), gs = g.g || {}, mine = gs[deviceId];
+    const all = ps.every(p => gs[p.id] !== undefined);
+    const list = ps.map(p => `<div class="gline"><span>${esc(p.n)}</span><b>${gs[p.id] === undefined ? "…" : g.state === "done" || p.id === deviceId ? gs[p.id] : "✓"}</b></div>`).join("");
+    if (g.state === "done") return stakeLine(g) + `<p>Wylosowana liczba: <b class="bignum">${g.t}</b></p>` + list + resLine(g);
+    const form = mine === undefined ? `<p>Liczba od 1 do 100. Wygrywa najbliższy typ.</p><div class="raadd"><input id="g_num" type="number" min="1" max="100" inputmode="numeric" placeholder="Twój typ"><button class="btn primary" data-gact="guess">Typuję</button></div>`
+      : `<p class="spinres">Twój typ: <b>${mine}</b>. Czekam na resztę…</p>`;
+    const reveal = g.by === deviceId && !all && secrets[g.id] ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="reveal">Odkryj teraz</button></div>` : "";
+    return stakeLine(g) + form + list + reveal;
+  },
+  rps(g){
+    const [a, b] = rpsPair(g), opp = deviceId === a ? b : a;
+    const head = stakeLine(g) + `<p><b>${esc(nickOf(g, a))}</b> vs <b>${esc(nickOf(g, b))}</b></p>`;
+    if (g.state === "invite") return head + (deviceId === b
+      ? `<p>${esc(nickOf(g, a))} wyzywa cię.</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="decline">Odrzuć</button><button class="btn primary" data-gact="accept">Przyjmij</button></div>`
+      : `<p class="spinres">Czekam, aż ${esc(nickOf(g, b))} przyjmie wyzwanie…</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="cancel">Anuluj</button></div>`);
+    if (g.state === "declined") return head + `<p class="spinres">${esc(nickOf(g, b))} odrzucił wyzwanie.</p>`;
+    if (g.state === "cancel") return head + `<p class="spinres">Wyzwanie anulowane.</p>`;
+    const c = g.c || {}, rv = g.rv || {};
+    // commit–reveal: each side first stores only a fingerprint of its choice; choices are opened when both are in (gameTick)
+    const sec = secrets[g.id + ":" + (g.round || 0)];
+    if (g.state === "done") {
+      const show = id => rv[id] ? RPS[rv[id].ch] : "?";
+      return head + `<div class="gline"><span>${esc(nickOf(g, a))}</span><b>${show(a)}</b></div><div class="gline"><span>${esc(nickOf(g, b))}</span><b>${show(b)}</b></div>` + resLine(g)
+        + (g.w === "draw" ? `<div class="acts" style="justify-content:center"><button class="btn primary" data-gact="again">Jeszcze raz</button></div>` : "");
+    }
+    if (!c[deviceId]) return head + `<p>Wybierz w ukryciu:</p><div class="rpsbtns">${Object.entries(RPS).map(([k, v]) => `<button class="btn" data-gact="rps" data-ch="${k}">${v}</button>`).join("")}</div>`;
+    return head + `<p class="spinres">Wybrałeś: <b>${sec ? RPS[sec.ch] : "?"}</b>. ${c[opp] ? "Odkrywanie…" : `Czekam na ${esc(nickOf(g, opp))}…`}</p>`;
+  },
+};
+async function rpsSettle(g){
+  const [a, b] = rpsPair(g), rv = g.rv, c = g.c;
+  const ok = async id => rv[id] && (await sha256(rv[id].ch + ":" + rv[id].salt)) === c[id];
+  if (!(await ok(a)) || !(await ok(b))) { gamePatch({"game/state": "done", "game/w": "draw"}); return; }   // tampered: no winner
+  const x = rv[a].ch, y = rv[b].ch, w = x === y ? "draw" : rpsBeats(x, y) ? a : b;
+  gamePatch({"game/state": "done", "game/w": w});
+}
+async function gameClick(e){
+  const g = G(), el = document.getElementById("gamewin");
+  if (e.target === el || e.target.closest("[data-gclose]")) { gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
+  const b = e.target.closest("[data-gact]"); if (!b || !g) return;
+  const act = b.dataset.gact;
+  if (act === "accept" && g.type === "coin") {
+    const res = randInt(2) ? "orzel" : "reszka", w = res === g.side ? g.by : deviceId;
+    gamePatch({"game/state": "done", "game/res": res, "game/w": w, "game/ft": {".sv": "timestamp"}});
+  } else if (act === "accept") gamePatch({"game/state": "play"});
+  else if (act === "decline") gamePatch({"game/state": "declined"});
+  else if (act === "cancel") gamePatch({"game/state": "cancel"});
+  else if (act === "tap") {
+    if (g.r && g.r[deviceId] !== undefined) return;
+    const go = +g.go || 0, early = now() < go || !reflexLocal || reflexLocal.id !== g.id;
+    const ms = early ? -1 : Math.max(0, Math.round(performance.now() - reflexLocal.green));
+    gamePatch({[`game/r/${deviceId}`]: ms});
+  } else if (act === "guess") {
+    const n = Math.round(+document.getElementById("g_num").value);
+    if (!(n >= 1 && n <= 100)) { toast("Wpisz liczbę od 1 do 100."); return; }
+    gamePatch({[`game/g/${deviceId}`]: n});
+  } else if (act === "reveal") {
+    if (secrets[g.id]) settleGuess(g);
+  } else if (act === "rps") {
+    if (g.c && g.c[deviceId]) return;
+    const ch = b.dataset.ch, salt = uid() + uid();
+    secrets[g.id + ":" + (g.round || 0)] = {ch, salt}; store.set("gsec", secrets);
+    gamePatch({[`game/c/${deviceId}`]: await sha256(ch + ":" + salt)});
+  } else if (act === "again") gamePatch({"game/state": "play", "game/c": null, "game/rv": null, "game/w": null, "game/round": (g.round || 0) + 1});
+}
+
+function gamesMenu(){
+  sheet(`<h2>Gry</h2>${online ? "<p>Gry dla osób w twoim pokoju. Grający widzą okno gry, pozostali tylko krótki dymek z wynikiem.</p>" : "<p>Gry działają we wspólnym pokoju. Połącz się w Menu → Wspólny pokój.</p>"}
+    <div class="gamelist"><button class="btn" data-game="roul">Ruletka</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button></div>
+    <div class="acts"><button class="btn" data-close>Zamknij</button></div>`, (el, close) => {
+    el.querySelectorAll("[data-game]").forEach(b => b.onclick = () => { close(); b.dataset.game === "roul" ? rouletteSheet() : gameSheet(b.dataset.game); });
+  });
+}
+function gameSheet(type){
+  if (!online) { toast("Gry działają we wspólnym pokoju. Połącz się w Menu."); return; }
+  const def = GAMES[type];
+  const g = G(); const busy = g && g.id && !["done", "declined", "cancel"].includes(g.state) && now() - (+g.at || 0) < 10 * 60000;
+  sheet(`<h2>${def.name}</h2>
+    <p>${{dice: "Każdy rzuca dwiema kośćmi, najwyższa suma wygrywa całą pulę. Przy remisie jest dogrywka.",
+          coin: "Wyzwij jedną osobę. Wybierasz orła albo reszkę, przeciwnik dostaje drugą stronę.",
+          reflex: "Ekran wszystkich graczy w tej samej chwili zrobi się zielony. Wygrywa najszybsze stuknięcie.",
+          guess: "Losuje się liczba od 1 do 100. Każdy typuje, wygrywa najbliższy.",
+          rps: "Wyzwij jedną osobę. Oboje wybieracie w ukryciu, wynik pokazuje się jednocześnie."}[type]}</p>
+    ${busy ? `<p style="color:var(--window)">W pokoju trwa gra „${GAMES[g.type].name}”. Nowa gra ją zakończy.</p>` : ""}
+    <div class="field"><label for="gm_s">Stawka od osoby (opcjonalnie)</label><input id="gm_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
+    ${type === "coin" ? `<div class="field"><label>Twoja strona</label><div class="seg"><button data-side="orzel" aria-pressed="true">Orzeł</button><button data-side="reszka" aria-pressed="false">Reszka</button></div></div>` : ""}
+    <div class="field"><label>${def.duel ? "Przeciwnik" : "Gracze"}</label><ul class="banlist" id="gm_p"></ul></div>
+    <p id="gm_err" style="color:var(--danger)" hidden></p>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="gm_go">${def.duel ? "Wyzwij" : "Start"}</button></div>
+    <div class="field"><label>Ostatnie wyniki</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
+    const skip = new Set(); let opp = null, side = "orzel";
+    const draw = () => {
+      const ps = people();
+      el.querySelector("#gm_p").innerHTML = (def.duel ? ps.filter(p => !p.me) : ps).map(p => def.duel
+        ? `<li><label class="rlp"><span>${esc(p.n)}</span><input type="radio" name="gm_opp" data-op="${esc(p.id)}" ${opp === p.id ? "checked" : ""} aria-label="${esc(p.n)}"></label></li>`
+        : `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("")
+        || `<li class="pme">${def.duel ? "Nie ma nikogo do wyzwania." : "Nikogo nie ma w pokoju."}</li>`;
+      const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
+      el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(poolText(x.s, x.n))}</span>` : ""} <span class="pme">· ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
+    };
+    draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); if (document.activeElement && document.activeElement.id === "gm_s") return; draw(); }, 3000);
+    el.addEventListener("change", e => {
+      const c = e.target.closest("[data-rp]"); if (c) c.checked ? skip.delete(c.dataset.rp) : skip.add(c.dataset.rp);
+      const o = e.target.closest("[data-op]"); if (o) opp = o.dataset.op;
+    });
+    el.querySelectorAll("[data-side]").forEach(b => b.onclick = () => { side = b.dataset.side; el.querySelectorAll("[data-side]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
+    el.querySelector("#gm_go").onclick = () => {
+      const err = el.querySelector("#gm_err"), stake = el.querySelector("#gm_s").value.trim(); err.hidden = true;
+      if (stake) store.set("rlStake", stake);
+      const all = people();
+      if (def.duel) {
+        const o = all.find(p => p.id === opp); if (!o) { err.textContent = "Wybierz przeciwnika."; err.hidden = false; return; }
+        const me = all.find(p => p.me) || {id: deviceId, n: myNick()};
+        close(); startGame(type, [me, o], stake, type === "coin" ? {state: "invite", side} : {state: "invite"}); return;
+      }
+      const ps = all.filter(p => !skip.has(p.id));
+      if (ps.length < def.min) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
+      close();
+      if (type === "dice") { const {rounds, w} = diceRounds(ps.map(p => p.id)); startGame("dice", ps, stake, {state: "done", rolls: rounds, w}); }
+      else if (type === "reflex") startGame("reflex", ps, stake, {state: "play", go: Math.round(now()) + 4000 + randInt(4000)});
+      else if (type === "guess") { const id = hkey(); secrets[id] = {t: randInt(100) + 1}; startGame("guess", ps, stake, {state: "play"}, id); }
     };
   });
 }
