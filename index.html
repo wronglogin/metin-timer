@@ -759,13 +759,25 @@ function menuSheet(){
   });
 }
 function exportSheet(){
-  const code = btoa(unescape(encodeURIComponent(JSON.stringify(Object.values(spots).map(({id, t, ...r}) => r)))));
-  sheet(`<h2>Eksportuj respy</h2><p>Skopiuj kod i wyślij znajomemu. Zawiera respy ze wszystkich map (nazwy, czasy respa, kolory), bez liczników.</p>
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(Object.values(spots).map(({id, ...r}) => r)))));
+  sheet(`<h2>Eksportuj respy</h2><p>Skopiuj kod i wyślij znajomemu. Zawiera respy ze wszystkich map (nazwy, czasy respa, kolory) razem z aktualnymi licznikami kanałów.</p>
     <div class="field"><textarea id="x_code" readonly>${code}</textarea></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="x_copy">Kopiuj</button></div>`,
   el => { const ta = el.querySelector("#x_code");
     el.querySelector("#x_copy").onclick = () => { ta.select();
       Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } }); }; });
+}
+// keep only well-formed channel marks that are still from today (after the 01:00 reset)
+function importMarks(t){
+  const out = {};
+  for (const [c, v] of Object.entries(t && typeof t === "object" ? t : {})) {
+    if (!/^c([1-9]|10)$/.test(c)) continue;
+    const a = typeof v === "number" ? v : v && +v.a;
+    if (!(a > resetAt)) continue;
+    out[c] = {a, mn: Math.min(600, Math.max(1, +(v && v.mn) || 0)) || undefined, mx: Math.min(600, Math.max(1, +(v && v.mx) || 0)) || undefined};
+    for (const k of ["mn", "mx"]) if (out[c][k] === undefined) delete out[c][k];
+  }
+  return out;
 }
 function importSheet(){
   sheet(`<h2>Importuj respy</h2><p>Wklej kod. Obecne respy zostaną zastąpione. Tego nie da się cofnąć.</p>
@@ -778,7 +790,7 @@ function importSheet(){
       const ch = {}; for (const id of Object.keys(spots)) ch[id] = null;
       let n = 0;
       arr.forEach((r, i) => { if (!mapById[r.map]) return; const id = uid(); n++;
-        ch[id] = {id, map:r.map, name:String(r.name || "Resp").slice(0, 40), kind:r.kind === "boss" ? "boss" : "metin", min:+r.min || 10, max:+r.max || 20, color:COLORS.includes(r.color) ? r.color : null, o:+r.o || Date.now() + i, t:{}}; });
+        ch[id] = {id, map:r.map, name:String(r.name || "Resp").slice(0, 40), kind:r.kind === "boss" ? "boss" : "metin", min:+r.min || 10, max:+r.max || 20, color:COLORS.includes(r.color) ? r.color : null, o:+r.o || Date.now() + i, t:importMarks(r.t)}; });
       close(); commit(ch); toast("Zaimportowano " + n + " respów");
     } catch { const er = el.querySelector("#i_err"); er.textContent = "To nie jest poprawny kod timera."; er.hidden = false; }
   });
