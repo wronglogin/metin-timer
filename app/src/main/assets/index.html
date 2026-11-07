@@ -68,8 +68,9 @@ header{grid-template-columns:minmax(0,1fr)}
 .spn.win{background:var(--ready);color:#06210f;border-color:var(--ready);transform:scale(1.12)}
 .spinres{font-size:18px;color:var(--fg)!important;min-height:28px}
 .spinres.done b{color:var(--ready)}
-.rlp{display:flex;align-items:center;gap:8px;width:100%;cursor:pointer}
-.rlp input{width:18px;height:18px;accent-color:var(--ready)}
+.field .rlp{display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;text-transform:none;letter-spacing:normal;font-size:16px;font-weight:600;color:var(--fg)}
+.field .rlp input{flex:0 0 auto;width:20px;height:20px;min-height:0;padding:0;margin:0;accent-color:var(--ready)}
+#rl_p li,#rl_h li{padding:6px 10px}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .banlist li{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
 .banlist .btn{min-height:32px;padding:4px 10px}
