@@ -752,7 +752,8 @@ function tick(){
     if (alerted[k] !== key) { alerted[k] = key; if (st.phase >= 1) { changed = true; strong = strong || st.phase === 2;
       said.push(`${s.name}, kanał ${c.slice(1)}, ${st.phase === 2 ? "stoi" : "za cztery minuty"}`); } }
   }
-  if (changed) { beep(settings.sound, strong); if (settings.voice) setTimeout(() => said.forEach(speak), settings.sound ? 900 : 0); }
+  // the alarm sound plays only when a counter reaches 0:00 (once); voice messages still cover the 4-minute warning
+  if (changed) { if (strong) beep(settings.sound, false); if (settings.voice) setTimeout(() => said.forEach(speak), strong && settings.sound ? 900 : 0); }
   if (changed || tick.n++ % 8 === 0) renderTabs();
 }
 tick.n = 0;
