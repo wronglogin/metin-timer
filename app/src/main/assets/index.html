@@ -35,6 +35,8 @@ header{grid-template-columns:minmax(0,1fr)}
 .radio{display:flex;align-items:center;gap:2px;min-width:250px;flex:1 1 260px;max-width:360px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
 .radio .rbtn:hover{background:var(--surface-2)}
+.radio .rvoln{width:42px;flex:0 0 auto;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:2px 3px;font-family:var(--f-num);font-size:13px;text-align:center;margin-right:4px;-moz-appearance:textfield}
+.radio .rvoln::-webkit-inner-spin-button,.radio .rvoln::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .radio .rvol{width:52px;flex:0 0 auto;accent-color:var(--accent);margin:0 4px 0 0;min-height:28px}
 @media (max-width:520px){.radio .rvol{width:72px}}
 .radio .rtitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;font-size:14px;color:var(--fg);mask-image:linear-gradient(90deg,#000 85%,transparent)}
@@ -1502,13 +1504,13 @@ function renderRadio(){
   const title = it ? (it.t || live || titleCache[it.v] || "Wczytywanie tytułu…") : "Kolejka pusta";
   box.classList.toggle("off", !radioOn);
   const html = `<button class="rbtn" data-radio="${radioOn ? "mute" : "on"}" title="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio u mnie"}" aria-label="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio"}">${!radioOn ? ICON.radio : radioMuted ? ICON.muted : ICON.sound}</button>
-    ${radioOn ? `<input type="range" class="rvol" id="rvol" min="0" max="100" step="5" value="${radioVol}" aria-label="Głośność radia" title="Głośność radia: ${radioVol}%">` : ""}
+    ${radioOn ? `<input type="range" class="rvol" id="rvol" min="0" max="100" step="1" value="${radioVol}" aria-label="Głośność radia" title="Głośność radia: ${radioVol}%"><input type="number" class="rvoln" id="rvoln" min="0" max="100" step="1" inputmode="numeric" value="${radioVol}" aria-label="Głośność radia w procentach" title="Wpisz głośność 0–100">` : ""}
     <span class="rtitle" title="${esc(title)}"><span>${esc(title)}</span></span>
     <button class="rbtn" data-radio="prev" title="Poprzedni" aria-label="Poprzedni">${ICON.prev}</button>
     <button class="rbtn" data-radio="next" title="Następny" aria-label="Następny">${ICON.next}</button>
     <button class="rbtn" data-radio="queue" title="Kolejka radia" aria-label="Kolejka radia">${ICON.list}</button>`;
-  const vol = document.getElementById("rvol");
-  if (vol && document.activeElement === vol) return;                    // don't rebuild under a finger on the slider
+  const act = document.activeElement;
+  if (act && (act.id === "rvol" || act.id === "rvoln")) return;          // don't rebuild while the volume is being changed
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
   document.getElementById("ytdock").hidden = !(radioOn && it);
 }
@@ -1569,12 +1571,20 @@ function radioSheet(){
   });
 }
 document.getElementById("radio").addEventListener("input", e => {
-  if (e.target.id !== "rvol") return;
-  radioVol = +e.target.value; store.set("radioVol", radioVol); e.target.title = `Głośność radia: ${radioVol}%`;
+  if (e.target.id !== "rvol" && e.target.id !== "rvoln") return;
+  if (e.target.id === "rvoln" && e.target.value === "") return;          // still typing
+  radioVol = Math.max(0, Math.min(100, Math.round(+e.target.value) || 0)); store.set("radioVol", radioVol);
+  const sl = document.getElementById("rvol"), nb = document.getElementById("rvoln");
+  if (sl && e.target !== sl) sl.value = radioVol; if (sl) sl.title = `Głośność radia: ${radioVol}%`;
+  if (nb && e.target !== nb) nb.value = radioVol;
   if (radioVol > 0 && radioMuted) { radioMuted = false; store.set("radioMuted", false); }
   applyMute();
 });
-document.getElementById("radio").addEventListener("change", e => { if (e.target.id === "rvol") { e.target.blur(); renderRadio(); } });
+document.getElementById("radio").addEventListener("change", e => {
+  if (e.target.id === "rvoln") e.target.value = radioVol;                // show the clamped value (e.g. 150 → 100)
+  if (e.target.id === "rvol" || e.target.id === "rvoln") { e.target.blur(); renderRadio(); }
+});
+document.getElementById("radio").addEventListener("keydown", e => { if (e.target.id === "rvoln" && e.key === "Enter") e.target.blur(); });
 document.getElementById("radio").addEventListener("click", e => {
   const b = e.target.closest("[data-radio]"); if (!b) return;
   const a = b.dataset.radio;
