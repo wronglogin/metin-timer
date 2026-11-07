@@ -43,6 +43,15 @@
                 "mx": {
                   ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
                 },
+                "d": {
+                  ".validate": "newData.isString() && newData.val().length <= 24"
+                },
+                "n": {
+                  ".validate": "newData.isString() && newData.val().length <= 20"
+                },
+                "k": {
+                  ".validate": "newData.isString() && newData.val().length <= 40"
+                },
                 "$other": {
                   ".validate": false
                 }
@@ -93,6 +102,34 @@
             "$other": {
               ".validate": false
             }
+          }
+        },
+        "log": {
+          "$k": {
+            ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['d', 'n', 's', 'c', 'at'])",
+            "d": {
+              ".validate": "newData.isString() && newData.val().length <= 24"
+            },
+            "n": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "s": {
+              ".validate": "newData.isString() && newData.val().length <= 24"
+            },
+            "c": {
+              ".validate": "newData.isString() && newData.val().matches(/^c([1-9]|10)$/)"
+            },
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "order": {
+          "$id": {
+            ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.isNumber()"
           }
         },
         "$other": {
