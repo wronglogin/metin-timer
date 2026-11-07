@@ -238,7 +238,7 @@ let view = store.get("view", "maps");           // "maps" | "wiki"
 let tab = store.get("tab", "m1");               // map id or "mine"
 const showMine = () => settings.hidden.length > 0 && visibleMaps().length >= 2;
 const saveTab = () => { store.set("tab", tab); store.set("view", view); };
-let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1, volume:0.8, compact:false}, store.get("settings", {}));
+let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1, volume:0.8, compact:false, voice:false}, store.get("settings", {}));
 if (!(settings.volume >= 0 && settings.volume <= 1)) settings.volume = 0.8;
 if (!(settings.zoom >= 0.6 && settings.zoom <= 1.5)) settings.zoom = 1;
 const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); };
@@ -517,6 +517,19 @@ function beep(kind = settings.sound, strong = false){
     t += d + .03;
   }
 }
+/* ---------- voice announcements (device text-to-speech, Polish) ----------
+   The Android app provides window.AndroidTTS; browsers use the Web Speech API. */
+function speak(text){
+  const vol = Math.max(0, Math.min(1, settings.volume));
+  try { if (window.AndroidTTS) { window.AndroidTTS.speak(text, vol); return true; } } catch {}
+  try {
+    if (!("speechSynthesis" in window)) return false;
+    const u = new SpeechSynthesisUtterance(text); u.lang = "pl-PL"; u.volume = vol; u.rate = 1.05;
+    const v = speechSynthesis.getVoices().find(x => /^pl/i.test(x.lang)); if (v) u.voice = v;
+    speechSynthesis.speak(u); return true;
+  } catch { return false; }
+}
+const canSpeak = () => !!window.AndroidTTS || "speechSynthesis" in window;
 // "Własny dźwięk": a file the viewer picked on this device, kept only in this browser
 let customBuf = null;
 async function loadCustom(){
@@ -676,14 +689,16 @@ function tick(){
     if (el.className !== cls) { el.className = cls; b.title = st.label; el.querySelector(".rs").disabled = st.cls === "idle"; }
     if (b.textContent !== st.text) b.textContent = st.text;
   });
-  let changed = false;
+  let changed = false, strong = false; const said = [];
   for (const s of Object.values(spots)) for (const c of CHS()) {
     const k = s.id + ":" + c, st = status(s, c);
     if (st.phase == null || isHidden(s.map)) { delete alerted[k]; continue; }
     const v = s.t[c], key = (typeof v === "number" ? v : v.a) + ":" + st.phase;
     if (alerted[k] === undefined) { alerted[k] = key; continue; } // no beep for states found on load
-    if (alerted[k] !== key) { alerted[k] = key; if (st.phase >= 1) { beep(settings.sound, st.phase === 2); changed = true; } }
+    if (alerted[k] !== key) { alerted[k] = key; if (st.phase >= 1) { changed = true; strong = strong || st.phase === 2;
+      said.push(`${s.name}, kanał ${c.slice(1)}, ${st.phase === 2 ? "stoi" : "za cztery minuty"}`); } }
   }
+  if (changed) { beep(settings.sound, strong); if (settings.voice) setTimeout(() => said.forEach(speak), settings.sound ? 900 : 0); }
   if (changed || tick.n++ % 8 === 0) renderTabs();
 }
 tick.n = 0;
@@ -772,6 +787,9 @@ function menuSheet(){
         <input id="customfile" type="file" accept="audio/*" hidden>
         <p style="font-size:13px">Najlepiej krótki plik (do kilku sekund, maks. 1 MB). Zostaje tylko na tym urządzeniu.</p>
       </div></div>
+    <div class="field"><label>Komunikaty głosowe (tylko na tym urządzeniu)</label>
+      <div class="seg"><button id="voice" aria-pressed="${!!settings.voice}">Czytaj na głos</button><button id="voicetest">Posłuchaj</button></div>
+      <p style="font-size:13px">${canSpeak() ? "Np. „Czerwony Las 2, kanał 3, stoi”. Używa głosu telefonu albo komputera." : "To urządzenie nie ma syntezatora mowy. Zaktualizuj aplikację albo otwórz timer w Chrome."}</p></div>
     <div class="field"><label for="vol">Głośność alarmu</label>
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
@@ -794,6 +812,8 @@ function menuSheet(){
     const vr = el.querySelector("#vol"), vv = el.querySelector("#volv");
     vr.oninput = () => { settings.volume = vr.value / 100; vv.textContent = vr.value + "%"; store.set("settings", settings); audio(); };
     vr.onchange = () => beep(settings.sound || 1);              // play a sample when the slider is released
+    el.querySelector("#voice").onclick = ev => { settings.voice = !settings.voice; ev.target.setAttribute("aria-pressed", settings.voice); store.set("settings", settings); if (settings.voice) speak("Komunikaty głosowe włączone"); };
+    el.querySelector("#voicetest").onclick = () => { if (!speak("Czerwony Las 2, kanał 3, stoi")) toast("To urządzenie nie ma syntezatora mowy."); };
     el.querySelector("#compact").onclick = ev => { settings.compact = !settings.compact; ev.target.setAttribute("aria-pressed", settings.compact); store.set("settings", settings); applyZoom(); };
     const zr = el.querySelector("#zoom"), zv = el.querySelector("#zoomv");
     const setZoom = v => { settings.zoom = v / 100; zr.value = v; zv.textContent = v + "%"; applyZoom(); store.set("settings", settings); };
