@@ -2254,7 +2254,7 @@ function drawHorse(c, x, y, coat, silk, phase, running){
   c.strokeStyle = "#222"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(x, by - 6); c.lineTo(x + 2, by - 2.5); c.stroke(); // boot
 }
 function drawRace(cv, g, lead){
-  const lane = 24, stand = 18, railH = 4, skew = 7;
+  const lane = 24, stand = 18, railH = 4, skew = 0, stripe = 7;   // start and finish are straight: every horse runs the same distance
   const cssW = cv.clientWidth || 300, cssH = stand + railH + lane * 6 + 8, dpr = Math.min(2, devicePixelRatio || 1);
   if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.height = cssH + "px"; }
   const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cssW, cssH);
@@ -2268,7 +2268,7 @@ function drawRace(cv, g, lead){
   // turf with mowing stripes
   c.fillStyle = "#3f8f2f"; c.fillRect(0, stand, cssW, cssH - stand);
   c.fillStyle = "#4a9e37";
-  for (let x = -60; x < cssW + 60; x += 36) { c.beginPath(); c.moveTo(x, stand); c.lineTo(x + 18, stand); c.lineTo(x + 18 - 6 * skew, cssH); c.lineTo(x - 6 * skew, cssH); c.fill(); }
+  for (let x = -60; x < cssW + 60; x += 36) { c.beginPath(); c.moveTo(x, stand); c.lineTo(x + 18, stand); c.lineTo(x + 18 - 6 * stripe, cssH); c.lineTo(x - 6 * stripe, cssH); c.fill(); }
   // rails
   c.fillStyle = "#f2f2f2"; c.fillRect(0, stand, cssW, 2.5); c.fillRect(0, cssH - 5, cssW, 2.5);
   c.strokeStyle = "rgba(255,255,255,.22)"; c.lineWidth = 1;
