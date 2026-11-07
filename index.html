@@ -490,6 +490,7 @@ function audio(){ try { actx = actx || new (window.AudioContext || window.webkit
 function beep(kind = settings.sound, strong = false){
   if (!kind) return; const a = audio(); if (!a) return;
   if (kind === 4) return trumpet(a, strong);
+  if (kind === 5) return playCustom(a, strong);
   const pats = {1:[[880,.12],[0,.08],[880,.12]], 2:[[523,.14],[659,.14],[784,.22]], 3:[[1200,.06],[0,.05],[1200,.06],[0,.05],[1200,.06]]};
   let t = a.currentTime + .02;
   for (let r = 0; r < (strong ? 2 : 1); r++) for (const [f, d] of pats[kind]) {
@@ -498,6 +499,20 @@ function beep(kind = settings.sound, strong = false){
       o.connect(g).connect(master); o.start(t); o.stop(t + d + .02); }
     t += d + .03;
   }
+}
+// "Własny dźwięk": a file the viewer picked on this device, kept only in this browser
+let customBuf = null;
+async function loadCustom(){
+  const url = store.get("customSound", null); if (!url) { customBuf = null; return null; }
+  const a = audio(); if (!a) return null;
+  try { const bin = Uint8Array.from(atob(url.split(",")[1]), c => c.charCodeAt(0)); customBuf = await a.decodeAudioData(bin.buffer); }
+  catch { customBuf = null; }
+  return customBuf;
+}
+async function playCustom(a, strong){
+  const buf = customBuf || await loadCustom(); if (!buf) return;
+  let t = a.currentTime + .02;
+  for (let r = 0; r < (strong ? 2 : 1); r++) { const src = a.createBufferSource(); src.buffer = buf; src.connect(master); src.start(t); t += Math.min(buf.duration, 4) + .15; }
 }
 // original brass fanfare made from filtered sawtooth waves (no audio file)
 function trumpet(a, strong){
@@ -731,7 +746,13 @@ function menuSheet(){
   sheet(`<h2>Menu</h2>
     <div class="field"><label for="zoom">Rozmiar respów (tylko na tym urządzeniu)</label>
       <div class="zoomrow"><input id="zoom" type="range" min="60" max="150" step="5" value="${Math.round(settings.zoom * 100)}"><output id="zoomv">${Math.round(settings.zoom * 100)}%</output><button class="btn" id="zoom0">100%</button></div></div>
-    <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3","Trąbka"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div></div>
+    <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3","Trąbka","Własny dźwięk"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div>
+      <div id="customf" ${settings.sound === 5 ? "" : "hidden"} style="display:grid;gap:6px;margin-top:6px">
+        <p id="customname" style="font-size:14px">${store.get("customSoundName", "") ? "Plik: " + esc(store.get("customSoundName", "")) : "Nie wybrano pliku."}</p>
+        <label class="btn" for="customfile" style="text-align:center;cursor:pointer">Wybierz plik dźwiękowy</label>
+        <input id="customfile" type="file" accept="audio/*" hidden>
+        <p style="font-size:13px">Najlepiej krótki plik (do kilku sekund, maks. 1 MB). Zostaje tylko na tym urządzeniu.</p>
+      </div></div>
     <div class="field"><label for="vol">Głośność alarmu</label>
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
@@ -758,7 +779,21 @@ function menuSheet(){
     const setZoom = v => { settings.zoom = v / 100; zr.value = v; zv.textContent = v + "%"; applyZoom(); store.set("settings", settings); };
     zr.oninput = () => setZoom(+zr.value);
     el.querySelector("#zoom0").onclick = () => setZoom(100);
-    el.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { settings.sound = +b.dataset.s; store.set("settings", settings); el.querySelectorAll("[data-s]").forEach(x => x.setAttribute("aria-pressed", x === b)); beep(); });
+    el.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { settings.sound = +b.dataset.s; store.set("settings", settings); el.querySelectorAll("[data-s]").forEach(x => x.setAttribute("aria-pressed", x === b)); el.querySelector("#customf").hidden = settings.sound !== 5; beep(); });
+    el.querySelector("#customfile").onchange = ev => {
+      const f = ev.target.files && ev.target.files[0]; if (!f) return;
+      if (f.size > 1024 * 1024) { toast("Plik jest za duży (maks. 1 MB). Wybierz krótszy."); return; }
+      const rd = new FileReader();
+      rd.onload = async () => {
+        const prev = store.get("customSound", null);
+        store.set("customSound", rd.result);
+        if (store.get("customSound", null) !== rd.result) { toast("Nie udało się zapisać pliku na tym urządzeniu."); return; }
+        if (!(await loadCustom())) { store.set("customSound", prev); await loadCustom(); toast("Nie da się odtworzyć tego pliku. Wybierz MP3, WAV albo OGG."); return; }
+        store.set("customSoundName", f.name); el.querySelector("#customname").textContent = "Plik: " + f.name;
+        settings.sound = 5; store.set("settings", settings); beep(); toast("Ustawiono własny dźwięk");
+      };
+      rd.readAsDataURL(f);
+    };
     el.querySelectorAll("[data-vis]").forEach(b => b.onclick = () => {
       const id = b.dataset.vis, hide = !isHidden(id), had = showMine();
       settings.hidden = hide ? [...settings.hidden, id] : settings.hidden.filter(x => x !== id);
