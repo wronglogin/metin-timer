@@ -1301,6 +1301,7 @@ function adminSheet(){
    it for themselves. YouTube requires its player to stay visible (min. 200×200), so it sits in a corner
    while the radio is on. */
 let ytApi = null, ytPlayer = null, ytReady = false, ytHelper = null;
+const RADIO_ENABLED = !IN_APP;                       // the radio is a website feature; the Android app stays lean
 let radioOn = store.get("radioOn", false), radioMuted = store.get("radioMuted", false);
 let radioVol = store.get("radioVol", 60); if (!(radioVol >= 0 && radioVol <= 100)) radioVol = 60;   // own volume, separate from alarms
 const RADIO = () => (remoteRoot && remoteRoot.radio) || {};
@@ -1373,7 +1374,7 @@ function applyMute(){ if (!ytReady) return; try { radioMuted || radioVol === 0 ?
 function radioOffset(){ const r = RADIO(); return Math.max(0, (now() - (+r.start || now())) / 1000); }
 function syncRadio(force){
   renderRadio();
-  if (!online || !radioOn) return;
+  if (!RADIO_ENABLED || !online || !radioOn) return;
   const it = curItem();
   if (!ytReady) { if (it) ensurePlayer(); return; }
   try {
@@ -1419,7 +1420,7 @@ async function ytTitle(v){
 }
 let titling = false;
 async function fillTitles(){
-  if (titling || !online) return; titling = true;
+  if (titling || !online || !RADIO_ENABLED) return; titling = true;
   try {
     const r = RADIO(), ks = rqKeys(); let n = 0;
     // current track first, then the rest of the queue
@@ -1465,6 +1466,7 @@ async function addToRadio(text){
   return ids.length;
 }
 function setRadioOn(on){
+  if (!RADIO_ENABLED) return;
   radioOn = on; store.set("radioOn", on);
   if (on) { ensurePlayer().then(() => syncRadio(true)); }
   else { try { ytPlayer && ytPlayer.pauseVideo(); } catch {} document.getElementById("ytdock").hidden = true; }
@@ -1472,8 +1474,8 @@ function setRadioOn(on){
 }
 function renderRadio(){
   const box = document.getElementById("radio"); if (!box) return;
-  box.hidden = !online;
-  if (!online) { document.getElementById("ytdock").hidden = true; return; }
+  box.hidden = !online || !RADIO_ENABLED;
+  if (!online || !RADIO_ENABLED) { document.getElementById("ytdock").hidden = true; return; }
   const it = curItem();
   let live = ""; try { const d = ytReady && radioOn && ytPlayer.getVideoData(); if (d && it && d.video_id === it.v) live = d.title || ""; } catch {}
   const title = it ? (it.t || live || titleCache[it.v] || "Wczytywanie tytułu…") : "Kolejka pusta";
