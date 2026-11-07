@@ -487,6 +487,7 @@ let actx = null;
 function audio(){ try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch {} return actx; }
 function beep(kind = settings.sound, strong = false){
   if (!kind) return; const a = audio(); if (!a) return;
+  if (kind === 4) return trumpet(a, strong);
   const pats = {1:[[880,.12],[0,.08],[880,.12]], 2:[[523,.14],[659,.14],[784,.22]], 3:[[1200,.06],[0,.05],[1200,.06],[0,.05],[1200,.06]]};
   let t = a.currentTime + .02;
   for (let r = 0; r < (strong ? 2 : 1); r++) for (const [f, d] of pats[kind]) {
@@ -494,6 +495,28 @@ function beep(kind = settings.sound, strong = false){
       g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
       o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + .02); }
     t += d + .03;
+  }
+}
+// original brass fanfare made from filtered sawtooth waves (no audio file)
+function trumpet(a, strong){
+  const notes = [[392,.11],[0,.04],[392,.11],[0,.04],[523,.16],[0,.03],[659,.16],[0,.03],[784,.55]];
+  const out = a.createGain(); out.gain.value = .22; out.connect(a.destination);
+  let t = a.currentTime + .03;
+  for (let r = 0; r < (strong ? 2 : 1); r++) {
+    for (const [f, d] of notes) {
+      if (f) {
+        const g = a.createGain(), lp = a.createBiquadFilter(), vib = a.createOscillator(), vg = a.createGain();
+        lp.type = "lowpass"; lp.Q.value = 6;
+        lp.frequency.setValueAtTime(f * 1.5, t); lp.frequency.linearRampToValueAtTime(f * 7, t + .05); lp.frequency.linearRampToValueAtTime(f * 4, t + d);
+        g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(1, t + .03); g.gain.setValueAtTime(.85, t + d - .04); g.gain.exponentialRampToValueAtTime(.0001, t + d + .06);
+        vib.frequency.value = 5.5; vg.gain.value = d > .3 ? f * .012 : 0; vib.connect(vg);
+        for (const det of [-6, 0, 6]) { const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.value = f; o.detune.value = det; vg.connect(o.frequency); o.connect(lp); o.start(t); o.stop(t + d + .1); }
+        vib.start(t); vib.stop(t + d + .1);
+        lp.connect(g).connect(out);
+      }
+      t += d;
+    }
+    t += .25;
   }
 }
 document.addEventListener("pointerdown", audio, {once:true});
@@ -706,7 +729,7 @@ function menuSheet(){
   sheet(`<h2>Menu</h2>
     <div class="field"><label for="zoom">Rozmiar respów (tylko na tym urządzeniu)</label>
       <div class="zoomrow"><input id="zoom" type="range" min="60" max="150" step="5" value="${Math.round(settings.zoom * 100)}"><output id="zoomv">${Math.round(settings.zoom * 100)}%</output><button class="btn" id="zoom0">100%</button></div></div>
-    <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div></div>
+    <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3","Trąbka"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div></div>
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
