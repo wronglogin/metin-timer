@@ -223,6 +223,125 @@
             }
           }
         },
+        "game": {
+          ".validate": "newData.hasChildren(['id', 'type', 'by', 'p', 'at', 'state'])",
+          "id": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "type": {
+            ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps)$/)"
+          },
+          "by": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
+          },
+          "byn": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "s": {
+            ".validate": "newData.isString() && newData.val().length <= 30"
+          },
+          "p": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.isString() && newData.val().length <= 20"
+            }
+          },
+          "at": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "state": {
+            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|done|declined|cancel)$/)"
+          },
+          "w": {
+            ".validate": "newData.isString() && newData.val().length <= 24"
+          },
+          "logged": {
+            ".validate": "newData.isBoolean()"
+          },
+          "side": {
+            ".validate": "newData.isString() && newData.val().matches(/^(orzel|reszka)$/)"
+          },
+          "res": {
+            ".validate": "newData.isString() && newData.val().matches(/^(orzel|reszka)$/)"
+          },
+          "ft": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "go": {
+            ".validate": "newData.isNumber()"
+          },
+          "rolls": {
+            "$i": {
+              ".validate": "$i.matches(/^[0-7]$/)",
+              "$id": {
+                ".validate": "$id.matches(/^[a-z0-9]{6,24}$/)",
+                "$d": {
+                  ".validate": "$d.matches(/^[01]$/) && newData.isNumber() && newData.val() >= 1 && newData.val() <= 6"
+                }
+              }
+            }
+          },
+          "r": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.isNumber() && newData.val() >= -1 && newData.val() <= 600000"
+            }
+          },
+          "g": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.isNumber() && newData.val() >= 1 && newData.val() <= 100"
+            }
+          },
+          "t": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100"
+          },
+          "round": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000"
+          },
+          "c": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+            }
+          },
+          "rv": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['ch', 'salt'])",
+              "ch": {
+                ".validate": "newData.isString() && newData.val().matches(/^[kpn]$/)"
+              },
+              "salt": {
+                ".validate": "newData.isString() && newData.val().length <= 40"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "glog": {
+          "$k": {
+            ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['type', 'n', 'w', 'at'])",
+            "type": {
+              ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps)$/)"
+            },
+            "s": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
+            },
+            "n": {
+              ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 100"
+            },
+            "w": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "at": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
         "$other": {
           ".validate": false
         }
