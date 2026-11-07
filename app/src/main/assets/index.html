@@ -45,10 +45,15 @@ header{grid-template-columns:minmax(0,1fr)}
 @keyframes marq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(min(0px,calc(-100% + 160px)))}}
 .ytdock{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:12;width:200px;height:200px;border-radius:8px;overflow:hidden;border:1px solid var(--rule);box-shadow:0 8px 24px rgba(0,0,0,.45);background:#000}
 .ytdock iframe{width:200px;height:200px;display:block}
-.rq li{padding:4px 4px 4px 6px}
+.rq li{padding:2px 3px 2px 6px;min-width:0;font-size:14px}
+.rq{gap:4px}
+.rq li.rqmore{background:none;border:0;padding:0;justify-content:center;font-size:13px}
+.rqtoggle{background:none;border:0;color:var(--accent);font-weight:600;padding:4px 8px}
+.raadd{display:flex;gap:8px;min-width:0}
+.raadd input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px}
 .rq li.rnow{border-color:var(--accent)}
 .rqplay{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rq .btn{min-height:30px;padding:2px 9px}
+.rq .btn{min-height:28px;padding:0 9px;flex:0 0 auto}
 @media (max-width:520px){.radio{flex:1 1 100%;max-width:none}}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
@@ -56,7 +61,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-.banlist li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
+.banlist li{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
 .banlist .btn{min-height:32px;padding:4px 10px}
 .banlist .pme{color:var(--muted);font-weight:500;font-size:14px}
 .banlist li.pme{background:none;border:0;padding:0}
@@ -193,7 +198,7 @@ main{padding-top:14px;display:grid;gap:14px}
 
 /* sheet */
 .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
-.sheet{background:var(--surface);border:1px solid var(--rule);border-radius:12px 12px 0 0;width:min(560px,100%);max-height:88vh;overflow:auto;
+.sheet{background:var(--surface);border:1px solid var(--rule);border-radius:12px 12px 0 0;width:min(560px,100%);max-height:88vh;overflow-y:auto;overflow-x:hidden;
   padding:16px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:12px}
 @media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:12px}}
 .sheet h2{margin:0;font-size:22px}
@@ -1501,24 +1506,32 @@ const ICON = {
 };
 function radioSheet(){
   sheet(`<h2>Radio pokoju</h2>
-    <p>Wklej link do filmiku albo playlisty z YouTube. Wszyscy w pokoju słyszą to samo. Kilka linków oddziel spacją.</p>
-    <div class="field"><label for="ra_url">Link z YouTube</label><input id="ra_url" autocomplete="off" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…"></div>
+    <p>Wklej link do filmiku albo playlisty z YouTube. Wszyscy w pokoju słyszą to samo.</p>
+    <div class="raadd"><input id="ra_url" aria-label="Link z YouTube" autocomplete="off" spellcheck="false" placeholder="Link z YouTube"><button class="btn primary" id="ra_add">Dodaj</button></div>
     <p id="ra_err" style="color:var(--danger)" hidden></p>
-    <div class="acts"><button class="btn primary" id="ra_add">Dodaj do kolejki</button></div>
     <ol class="banlist rq" id="ra_list"></ol>
     <div class="acts"><button class="btn danger grow" id="ra_clear">Wyczyść kolejkę</button><button class="btn" id="ra_off">${radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"}</button><button class="btn" data-close>Zamknij</button></div>`, el => {
+    // without scrolling: show the current song and the next few; the rest is one tap away
+    let showAll = false;
+    const SHOW = 6;
     const draw = () => {
-      const r = RADIO(), ks = rqKeys();
-      el.querySelector("#ra_list").innerHTML = ks.length ? ks.map(k => { const it = r.queue[k]; return `<li class="${k === r.cur ? "rnow" : ""}">
-        <button class="rqplay" data-rq="${k}" title="Odtwórz teraz">${k === r.cur ? "▶ " : ""}${esc(it.t || titleCache[it.v] || "Wczytywanie tytułu…")}${it.by ? ` <span class="pme">· ${esc(it.by)}</span>` : ""}</button>
-        <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; }).join("") : '<li class="pme">Kolejka jest pusta.</li>';
+      const r = RADIO(), ks = rqKeys(), ci = Math.max(0, ks.indexOf(r.cur));
+      const vis = showAll ? ks : ks.slice(ci, ci + SHOW);
+      const before = showAll ? 0 : ci, after = showAll ? 0 : Math.max(0, ks.length - ci - SHOW);
+      const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}">
+        <button class="rqplay" data-rq="${k}" title="${esc(t)}">${k === r.cur ? "▶ " : ""}${esc(t)}</button>
+        <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
+      el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
+      el.querySelector("#ra_list").innerHTML = !ks.length ? '<li class="pme">Kolejka jest pusta.</li>'
+        : (before ? `<li class="pme rqmore">${before} wcześniej</li>` : "") + vis.map(row).join("")
+          + (after || showAll ? `<li class="rqmore"><button class="rqtoggle" data-rqall="1">${showAll ? "Pokaż mniej" : `Pokaż całą kolejkę (${ks.length})`}</button></li>` : "");
     };
     draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
     const add = async () => {
       const inp = el.querySelector("#ra_url"), err = el.querySelector("#ra_err"); err.hidden = true;
       const btn = el.querySelector("#ra_add"); btn.disabled = true; btn.textContent = "Dodawanie…";
       const n = await addToRadio(inp.value);
-      btn.disabled = false; btn.textContent = "Dodaj do kolejki";
+      btn.disabled = false; btn.textContent = "Dodaj";
       if (!n) { err.textContent = "Nie rozpoznaję linku. Wklej link do filmiku albo playlisty z YouTube."; err.hidden = false; return; }
       inp.value = ""; toast(n === 1 ? "Dodano do kolejki" : `Dodano ${n} utworów`); if (!radioOn) setRadioOn(true); draw();
     };
@@ -1530,6 +1543,7 @@ function radioSheet(){
       radioPatch({queue: null, cur: null}); ev.target.dataset.sure = ""; ev.target.textContent = "Wyczyść kolejkę"; draw();
     };
     el.addEventListener("click", e => {
+      if (e.target.closest("[data-rqall]")) { showAll = !showAll; draw(); return; }
       const pl = e.target.closest("[data-rq]"); if (pl) { playKey(pl.dataset.rq); if (!radioOn) setRadioOn(true); draw(); return; }
       const del = e.target.closest("[data-rqdel]"); if (!del) return;
       const k = del.dataset.rqdel;
