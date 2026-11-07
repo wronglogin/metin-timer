@@ -36,6 +36,11 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
+.banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.banlist li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
+.banlist .btn{min-height:32px;padding:4px 10px}
+.banlist .pme{color:var(--muted);font-weight:500;font-size:14px}
+.banlist li.pme{background:none;border:0;padding:0}
 .people:hover .plist,.people:focus-within .plist,.people.open .plist{display:block}
 .roomsel.on{border-color:var(--ready);color:var(--ready)}
 .roomsel{background:var(--surface-2);border:1px solid var(--rule);border-radius:6px;min-height:38px;padding:4px 8px;max-width:150px}
@@ -451,6 +456,7 @@ async function syncClock(db){
 }
 async function connect(db, room){
   db = db.trim().replace(/\/+$/, ""); room = room.trim();
+  if (await checkBan()) throw new Error("Admin zablokował ci dostęp do pokoi.");
   if (!/^https:\/\/[\w.-]+$/.test(db)) throw new Error("Adres bazy musi zaczynać się od https:// i nie mieć ścieżki.");
   if (!/^[\w-]{3,40}$/.test(room)) throw new Error("Nazwa pokoju: 3–40 znaków, litery, cyfry, - lub _.");
   disconnect(true);
@@ -1158,7 +1164,20 @@ function gate(){
   });
   setTimeout(() => { const i = el.querySelector("#g_pw"); if (i) i.focus(); }, 50);
 }
+/* ---------- device bans (admin panel) ----------
+   config/bans/<deviceId> = {n: nick, at}. Checked by the banned device itself, so it stops casual
+   trouble-makers; clearing app data gets around it (for real trouble: new room name + site password). */
+let banned = store.get("banned", false);
+async function checkBan(){
+  try {
+    const r = await fetch(`${DB_URL}/config/bans/${deviceId}.json`); if (!r.ok) return banned;
+    const b = await r.json(); banned = !!b; store.set("banned", banned);
+    if (banned && online) { disconnect(); toast("Admin zablokował ci dostęp do pokoi."); }
+  } catch {}
+  return banned;
+}
 async function loadConfig(){
+  checkBan();
   try {
     const r = await fetch(`${DB_URL}/config/sitepw.json`);
     if (r.ok) { const h = await r.json(); if (typeof h === "string" && /^[0-9a-f]{64}$/.test(h) && h !== sitepwHash) { sitepwHash = h; store.set("sitepwHash", h); gate(); } }
@@ -1183,8 +1202,54 @@ function adminSheet(){
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
       <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
     <p id="a_err" style="color:var(--danger)" hidden></p>
-    <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>`,
-  (el, close) => el.querySelector("#a_ok").onclick = async ev => {
+    <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
+    <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
+    <h2 style="font-size:19px">Zbanowani</h2>
+    <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul>
+    <p id="a_berr" style="color:var(--danger)" hidden></p>`,
+  (el, close) => {
+    const berr = el.querySelector("#a_berr");
+    const adminPatch = async body => {
+      const pw = el.querySelector("#a_pw").value;
+      const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pw, ...body})});
+      if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
+      if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
+      store.set("adminPw", pw);
+    };
+    const drawPeople = () => {
+      const ul = el.querySelector("#a_people"); if (!online || !ul) return;
+      const list = people().filter(p => !p.me);
+      ul.innerHTML = list.length ? list.map(p => `<li><span>${esc(p.n)}</span><button class="btn danger" data-ban="${esc(p.id)}" data-nick="${esc(p.n)}">Zbanuj</button></li>`).join("")
+        : '<li class="pme">Poza tobą nikogo nie ma.</li>';
+    };
+    const drawBans = async () => {
+      const ul = el.querySelector("#a_bans");
+      try {
+        const r = await fetch(`${DB_URL}/config/bans.json`); const bans = r.ok ? (await r.json()) || {} : {};
+        const rows = Object.entries(bans).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+        ul.innerHTML = rows.length ? rows.map(([id, b]) => `<li><span>${esc(b.n || "?")} <span class="pme">${b.at ? fmtDate(b.at) : ""}</span></span><button class="btn" data-unban="${esc(id)}">Odbanuj</button></li>`).join("")
+          : '<li class="pme">Nikt nie jest zbanowany.</li>';
+      } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
+    };
+    drawPeople(); drawBans();
+    el.addEventListener("click", async e => {
+      const b = e.target.closest("[data-ban],[data-unban]"); if (!b) return;
+      berr.hidden = true; b.disabled = true;
+      try {
+        if (b.dataset.ban) {
+          await adminPatch({["bans/" + b.dataset.ban]: {n: b.dataset.nick.slice(0, 20), at: {".sv": "timestamp"}}});
+          if (online) fetch(presUrl(b.dataset.ban), {method:"DELETE"}).catch(() => {});   // drop them from the list right away
+          toast(`Zbanowano: ${b.dataset.nick}`);
+        } else {
+          await adminPatch({["bans/" + b.dataset.unban]: null});
+          toast("Odbanowano");
+        }
+        drawBans(); setTimeout(drawPeople, 400);
+      } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; b.disabled = false; }
+    });
+    el.querySelector("#a_ok").onclick = async ev => {
     const err = el.querySelector("#a_err"), pw = el.querySelector("#a_pw").value, n = +el.querySelector("#a_ch").value;
     const site = el.querySelector("#a_site").value.trim();
     err.hidden = true; ev.target.disabled = true;
@@ -1198,6 +1263,7 @@ function adminSheet(){
       if (body.sitepw) { sitepwHash = body.sitepw; store.set("sitepwHash", body.sitepw); store.set("sitepwOk", body.sitepw); }
       close(); render(); toast(body.sitepw ? `Zapisano. Nowe hasło do strony: ${site}` : "Ustawiono " + n + " kanałów dla wszystkich");
     } catch (x) { err.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; err.hidden = false; ev.target.disabled = false; }
+    };
   });
 }
 

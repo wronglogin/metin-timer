@@ -124,6 +124,21 @@
         ".read": true,
         ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
       },
+      "bans": {
+        ".read": true,
+        "$id": {
+          ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['n', 'at'])",
+          "n": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
       "$other": {
         ".validate": false
       }
