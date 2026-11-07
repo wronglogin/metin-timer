@@ -41,7 +41,7 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .rota .rcell{display:flex;align-items:baseline;gap:8px;min-width:0}
 .rota .rlab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .rota b{font-size:17px}
-.rota.mine .rcell:nth-child(2) b{color:var(--window)}
+.rota.mine .rcell b{color:var(--window)}
 .rota .rmeta{color:var(--muted);font-size:14px}
 .rota .btn{margin-left:auto;min-height:34px}
 .compact .rota{padding:4px 6px 4px 10px}
@@ -770,11 +770,9 @@ function rota(){
 const ago = t => { const m = Math.max(0, Math.round((now() - t) / 60000)); return m < 1 ? "przed chwilą" : m < 60 ? `${m} min temu` : `${Math.floor(m / 60)} h ${m % 60} min temu`; };
 function rotaHtml(){
   if (!online) return "";
-  const {last, next} = rota(), sp = last && spots[last.s];
-  const lastTxt = last ? `<b>${esc(last.n || "?")}</b> <span class="rmeta">${sp ? esc(sp.name) + " " : ""}CH${esc(String(last.c).slice(1))} · ${ago(last.at)}</span>` : `<span class="rmeta">nikt dzisiaj</span>`;
+  const {next} = rota();
   const mine = next && next.me;
   return `<div class="rota${mine ? " mine" : ""}" id="rota">
-    <span class="rcell"><span class="rlab">Ostatnio zbił</span>${lastTxt}</span>
     <span class="rcell"><span class="rlab">Następny</span>${next ? `<b>${mine ? "Ty!" : esc(next.n)}</b>` : `<span class="rmeta">—</span>`}</span>
     <button class="btn" data-rota="1">Kolejka</button></div>`;
 }
