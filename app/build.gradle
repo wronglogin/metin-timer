@@ -25,7 +25,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig (file('release.jks').exists() && System.getenv('KEYSTORE_PASSWORD')) ? signingConfigs.release : signingConfigs.debug
+            signingConfig = (file('release.jks').exists() && System.getenv('KEYSTORE_PASSWORD')) ? signingConfigs.release : signingConfigs.debug
         }
     }
     compileOptions {
