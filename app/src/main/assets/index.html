@@ -531,7 +531,7 @@ function spotHtml(s){
     <div class="shead">
       <input class="nm" id="nm_${s.id}" data-f="name" data-id="${s.id}" maxlength="40" value="${esc(s.name)}" aria-label="Nazwa respu">
       <div class="srow"><span class="tag${s.kind === "boss" ? " boss" : ""}">${s.kind === "boss" ? "Boss" : "Metin"}</span>
-        <input id="mn_${s.id}" data-f="min" data-id="${s.id}" type="number" min="1" max="600" inputmode="numeric" value="${s.min}" aria-label="Resp od (min)">–<input id="mx_${s.id}" data-f="max" data-id="${s.id}" type="number" min="1" max="600" inputmode="numeric" value="${s.max}" aria-label="Resp do (min)"> min
+        <input id="mn_${s.id}" data-f="min" data-id="${s.id}" type="number" min="1" max="600" inputmode="numeric" value="${s.min}" aria-label="Czas respa (min)"> min
         <span class="sur"><button class="mini" data-sundo="${s.id}" title="Cofnij w tym respie" aria-label="Cofnij: ${esc(s.name)}"${histIds(H.hist).has(s.id) ? "" : " disabled"}>↶</button><button class="mini" data-sredo="${s.id}" title="Ponów w tym respie" aria-label="Ponów: ${esc(s.name)}"${histIds(H.redo).has(s.id) ? "" : " disabled"}>↷</button></span>
         <button class="more" data-edit="${s.id}" aria-label="Więcej opcji: ${esc(s.name)}">⋯</button></div>
     </div>
