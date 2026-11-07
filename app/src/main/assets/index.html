@@ -55,7 +55,10 @@ main{padding-top:14px;display:grid;gap:14px}
 .maphead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
 .maphead h1{font-size:26px;margin:0;letter-spacing:.02em;text-wrap:balance}
 .ranges{font-family:var(--f-num);font-size:13px;color:var(--muted)}
-.spots{display:grid;gap:8px}
+.spots{display:grid;gap:8px;zoom:var(--zoom,1)}
+.zoomrow{display:flex;align-items:center;gap:10px}
+.zoomrow input[type=range]{flex:1;accent-color:var(--accent);min-height:32px}
+.zoomrow output{font-family:var(--f-num);font-size:14px;min-width:44px;text-align:right}
 .spot{display:grid;gap:10px;background:var(--surface);border:1px solid var(--rule);border-left:5px solid var(--c,var(--rule));border-radius:8px;padding:10px 12px}
 @container pane (min-width:700px){.spot{grid-template-columns:minmax(200px,250px) minmax(0,1fr);align-items:center;gap:14px}}
 .panes{display:grid;gap:26px}
@@ -215,7 +218,10 @@ let view = store.get("view", "maps");           // "maps" | "wiki"
 let tab = store.get("tab", "m1");               // map id or "mine"
 const showMine = () => settings.hidden.length > 0 && visibleMaps().length >= 2;
 const saveTab = () => { store.set("tab", tab); store.set("view", view); };
-let settings = Object.assign({sound:0, wake:false, hidden:[]}, store.get("settings", {}));
+let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1}, store.get("settings", {}));
+if (!(settings.zoom >= 0.6 && settings.zoom <= 1.5)) settings.zoom = 1;
+const applyZoom = () => document.documentElement.style.setProperty("--zoom", settings.zoom);
+applyZoom();
 // channel count is set by the admin for everyone (database: config/channels); last known value is cached here
 let channels = store.get("channels", 5);
 if (!(channels >= 1 && channels <= 10)) channels = 5;
@@ -657,6 +663,8 @@ function editSheet(s){
 function menuSheet(){
   const saved = store.get("online", null) || store.get("lastRoom", {db:"", room:""});
   sheet(`<h2>Menu</h2>
+    <div class="field"><label for="zoom">Rozmiar respów (tylko na tym urządzeniu)</label>
+      <div class="zoomrow"><input id="zoom" type="range" min="60" max="150" step="5" value="${Math.round(settings.zoom * 100)}"><output id="zoomv">${Math.round(settings.zoom * 100)}%</output><button class="btn" id="zoom0">100%</button></div></div>
     <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div></div>
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
@@ -675,6 +683,10 @@ function menuSheet(){
     <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz MetinTimer.apk</a></div>`}
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>`,
   (el, close) => {
+    const zr = el.querySelector("#zoom"), zv = el.querySelector("#zoomv");
+    const setZoom = v => { settings.zoom = v / 100; zr.value = v; zv.textContent = v + "%"; applyZoom(); store.set("settings", settings); };
+    zr.oninput = () => setZoom(+zr.value);
+    el.querySelector("#zoom0").onclick = () => setZoom(100);
     el.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { settings.sound = +b.dataset.s; store.set("settings", settings); el.querySelectorAll("[data-s]").forEach(x => x.setAttribute("aria-pressed", x === b)); beep(); });
     el.querySelectorAll("[data-vis]").forEach(b => b.onclick = () => {
       const id = b.dataset.vis, hide = !isHidden(id), had = showMine();
