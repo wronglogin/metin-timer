@@ -36,30 +36,6 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
-#rotaBtn.mine{background:var(--window);color:#241a00;border-color:var(--window);font-weight:700}
-.rota{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:8px 10px 8px 14px}
-.rota.mine{border-color:var(--window);background:color-mix(in srgb,var(--window) 12%,var(--surface))}
-.rota .rcell{display:flex;align-items:baseline;gap:8px;min-width:0}
-.rota .rlab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.rota b{font-size:17px}
-.rota.mine .rcell b{color:var(--window)}
-.rota .rmeta{color:var(--muted);font-size:14px}
-.rota .btn{margin-left:auto;min-height:34px}
-.compact .rota{padding:4px 6px 4px 10px}
-.rpos{color:var(--muted);font-family:var(--f-num);font-size:14px}
-.rtag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--window);color:#241a00;border-radius:4px;padding:1px 6px;margin-left:4px}
-.banlist li.rnext{border-color:var(--window)}
-.banlist li.roff{opacity:.55}
-.rrow{cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:box-shadow .15s}
-.rrow.rdrag{cursor:grabbing;position:relative;z-index:2;box-shadow:0 8px 22px rgba(0,0,0,.45);border-color:var(--accent);background:var(--surface-2);transition:none}
-.rgrip{color:var(--muted);letter-spacing:-3px;font-weight:700;padding-right:2px}
-.rwho{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
-.rchk{width:20px;height:20px;accent-color:var(--ready);margin:0}
-.rname{background:none;border:0;padding:2px 4px;margin:-2px -4px;border-radius:4px;font-weight:700;font-size:16px;color:var(--fg);text-decoration:underline dotted color-mix(in srgb,var(--fg) 40%,transparent);text-underline-offset:3px}
-.rname:hover:not(:disabled){background:var(--surface-2)}
-.rname:disabled{text-decoration:none;cursor:default}
-.ract{display:flex;align-items:center;gap:6px}
-.rkills{font-family:var(--f-num);font-weight:700;min-width:26px;text-align:right;color:var(--ready)}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .banlist li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
 .banlist .btn{min-height:32px;padding:4px 10px}
@@ -238,7 +214,6 @@ main{padding-top:14px;display:grid;gap:14px}
       <span class="mode" id="mode">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
-      <button class="btn" id="rotaBtn" data-rota="1" hidden title="Kolejka zbijania">Kolejka</button>
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
@@ -381,7 +356,6 @@ function doRoom(rc){
     if (p.startsWith("spots/")) setPath(spots, p.slice(6), clone(v));
     else if (p === "redo") H.redo = {};
     else if (p.startsWith("hist/") || p.startsWith("redo/")) setPath(H, p, clone(v));
-    else if (/^(log\/|order|off|pick)/.test(p)) setPath(remoteRoot, p, clone(v));
   }
   if (online) push(rc); else store.set("spots", spots);
   const sc = {}; for (const [p, v] of Object.entries(rc)) if (p.startsWith("spots/")) sc[p.slice(6)] = v;
@@ -407,31 +381,23 @@ function commit(changes, extra = {}){
   const ks = sortedKeys(H.hist); for (const k of ks.slice(0, Math.max(0, ks.length + 1 - HMAX))) rc["hist/" + k] = null;
   doRoom(rc);
 }
-// kill log follows undo/redo: undoing a kill removes its log entry, redoing puts it back
-const logEntry = (v, p) => ({d: v.d, n: v.n, s: p.split("/")[0], c: p.split("/").pop(), at: v.a});
-function logFix(ps, side){
-  const rc = {}; if (!online) return rc;
-  for (const part of Object.values(ps)) for (const [p, v] of Object.entries(part.a || {}))
-    if (v && v.k) rc["log/" + v.k] = side === "b" ? null : logEntry(v, p);
-  return rc;
-}
 function undo(){
   const k = latestWith(H.hist); if (!k) return;
   const ps = tparts(H.hist[k]);
-  doRoom({...spotPaths(ps, "b"), ...logFix(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
+  doRoom({...spotPaths(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
   toast("Cofnięto");
 }
 function redo(){
   const k = latestWith(H.redo); if (!k) return;
   const ps = tparts(H.redo[k]);
-  doRoom({...spotPaths(ps, "a"), ...logFix(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
+  doRoom({...spotPaths(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
   toast("Ponowiono");
 }
 // undo/redo only the part of the latest step that touched this resp
 function spotStep(id, from, to, side, msg){
   const k = latestWith(H[from], id); if (!k) return;
   const ps = tparts(H[from][k]), part = ps[id], rest = {...ps}; delete rest[id];
-  const rc = {...spotPaths({[id]: part}, side), ...logFix({[id]: part}, side)};
+  const rc = spotPaths({[id]: part}, side);
   rc[`${from}/${k}`] = Object.keys(rest).length ? {at: H[from][k].at, p: JSON.stringify(rest)} : null;
   rc[`${to}/${hkey()}`] = {at: Math.round(now()), p: JSON.stringify({[id]: part})};
   doRoom(rc);
@@ -571,7 +537,6 @@ function people(){
     .map(([id, v]) => ({id, n: String(v.n).slice(0, 20), me: id === deviceId})).sort((a, b) => (b.me - a.me) || a.n.localeCompare(b.n, "pl"));
 }
 function renderPresence(){
-  updateRotaBtn();
   const el = document.getElementById("people"); if (!el) return;
   const list = online ? people() : [];
   el.hidden = !online;
@@ -582,7 +547,7 @@ function renderPresence(){
     ? list.map(p => `<li>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</li>`).join("")
     : `<li class="pme">Nikogo nie widać</li>`;
 }
-setInterval(() => { renderPresence(); updateRotaBtn(); }, 15000);              // let people drop off the list when their heartbeat stops
+setInterval(renderPresence, 15000);              // let people drop off the list when their heartbeat stops
 function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); }
 // saved room list ("a;b;c" in Menu); one room is live at a time, the header select switches between them
 const roomList = () => { const r = store.get("rooms", null); if (Array.isArray(r)) return r; const o = store.get("online", null) || store.get("lastRoom", null); return o && o.room ? [o.room] : []; };
@@ -732,7 +697,6 @@ function refresh(changes){
     if (el) el.outerHTML = spotHtml(spots[id]);
   }
   fitNames();
-  updateRotaBtn();
   renderTabs();
 }
 // compact view: the name column is as wide as the longest resp name on each map, so channels sit right next to it
@@ -750,100 +714,6 @@ function fitNames(){
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitNames());
 let rafPending = false;
 function scheduleRender(){ if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); }
-/* ---------- kill rotation (rooms only) ---------- */
-function todayLog(){ return Object.entries(remoteRoot.log || {}).map(([k, v]) => ({k, ...v})).filter(e => e && e.at > resetAt).sort((a, b) => a.at - b.at); }
-function rota(){
-  const log = todayLog(), order = remoteRoot.order || {};
-  const counts = {}; for (const e of log) { counts[e.d] = (counts[e.d] || 0) + 1; }
-  const list = people().map(p => ({...p, kills: counts[p.id] || 0}))
-    .sort((a, b) => ((order[a.id] ?? 1e9) - (order[b.id] ?? 1e9)) || a.n.localeCompare(b.n, "pl"));
-  const off = remoteRoot.off || {}, pick = remoteRoot.pick || null;
-  for (const p of list) p.off = !!off[p.id];
-  const last = log[log.length - 1] || null;
-  const active = list.filter(p => !p.off);
-  let next = null;
-  if (pick && pick.k === (last ? last.k : "") && active.some(p => p.id === pick.id)) next = active.find(p => p.id === pick.id);   // chosen by hand until the next kill
-  else if (active.length) {
-    // the first active person after the last killer (skipping people switched off), in list order
-    const li = last ? list.findIndex(p => p.id === last.d) : -1;
-    for (let i = 1; i <= list.length; i++) { const p = list[((li < 0 ? -1 : li) + i) % list.length]; if (!p.off) { next = p; break; } }
-  }
-  return {list, last, next, total: log.length, picked: !!(next && pick && pick.id === next.id && pick.k === (last ? last.k : ""))};
-}
-const ago = t => { const m = Math.max(0, Math.round((now() - t) / 60000)); return m < 1 ? "przed chwilą" : m < 60 ? `${m} min temu` : `${Math.floor(m / 60)} h ${m % 60} min temu`; };
-function updateRotaBtn(){
-  const b = document.getElementById("rotaBtn"); if (!b) return;
-  b.hidden = !online; if (!online) return;
-  const {next} = rota(); const mine = !!(next && next.me);
-  b.classList.toggle("mine", mine); b.textContent = mine ? "Kolejka · Ty!" : "Kolejka";
-}
-function rotaHtml(){
-  if (!online) return "";
-  const {next} = rota();
-  const mine = next && next.me;
-  return `<div class="rota${mine ? " mine" : ""}" id="rota">
-    <span class="rcell"><span class="rlab">Następny</span>${next ? `<b>${mine ? "Ty!" : esc(next.n)}</b>` : `<span class="rmeta">—</span>`}</span>
-    <button class="btn" data-rota="1">Kolejka</button></div>`;
-}
-function rotaSheet(){
-  sheet(`<h2>Kolejka zbijania</h2><p>Po każdym zbiciu kolej przechodzi na następną zaznaczoną osobę. Odznacz tych, którzy nie zbijają. Stuknij nick, żeby ręcznie wybrać następnego. Kolejność zmieniasz, przeciągając osoby (na telefonie: przytrzymaj i przesuń). Liczniki zerują się o 01:00.</p>
-    <ul class="banlist" id="r_list"></ul><div class="acts"><button class="btn" data-close>Zamknij</button></div>`, el => {
-    const draw = () => {
-      const {list, last, next, total, picked} = rota();
-      el.querySelector("#r_list").innerHTML = list.length ? list.map((p, i) => `<li data-rid="${esc(p.id)}" class="rrow${next && next.id === p.id ? " rnext" : ""}${p.off ? " roff" : ""}">
-        <span class="rwho"><span class="rgrip" aria-hidden="true">⋮⋮</span><input type="checkbox" class="rchk" data-on="${esc(p.id)}" ${p.off ? "" : "checked"} aria-label="${esc(p.n)} w kolejce"><span class="rpos">${i + 1}.</span>
-          <button class="rname" data-pick="${esc(p.id)}"${p.off ? " disabled" : ""} title="Ustaw jako następnego">${esc(p.n)}</button>${p.me ? ' <span class="pme">(ty)</span>' : ""}${next && next.id === p.id ? ` <span class="rtag">${picked ? "wybrany" : "następny"}</span>` : ""}${last && last.d === p.id ? ' <span class="pme">ostatni</span>' : ""}${p.off ? ' <span class="pme">pomijany</span>' : ""}</span>
-        <span class="ract"><span class="rkills" title="Zbite dzisiaj">${p.kills}</span></span></li>`).join("")
-        + `<li class="pme">Razem dzisiaj: ${total}</li>` : '<li class="pme">Nikogo nie ma w pokoju.</li>';
-    };
-    let drag = null;                                   // list is not redrawn while someone is dragging
-    draw();
-    const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); if (!drag) draw(); }, 2000);
-    /* drag to reorder: mouse drags right away, touch after a ~0.45 s hold (normal swipes keep scrolling) */
-    const ul = el.querySelector("#r_list");
-    const begin = (li, y) => { drag = {li, grab: y - li.getBoundingClientRect().top, active: false}; };
-    const activate = () => { drag.active = true; drag.li.classList.add("rdrag"); try { navigator.vibrate && navigator.vibrate(15); } catch {} };
-    const move = y => {
-      const li = drag.li; li.style.transform = "";
-      const prev = li.previousElementSibling, nxt = li.nextElementSibling;
-      const mid = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; };
-      if (nxt && nxt.classList.contains("rrow") && y > mid(nxt)) ul.insertBefore(nxt, li);
-      else if (prev && prev.classList.contains("rrow") && y < mid(prev)) ul.insertBefore(li, prev);
-      li.style.transform = `translateY(${y - drag.grab - li.getBoundingClientRect().top}px)`;
-    };
-    const finish = () => {
-      if (!drag) return; const d = drag; drag = null; clearTimeout(d.timer);
-      d.li.classList.remove("rdrag"); d.li.style.transform = "";
-      if (!d.active) return;
-      const rc = {}; [...ul.querySelectorAll(".rrow")].forEach((r, n) => { rc["order/" + r.dataset.rid] = n; });
-      doRoom(rc); draw();
-    };
-    const startable = t => { const li = t.closest(".rrow"); return li && !t.closest("input,button") ? li : null; };
-    ul.addEventListener("mousedown", e => { const li = startable(e.target); if (!li || e.button !== 0) return; e.preventDefault(); begin(li, e.clientY); drag.y0 = e.clientY; });
-    window.addEventListener("mousemove", e => { if (!drag || drag.touch) return; if (!drag.active && Math.abs(e.clientY - drag.y0) > 4) activate(); if (drag.active) move(e.clientY); });
-    window.addEventListener("mouseup", () => { if (drag && !drag.touch) finish(); });
-    ul.addEventListener("touchstart", e => {
-      const li = startable(e.target); if (!li || e.touches.length > 1) return;
-      const t = e.touches[0]; begin(li, t.clientY); drag.touch = true; drag.x0 = t.clientX; drag.y0 = t.clientY;
-      drag.timer = setTimeout(() => { if (drag) activate(); }, 450);
-    }, {passive: true});
-    ul.addEventListener("touchmove", e => {
-      if (!drag) return; const t = e.touches[0];
-      if (!drag.active) { if (Math.hypot(t.clientX - drag.x0, t.clientY - drag.y0) > 10) { clearTimeout(drag.timer); drag = null; } return; }   // it was a scroll
-      e.preventDefault(); move(t.clientY);
-    }, {passive: false});
-    ul.addEventListener("touchend", finish); ul.addEventListener("touchcancel", finish);
-    ul.addEventListener("contextmenu", e => { if (drag) e.preventDefault(); });
-    el.addEventListener("change", e => {
-      const c = e.target.closest("[data-on]"); if (!c) return;
-      doRoom({["off/" + c.dataset.on]: c.checked ? null : true}); draw();
-    });
-    el.addEventListener("click", e => {
-      const pk = e.target.closest("[data-pick]");
-      if (pk) { const last = rota().last; doRoom({pick: {id: pk.dataset.pick, k: last ? last.k : ""}}); draw(); return; }
-    });
-  });
-}
 function renderTabs(){
   const html = visibleMaps().map(m => {
     const ss = mapSpots(m.id);
@@ -866,7 +736,6 @@ function fixTab(){
   if (tab === "mine" ? !showMine() : !vis.includes(tab)) tab = showMine() ? "mine" : (vis[0] || "m1");
 }
 function render(){
-  updateRotaBtn();
   fixTab();
   renderTabs();
   if (editingInline()) { renderPending = true; return; } // don't wipe a field someone is typing in
@@ -969,15 +838,10 @@ document.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.tab) { tab = b.dataset.tab; view = "maps"; saveTab(); render(); window.scrollTo(0, 0); b.scrollIntoView({inline:"nearest", block:"nearest"}); return; }
   if (b.dataset.kill) { const [id, c] = b.dataset.kill.split("|"); const s = spots[id]; if (!s) return;
-    const mark = {a: Math.round(now()), mn: s.min, mx: s.max};
-    if (online && myNick()) {                           // in a room: remember who killed it, for the rotation
-      const k = hkey(); Object.assign(mark, {d: deviceId, n: myNick().slice(0, 20), k});
-      commit({[`${id}/t/${c}`]: mark}, {["log/" + k]: logEntry(mark, `${id}/t/${c}`)});
-    } else commit({[`${id}/t/${c}`]: mark});
+    commit({[`${id}/t/${c}`]: {a: Math.round(now()), mn: s.min, mx: s.max}});
     return; }
   if (b.dataset.reset) { const [id, c] = b.dataset.reset.split("|"); if (spots[id] && (spots[id].t || {})[c]) commit({[`${id}/t/${c}`]: null}); return; }
   if (b.dataset.edit) { editSheet(spots[b.dataset.edit]); return; }
-  if (b.dataset.rota) { rotaSheet(); return; }
   if (b.dataset.sundo) { spotUndo(b.dataset.sundo); return; }
   if (b.dataset.sredo) { spotRedo(b.dataset.sredo); return; }
   if (b.dataset.add) { commit(newSpot("metin", b.dataset.add)); return; }
