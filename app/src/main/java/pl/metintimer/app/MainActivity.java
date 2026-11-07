@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
+import android.webkit.JavascriptInterface;
+import java.util.Locale;
 import android.view.WindowManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -21,6 +24,19 @@ public class MainActivity extends Activity {
     static final String LOCAL = "file:///android_asset/index.html";
     private WebView web;
     private ValueCallback<Uri[]> fileCallback;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+
+    // window.AndroidTTS.speak(text, volume) for the page's voice announcements
+    public class Speech {
+        @JavascriptInterface
+        public void speak(String text, float volume) {
+            if (!ttsReady || text == null) return;
+            Bundle p = new Bundle();
+            p.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, Math.max(0f, Math.min(1f, volume)));
+            tts.speak(text, TextToSpeech.QUEUE_ADD, p, "mt" + System.nanoTime());
+        }
+    }
     private static final int PICK_FILE = 1;
 
     @Override
@@ -28,7 +44,16 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        tts = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                int r = tts.setLanguage(new Locale("pl", "PL"));
+                ttsReady = r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED;
+                if (!ttsReady) ttsReady = tts.setLanguage(Locale.getDefault()) >= 0;
+            }
+        });
+
         web = new WebView(this);
+        web.addJavascriptInterface(new Speech(), "AndroidTTS");
         web.setBackgroundColor(Color.parseColor("#0f1417"));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -83,6 +108,7 @@ public class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
     @Override protected void onResume() { super.onResume(); web.onResume(); }
     @Override protected void onPause() { web.onPause(); super.onPause(); }
+    @Override protected void onDestroy() { if (tts != null) tts.shutdown(); super.onDestroy(); }
 
     @Override
     public void onBackPressed() {
