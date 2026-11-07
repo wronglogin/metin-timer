@@ -122,7 +122,7 @@ main{padding-top:14px;display:grid;gap:14px}
 .compact .cell .ct{min-height:32px;padding:2px 1px}
 .compact .cell .ch{font-size:10px}
 .compact .mineview .pane+.pane{padding-top:8px}
-@container pane (min-width:520px){.compact .spot{grid-template-columns:minmax(150px,210px) minmax(0,1fr);align-items:center;gap:10px}.compact .shead{flex-wrap:wrap;gap:2px 6px}.compact .shead .nm{flex-basis:100%}}
+@container pane (min-width:520px){.compact .spot{grid-template-columns:max(var(--namew,150px),66px) minmax(0,1fr);align-items:center;gap:8px}.compact .shead{flex-wrap:wrap;gap:2px 6px}.compact .shead .nm{flex-basis:100%}}
 /* wiki */
 .wiki{display:grid;gap:18px}
 .wiki h2{font-size:20px;margin:0 0 6px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
@@ -251,7 +251,7 @@ const saveTab = () => { store.set("tab", tab); store.set("view", view); };
 let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1, volume:0.8, compact:false, tablet:false, voice:false}, store.get("settings", {}));
 if (!(settings.volume >= 0 && settings.volume <= 1)) settings.volume = 0.8;
 if (!(settings.zoom >= 0.6 && settings.zoom <= 1.5)) settings.zoom = 1;
-const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); document.documentElement.classList.toggle("tablet", !!settings.tablet); };
+const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); document.documentElement.classList.toggle("tablet", !!settings.tablet); if (typeof fitNames === "function" && document.querySelector(".spots")) fitNames(); };
 applyZoom();
 // channel count is set by the admin for everyone (database: config/channels); last known value is cached here
 let channels = store.get("channels", 5);
@@ -621,8 +621,22 @@ function refresh(changes){
     if (!spots[id]) return render();
     if (el) el.outerHTML = spotHtml(spots[id]);
   }
+  fitNames();
   renderTabs();
 }
+// compact view: the name column is as wide as the longest resp name on each map, so channels sit right next to it
+let measureCtx = null;
+function fitNames(){
+  if (!settings.compact) return;
+  measureCtx = measureCtx || document.createElement("canvas").getContext("2d");
+  document.querySelectorAll(".spots").forEach(box => {
+    const inputs = box.querySelectorAll(".nm"); if (!inputs.length) return;
+    const cs = getComputedStyle(inputs[0]); measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    let w = 0; inputs.forEach(i => { w = Math.max(w, measureCtx.measureText(i.value).width); });
+    box.style.setProperty("--namew", Math.ceil(w + 10) + "px");
+  });
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitNames());
 let rafPending = false;
 function scheduleRender(){ if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); }
 function renderTabs(){
@@ -655,6 +669,7 @@ function render(){
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
   $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
     <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Szary</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
+  fitNames();
 }
 function paneHtml(id){
   const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id];
