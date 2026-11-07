@@ -151,6 +151,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .btn:hover{border-color:var(--muted)}
 .btn:disabled{opacity:.35;cursor:default}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+#gamesBtn[hidden]{display:none}
 #wikiBtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 .btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--rule))}
 .icon{min-width:42px;padding:6px 8px;font-weight:700}
@@ -680,7 +681,7 @@ const myNick = () => String(store.get("nick", "") || "").trim();
 const presUrl = id => roomUrl("/presence/" + id);
 function heartbeat(){
   if (!online || !myNick()) return;
-  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}})}).catch(() => {});
+  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {})})}).catch(() => {});
 }
 function startPresence(){
   stopPresence(true);
@@ -698,9 +699,11 @@ window.addEventListener("pagehide", () => { if (!online) return; fetch(presUrl(d
   const g = remoteRoot.game, r = remoteRoot.roulette, ch = {};
   if (Object.keys(ch).length) fetch(roomUrl(), {method:"PATCH", keepalive:true, headers:{"Content-Type":"application/json"}, body: JSON.stringify(ch)}).catch(() => {}); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) heartbeat(); });
+// people who can be put into a game (not the ones who switched games off)
+const gamers = () => people().filter(p => !p.ng);
 function people(){
   return Object.entries(presence || {}).filter(([, v]) => v && v.n && now() - (+v.t || 0) < 360000)
-    .map(([id, v]) => ({id, n: String(v.n).slice(0, 20), me: id === deviceId})).sort((a, b) => (b.me - a.me) || a.n.localeCompare(b.n, "pl"));
+    .map(([id, v]) => ({id, n: String(v.n).slice(0, 20), me: id === deviceId, ng: !!v.ng})).sort((a, b) => (b.me - a.me) || a.n.localeCompare(b.n, "pl"));
 }
 function renderPresence(){
   const el = document.getElementById("people"); if (!el) return;
@@ -1035,6 +1038,14 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("focusout", () => setTimeout(() => { if (renderPending && !editingInline()) render(); }, 0));
 $("#undo").onclick = undo; $("#redo").onclick = redo; $("#menuBtn").onclick = menuSheet; $("#gamesBtn").onclick = gamesMenu;
+// games switched off: no Gry button, no game windows, no sounds; presence says so, so nobody can add this person to a game
+function applyGamesOff(){
+  const off = settings.games === false;
+  $("#gamesBtn").hidden = off;
+  if (off) { closeGame(); const sp = document.getElementById("spin"); if (sp) sp.remove(); clearTimeout(rwaitTimer); }
+  else { gameShown = null; renderGame(); lastSpin = null; onRoulette(false); }
+}
+setTimeout(applyGamesOff, 0);
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
@@ -1099,6 +1110,8 @@ function menuSheet(){
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+    <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
+      <p class="pme" style="font-size:13px;margin:0">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     <div class="field"><label>Gry innych osób w pokoju</label><div class="seg"><button data-sg="1" aria-pressed="${settings.showGames !== false}">Pokazuj</button><button data-sg="0" aria-pressed="${settings.showGames === false}">Nie pokazuj</button></div>
       <p class="pme" style="font-size:13px;margin:0">Gry, w których grasz albo które prowadzisz, zawsze się pokazują.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
@@ -1150,6 +1163,11 @@ function menuSheet(){
       store.set("settings", settings); b.setAttribute("aria-pressed", !hide);
       if (!had && showMine()) { tab = "mine"; view = "maps"; saveTab(); }
       render();
+    });
+    el.querySelectorAll("[data-gon]").forEach(b => b.onclick = () => {
+      settings.games = b.dataset.gon === "1"; store.set("settings", settings);
+      el.querySelectorAll("[data-gon]").forEach(x => x.setAttribute("aria-pressed", x === b));
+      applyGamesOff(); heartbeat();
     });
     el.querySelectorAll("[data-sg]").forEach(b => b.onclick = () => {
       settings.showGames = b.dataset.sg === "1"; store.set("settings", settings);
@@ -1861,6 +1879,7 @@ const mineGame = g => amIn(g) || g.by === deviceId || (g.b && g.b[deviceId]);
 const mineLot = r => (r.p && r.p[deviceId]) || r.bd === deviceId;
 function onRoulette(initial){
   const r = remoteRoot.roulette;
+  if (settings.games === false) return;
   if (r && settings.showGames === false && !mineLot(r) && lotForce !== r.id) { const sp = document.getElementById("spin"); if (sp) sp.remove(); if (r.wait) { clearTimeout(rwaitTimer); rwaitTimer = setTimeout(() => onRoulette(false), 1000); } else lastSpin = r.id; return; }
   if (r && r.wait) { if (!(initial && now() - (+r.at || 0) > 30000)) showLotteryWait(); return; }
   if (!r || !r.id || r.id === lastSpin) return;
@@ -1915,6 +1934,7 @@ function lotWrite(rc, activity = true){
   else if (Object.keys(rc).some(k => k.startsWith("roulette/"))) rc["roulette/la"] = {".sv": "timestamp"}; for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v))); push(rc); }
 function showLotteryWait(){
   clearTimeout(rwaitTimer);
+  if (settings.games === false) return;
   const r = remoteRoot.roulette;
   let el = document.getElementById("spin");
   if (!r || !r.wait) { if (el && el.dataset.wait) el.remove(); return; }
@@ -2049,7 +2069,7 @@ function rouletteSheet(){
     <div class="field"><label>Ostatnie losowania</label><ul class="banlist" id="rl_h"></ul></div>`, (el, close) => {
     const skip = new Set();
     const draw = () => {
-      const ps = people();
+      const ps = gamers();
       el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("") : '<li class="pme">Nikogo nie ma w pokoju.</li>';
       const h = Object.values(remoteRoot.rlog || {}).sort((a, b) => b.at - a.at).slice(0, 5);
       el.querySelector("#rl_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b> <span class="pme">· pula ${esc(poolText(x.s, x.n))} · ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
@@ -2059,7 +2079,7 @@ function rouletteSheet(){
     el.querySelector("#rl_go").onclick = () => {
       if (roomBusy()) { toast(roomBusy()); return; }
       const err = el.querySelector("#rl_err"), stake = el.querySelector("#rl_s").value.trim(); err.hidden = true;
-      const ps = people().filter(p => !skip.has(p.id));
+      const ps = gamers().filter(p => !skip.has(p.id));
       if (!stake) { err.textContent = "Wpisz stawkę."; err.hidden = false; return; }
       if (ps.length < 2) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       store.set("rlStake", stake);
@@ -2264,6 +2284,7 @@ function gameResultText(g){
 function renderGame(){
   const g = G(); if (!g || !g.id || !online) return closeGame();
   if (gameShown === g.id + ":seen") return;
+  if (settings.games === false) { closeGame(); return; }
   if (settings.showGames === false && !mineGame(g) && gameForce !== g.id) { closeGame(); return; }   // games of others are hidden
   const done = g.state === "done" || g.state === "declined" || g.state === "cancel";
   // everyone in the room sees the game; only the players get buttons
@@ -3036,7 +3057,7 @@ function gameSheet(type){
     <div class="field"><label>Ostatnie wyniki</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const skip = new Set(); let opp = null, side = "orzel";
     const draw = () => {
-      const ps = people();
+      const ps = gamers();
       el.querySelector("#gm_p").innerHTML = (def.duel ? ps.filter(p => !p.me) : ps).map(p => def.duel
         ? `<li><label class="rlp"><span>${esc(p.n)}</span><input type="radio" name="gm_opp" data-op="${esc(p.id)}" ${opp === p.id ? "checked" : ""} aria-label="${esc(p.n)}"></label></li>`
         : `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("")
@@ -3054,7 +3075,7 @@ function gameSheet(type){
       if (roomBusy()) { toast(roomBusy()); return; }
       const err = el.querySelector("#gm_err"), stake = el.querySelector("#gm_s").value.trim(); err.hidden = true;
       if (stake) store.set("rlStake", stake);
-      const all = people();
+      const all = gamers();
       if (def.duel) {
         const o = all.find(p => p.id === opp); if (!o) { err.textContent = "Wybierz przeciwnika."; err.hidden = false; return; }
         const me = all.find(p => p.me) || {id: deviceId, n: myNick()};
