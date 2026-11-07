@@ -1376,6 +1376,9 @@ function adminSheet(){
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
     <h2 style="font-size:19px">Zbanowani</h2>
     <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul>
+    <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
+    <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
+    ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
     <p id="a_berr" style="color:var(--danger)" hidden></p>`,
   (el, close) => {
     const berr = el.querySelector("#a_berr");
@@ -1401,7 +1404,41 @@ function adminSheet(){
           : '<li class="pme">Nikt nie jest zbanowany.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
-    drawPeople(); drawBans();
+    const drawDebts = () => {
+      const ul = el.querySelector("#a_debts"); if (!online || !ul) return;
+      const rows = Object.entries(remoteRoot.debts || {}).map(([k, d]) => ({k, v: +d.v || 0, a: d.a, b: d.b})).filter(d => Math.abs(d.v) >= 0.005)
+        .map(d => d.v > 0 ? {k: d.k, from: d.a, to: d.b, v: d.v} : {k: d.k, from: d.b, to: d.a, v: -d.v}).sort((x, y) => y.v - x.v);
+      ul.innerHTML = rows.length ? rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <span class="pme">${fmtYang(r.v)}</span></span><button class="btn danger" data-ddel="${esc(r.k)}">Usuń</button></li>`).join("")
+        : '<li class="pme">Nikt nikomu nic nie wisi.</li>';
+    };
+    // debts live in the room; the admin password is checked first (a harmless write to config), then the room is changed
+    const adminRoom = async (rc, msg) => {
+      await adminPatch({});
+      const hk = hkey(); rc["dlog/" + hk] = {s: msg.slice(0, 200), at: {".sv": "timestamp"}};
+      for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v)));
+      await push(rc);
+    };
+    drawPeople(); drawBans(); drawDebts();
+    const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
+    el.addEventListener("click", async e => {
+      const d = e.target.closest("[data-ddel],#a_dreset"); if (!d) return;
+      berr.hidden = true;
+      if (d.dataset.sure !== "1") { const t = d.textContent; d.dataset.sure = "1"; d.textContent = "Na pewno?"; setTimeout(() => { if (d.isConnected) { d.dataset.sure = ""; d.textContent = t; } }, 3000); return; }
+      d.disabled = true;
+      try {
+        if (d.id === "a_dreset") {
+          const rc = {debts: null};
+          await adminRoom(rc, "Admin zresetował wszystkie długi");
+          toast("Wyzerowano wszystkie długi");
+        } else {
+          const k = d.dataset.ddel, x = (remoteRoot.debts || {})[k]; if (!x) return;
+          const from = x.v > 0 ? x.a : x.b, to = x.v > 0 ? x.b : x.a;
+          await adminRoom({["debts/" + k]: null}, `Admin usunął dług: ${from} → ${to} ${fmtYang(Math.abs(+x.v || 0))}`);
+          toast("Usunięto dług");
+        }
+        drawDebts();
+      } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; d.disabled = false; d.dataset.sure = ""; }
+    });
     el.addEventListener("click", async e => {
       const b = e.target.closest("[data-ban],[data-unban]"); if (!b) return;
       berr.hidden = true; b.disabled = true;
