@@ -133,7 +133,7 @@ main{padding-top:14px;display:grid;gap:14px}
 .legend .w{color:var(--danger)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)}
 
 /* compact view: only name, undo/redo and channel timers */
-.compact .tag,.compact .mintime,.compact .srow .more,.compact .cell .rs,.compact .ranges,.compact .legend,.compact .addrow{display:none}
+.compact .tag,.compact .srow .more,.compact .cell .rs,.compact .ranges,.compact .legend,.compact .addrow{display:none}
 .compact main{padding-top:8px;gap:8px}
 .compact .maphead h1{font-size:18px}
 .compact .spots{gap:5px}
@@ -141,6 +141,8 @@ main{padding-top:14px;display:grid;gap:14px}
 .compact .shead{display:flex;align-items:center;gap:6px}
 .compact .shead .nm{font-size:15px;margin:0;padding:0 2px;width:auto;flex:1;pointer-events:none;border:0;background:none}
 .compact .srow{flex-wrap:nowrap}
+.compact .mintime{font-size:13px;color:var(--muted);white-space:nowrap}
+.compact .mintime input{width:38px;padding:1px 2px;font-size:13px}
 .compact .srow .mini{min-height:26px;min-width:28px;padding:0 4px}
 .compact .cell{gap:2px}
 .compact .cells{grid-template-columns:repeat(var(--cols),minmax(0,56px))}
