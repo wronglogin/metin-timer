@@ -81,6 +81,20 @@
             }
           }
         },
+        "presence": {
+          "$id": {
+            ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['n', 't'])",
+            "n": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+            },
+            "t": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
         "$other": {
           ".validate": false
         }
