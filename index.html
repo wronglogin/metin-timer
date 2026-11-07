@@ -1326,7 +1326,8 @@ async function ensurePlayer(){
   document.getElementById("ytdock").hidden = false;
   return new Promise(res => {
     const pv = {playsinline: 1, rel: 0, enablejsapi: 1}; if (/^https?:/.test(location.origin)) pv.origin = location.origin;
-    ytPlayer = new YT.Player("ytplayer", {width: 200, height: 200, playerVars: pv,
+    // youtube-nocookie: the privacy-enhanced player, which tracker blockers and strict browsers leave alone more often
+    ytPlayer = new YT.Player("ytplayer", {width: 200, height: 200, host: "https://www.youtube-nocookie.com", playerVars: pv,
       events: {
         onReady: () => {
           ytReady = true;
@@ -1348,6 +1349,22 @@ async function ensurePlayer(){
       }});
   });
 }
+// if a video does not start within a few seconds, try once more from the beginning of its current position;
+// if that also fails, explain and move on, so one bad video never stops the radio for everybody
+let startWatch = null;
+function watchStart(v){
+  clearTimeout(startWatch && startWatch.t);
+  startWatch = {v, tries: 0};
+  const check = () => {
+    if (!startWatch || startWatch.v !== v || !ytReady || !radioOn) return;
+    let st = -1; try { st = ytPlayer.getPlayerState(); } catch {}
+    if (st === 1 || st === 2 || st === 0) { startWatch = null; return; }   // playing / paused / ended: fine
+    if (startWatch.tries++ < 1) { try { ytPlayer.loadVideoById({videoId: v, startSeconds: radioOffset()}); } catch {} startWatch.t = setTimeout(check, 9000); return; }
+    startWatch = null;
+    toast("YouTube nie chce odtworzyć tego filmu w tej przeglądarce. Wyłącz blokowanie reklam/śledzenia dla tej strony albo spróbuj innego linku.");
+  };
+  startWatch.t = setTimeout(check, 9000);
+}
 function applyMute(){ if (!ytReady) return; try { radioMuted ? ytPlayer.mute() : (ytPlayer.unMute(), ytPlayer.setVolume(Math.round(settings.volume * 100))); } catch {} }
 function radioOffset(){ const r = RADIO(); return Math.max(0, (now() - (+r.start || now())) / 1000); }
 function syncRadio(force){
@@ -1359,7 +1376,7 @@ function syncRadio(force){
     if (!it) { ytPlayer.stopVideo(); return; }
     const data = ytPlayer.getVideoData ? ytPlayer.getVideoData() : {};
     const off = radioOffset();
-    if (!data || data.video_id !== it.v) ytPlayer.loadVideoById({videoId: it.v, startSeconds: off});
+    if (!data || data.video_id !== it.v) { ytPlayer.loadVideoById({videoId: it.v, startSeconds: off}); watchStart(it.v); }
     else {
       const t = ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0;
       if (Math.abs(t - off) > (force ? 1.5 : 3)) ytPlayer.seekTo(off, true);   // only when really out of step
