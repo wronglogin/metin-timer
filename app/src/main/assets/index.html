@@ -29,6 +29,7 @@ button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:tran
 
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
 .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.ctrls{display:flex;align-items:center;gap:inherit;flex-wrap:wrap;min-width:0}
 header{grid-template-columns:minmax(0,1fr)}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}}
@@ -145,6 +146,27 @@ main{padding-top:14px;display:grid;gap:14px}
   .bar{gap:6px}.btn{padding:6px 9px}.icon{min-width:34px;padding:6px 4px}.mode{font-size:11px;padding:3px 6px}
   .srow{gap:4px}.srow input{width:40px;padding:3px 2px}.srow .mini{min-width:28px;padding:0 4px}.srow .more{padding:2px 7px}.tag{padding:1px 4px}
   .ranges{font-size:12px}
+}
+/* phones: keep the whole top bar (room, people, undo/redo, MiniWiki, Gry, Menu) on one line */
+@media (max-width:520px){
+  .ctrls{flex:1 1 100%;flex-wrap:nowrap}
+  .ctrls>*{flex:0 1 auto;min-width:0}
+  .ctrls>.btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctrls>.people{flex-shrink:0}
+  .ctrls>.mode,.ctrls>.roomsel{flex-shrink:30;min-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (max-width:440px){
+  .ctrls>.btn,.ctrls>.people{padding:4px 7px;min-height:34px;font-size:15px}
+  .ctrls>.icon{min-width:28px;padding:4px 2px}
+  .ctrls>.people{gap:3px}.ctrls>.people svg{width:14px;height:14px}
+  .ctrls>.mode{font-size:10px;padding:2px 5px;letter-spacing:.03em;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ctrls{gap:5px}
+}
+@media (max-width:370px){
+  .ctrls>.btn,.ctrls>.people{padding:3px 5px;font-size:13.5px}
+  .ctrls>.icon{min-width:24px;padding:3px 1px}
+  .ctrls>.mode{max-width:64px;padding:2px 4px}
+  .ctrls{gap:3px}
 }
 .srow .sur{margin-left:auto;display:flex;gap:4px}
 .srow .mini{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);min-height:30px;min-width:34px;padding:0 6px;font-weight:700}
@@ -264,6 +286,7 @@ main{padding-top:14px;display:grid;gap:14px}
     <div class="bar">
       <div class="brand">Metin Timer<small>respawn metinów i bossów</small></div>
       <div id="radio" class="radio" hidden></div>
+      <div class="ctrls">
       <span class="mode" id="mode" title="Pokój">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
@@ -272,6 +295,7 @@ main{padding-top:14px;display:grid;gap:14px}
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
       <button class="btn" id="gamesBtn">Gry</button>
       <button class="btn" id="menuBtn">Menu</button>
+      </div>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
   </header>
