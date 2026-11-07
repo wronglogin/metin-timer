@@ -149,6 +149,34 @@
             ".validate": false
           }
         },
+        "radio": {
+          "queue": {
+            "$k": {
+              ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['v'])",
+              "v": {
+                ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{11}$/)"
+              },
+              "t": {
+                ".validate": "newData.isString() && newData.val().length <= 120"
+              },
+              "by": {
+                ".validate": "newData.isString() && newData.val().length <= 20"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
+          "cur": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "start": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
         "$other": {
           ".validate": false
         }
