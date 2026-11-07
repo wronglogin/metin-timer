@@ -71,23 +71,27 @@ main{padding-top:14px;display:grid;gap:14px}
 .tag{font-size:12px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--rule);border-radius:4px;padding:1px 6px}
 .tag.boss{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,var(--rule))}
 .srow input{width:52px;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:3px 6px;font-family:var(--f-num);font-size:14px;text-align:center}
+@media (max-width:420px){
+  .bar{gap:6px}.btn{padding:6px 9px}.icon{min-width:34px;padding:6px 4px}.mode{font-size:11px;padding:3px 6px}
+  .srow{gap:4px}.srow input{width:40px;padding:3px 2px}.srow .mini{min-width:28px;padding:0 4px}.srow .more{padding:2px 7px}.tag{padding:1px 4px}
+  .ranges{font-size:12px}
+}
 .srow .sur{margin-left:auto;display:flex;gap:4px}
 .srow .mini{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);min-height:30px;min-width:34px;padding:0 6px;font-weight:700}
 .srow .mini:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
 .srow .mini:disabled{opacity:.3;cursor:default}
 .srow .more{background:none;border:1px solid var(--rule);border-radius:5px;padding:2px 10px;color:var(--muted);min-height:30px}
 .srow .more:hover{color:var(--fg);border-color:var(--muted)}
-.cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:6px}
+.cells{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:clamp(3px,1.2cqi,6px);container-type:inline-size}
 .cell{display:grid;gap:4px;min-width:0}
-.cell .ch{font-size:12px;letter-spacing:.08em;text-align:center;color:var(--muted)}
-.cell .ct{border:1px solid var(--rule);border-radius:6px;min-height:44px;padding:4px 2px;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
-@media (min-width:480px){.cell .ct{font-size:17px}}
+.cell .ch{font-size:clamp(10px,calc(14cqi / var(--cols)),12px);letter-spacing:.08em;text-align:center;color:var(--muted)}
+.cell .ct{border:1px solid var(--rule);border-radius:6px;min-height:44px;padding:4px 2px;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:700;font-size:clamp(10px,calc(19cqi / var(--cols)),17px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .cell .ct:hover{border-color:var(--muted)}
 .cell.idle .ct{background:var(--ready);color:#06210f;border-color:var(--ready)}
 .cell.wait .ct{background:var(--surface-2);color:var(--fg);border-color:var(--rule)}
 .cell.window .ct{background:var(--window);color:#241a00;border-color:var(--window)}
 .cell.ready .ct{background:var(--over);color:#04192b;border-color:var(--over)}
-.cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
+.cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:clamp(9px,calc(13cqi / var(--cols)),11px);letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
 .cell .rs:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
 .cell .rs:disabled{opacity:.3;cursor:default}
 .empty{border:1px dashed var(--rule);border-radius:8px;padding:18px;color:var(--muted);display:grid;gap:10px;justify-items:start}
@@ -513,7 +517,7 @@ function spotHtml(s){
         <span class="sur"><button class="mini" data-sundo="${s.id}" title="Cofnij w tym respie" aria-label="Cofnij: ${esc(s.name)}"${histIds(H.hist).has(s.id) ? "" : " disabled"}>↶</button><button class="mini" data-sredo="${s.id}" title="Ponów w tym respie" aria-label="Ponów: ${esc(s.name)}"${histIds(H.redo).has(s.id) ? "" : " disabled"}>↷</button></span>
         <button class="more" data-edit="${s.id}" aria-label="Więcej opcji: ${esc(s.name)}">⋯</button></div>
     </div>
-    <div class="cells" style="--n:${channels}">${cells}</div>
+    <div class="cells" style="--cols:${channels <= 6 ? channels : Math.ceil(channels / 2)}">${cells}</div>
   </div>`;
 }
 const wikiOpen = new Set();
