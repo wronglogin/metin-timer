@@ -6,6 +6,8 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -18,6 +20,8 @@ public class MainActivity extends Activity {
     // Kopia w aplikacji, gdyby nie było internetu przy starcie.
     static final String LOCAL = "file:///android_asset/index.html";
     private WebView web;
+    private ValueCallback<Uri[]> fileCallback;
+    private static final int PICK_FILE = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,9 +50,34 @@ public class MainActivity extends Activity {
                 if (req.isForMainFrame() && req.getUrl().toString().startsWith(SITE)) view.loadUrl(LOCAL);
             }
         });
+        // lets the page's "Wybierz plik" button open the phone's file picker (own alarm sound)
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                try {
+                    startActivityForResult(params.createIntent(), PICK_FILE);
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+                return true;
+            }
+        });
         setContentView(web);
         if (savedInstanceState != null) web.restoreState(savedInstanceState);
         else web.loadUrl(SITE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == PICK_FILE && fileCallback != null) {
+            fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            fileCallback = null;
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
