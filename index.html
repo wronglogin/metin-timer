@@ -1879,8 +1879,8 @@ function roomBusy(fromLottery = false){
   const gameOn = g && g.id && !["done", "declined", "cancel"].includes(g.state) && t - (+g.la || +g.at || 0) < IDLE_FREE
     && involved(g.by, Object.keys(g.p || {}));
   const lotOn = r && r.id && (r.wait ? t - (+r.la || +r.at || 0) < IDLE_FREE && involved(r.bd, Object.keys(r.p || {})) : t - (+r.at || 0) < 9000);
-  if (gameOn) return `W pokoju trwa już gra „${GAMES[g.type].name}”. Poczekajcie, aż się skończy.`;
-  if (lotOn && !fromLottery) return "W pokoju trwa już loteria. Poczekajcie, aż się skończy.";
+  if (gameOn && !g.oc) return `W pokoju trwa już gra „${GAMES[g.type].name}”. Poczekajcie, aż się skończy.`;
+  if (lotOn && !(r.wait && r.oc) && !fromLottery) return "W pokoju trwa już loteria. Poczekajcie, aż się skończy.";
   return "";
 }
 /* lottery rematch: 10 s for people to leave or join, then the person who asked for it draws (or the next one if they left) */
@@ -1906,7 +1906,7 @@ function showLotteryWait(){
     el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><div class="wbody"></div>`;
     document.body.appendChild(el); floatPanel(el, "spin");
     el.addEventListener("click", e => {
-      if (e.target.closest("[data-spinclose]")) { lotClosed = el.dataset.wait; lotWatch(el.dataset.wait, false); el.remove(); return; }
+      if (e.target.closest("[data-spinclose]")) { const cur = remoteRoot.roulette; if (cur && cur.wait && cur.bd === deviceId && !cur.oc) lotWrite({"roulette/oc": true}, false); lotClosed = el.dataset.wait; lotWatch(el.dataset.wait, false); el.remove(); return; }
       const cur = remoteRoot.roulette; if (!cur || !cur.wait) return;
       const b = e.target.closest("[data-lw]"); if (!b) return;
       const a = b.dataset.lw, own = cur.bd === deviceId;
@@ -1998,6 +1998,7 @@ function showSpin(r, age){
   if (age > t + 6000) { i = total; finish(); } else step();
 }
 function openLottery(ps, stake, ownerId, ownerNick){
+  finishPrevious();
   const w = {id: hkey(), by: String(ownerNick).slice(0, 20), bd: ownerId, s: String(stake).slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, String(p.n).slice(0, 20)])), wait: true, at: {".sv": "timestamp"}};
   lotWrite({roulette: w}); lastSpin = null; onRoulette(false);
 }
@@ -2076,10 +2077,10 @@ function gamePatch(rc, activity = true){
   if (online) push(out);
   renderGame();
 }
-function logGame(g, winnerNick, stake = g.s){
-  if (g.by !== deviceId || g.logged) return;            // only the starter writes the history line, once
+function logGame(g, winnerNick, stake = g.s, force = false){
+  if ((g.by !== deviceId && !force) || g.logged) return;            // only the starter writes the history line, once
   const k = hkey(), n = Object.keys(g.p || {}).length;
-  const rc = {"game/logged": true, [`glog/${k}`]: {type: g.type, s: (stake || "").slice(0, 30), n, w: String(winnerNick).slice(0, 20), at: {".sv": "timestamp"}}};
+  const rc = {...(force ? {} : {"game/logged": true}), [`glog/${k}`]: {type: g.type, s: (stake || "").slice(0, 30), n, w: String(winnerNick).slice(0, 20), at: {".sv": "timestamp"}}};
   const old = sortedKeys(remoteRoot.glog || {}); for (const x of old.slice(0, Math.max(0, old.length + 1 - 30))) rc[`glog/${x}`] = null;
   // who owes whom: losers pay their stake to the winner(s)
   let win = [], lose = [];
@@ -2088,7 +2089,16 @@ function logGame(g, winnerNick, stake = g.s){
   Object.assign(rc, debtChanges(GAMES[g.type].name, g.p || {}, win, lose, g.s));
   gamePatch(rc);
 }
+/* the owner closed the window of a game that was still going: the room is free for the next game. A race or a
+   roulette spin already has its result (it follows from the seed), so it is written to the results and debts first. */
+function finishPrevious(){
+  const g = G(); if (!g || !g.id || g.logged || !(g.type === "horse" || g.type === "wheel") || g.state !== "race" || !g.seed) return;
+  const wh = g.type === "horse" ? raceModel(+g.seed).wh : wheelModel(+g.seed).wh, done = {...g, wh, state: "done"};
+  const {winners, pool} = horsePayout(done, wh), who = winners.length ? winners.map(w => w.n).join(", ") : "nikt";
+  logGame(done, `${g.type === "horse" ? hname(wh) : WCOL[wh].n}: ${who}`, g.s ? poolText(g.s, pool) : "", true);
+}
 function startGame(type, players, stake, extra = {}, id = hkey()){
+  finishPrevious();
   for (const k of Object.keys(secrets)) if (!k.startsWith(id)) delete secrets[k];
   store.set("gsec", secrets);
   const g = {id, type, by: deviceId, byn: myNick().slice(0, 20), s: (stake || "").slice(0, 30), p: Object.fromEntries(players.map(p => [p.id, p.n.slice(0, 20)])), at: {".sv": "timestamp"}, ...extra};
@@ -2914,7 +2924,10 @@ async function gameClick(e){
   const g = G(), el = document.getElementById("gamewin");
   const sb = e.target.closest("[data-gsnd]");
   if (sb) { gameSnd = !gameSnd; store.set("gameSnd", gameSnd); sb.textContent = gameSnd ? "🔊" : "🔇"; if (gameSnd) audio(); return; }
-  if (e.target.closest("[data-gclose]")) { gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
+  if (e.target.closest("[data-gclose]")) {
+    // the owner closing an unfinished game frees the room for the next one
+    if (g && g.by === deviceId && !["done", "declined", "cancel"].includes(g.state) && !g.oc) gamePatch({"game/oc": true}, false);
+    gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
   const b = e.target.closest("[data-gact]"); if (!b || !g) return;
   const act = b.dataset.gact;
   if (act === "rematch") { if (canRematch(g) && g.state === "done") rematch(g); return; }
