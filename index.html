@@ -36,6 +36,20 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
+.rota{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:8px 10px 8px 14px}
+.rota.mine{border-color:var(--window);background:color-mix(in srgb,var(--window) 12%,var(--surface))}
+.rota .rcell{display:flex;align-items:baseline;gap:8px;min-width:0}
+.rota .rlab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.rota b{font-size:17px}
+.rota.mine .rcell:nth-child(2) b{color:var(--window)}
+.rota .rmeta{color:var(--muted);font-size:14px}
+.rota .btn{margin-left:auto;min-height:34px}
+.compact .rota{padding:4px 6px 4px 10px}
+.rpos{color:var(--muted);font-family:var(--f-num);font-size:14px}
+.rtag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--window);color:#241a00;border-radius:4px;padding:1px 6px;margin-left:4px}
+.banlist li.rnext{border-color:var(--window)}
+.ract{display:flex;align-items:center;gap:6px}
+.rkills{font-family:var(--f-num);font-weight:700;min-width:26px;text-align:right;color:var(--ready)}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .banlist li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
 .banlist .btn{min-height:32px;padding:4px 10px}
@@ -354,6 +368,7 @@ function doRoom(rc){
     if (p.startsWith("spots/")) setPath(spots, p.slice(6), clone(v));
     else if (p === "redo") H.redo = {};
     else if (p.startsWith("hist/") || p.startsWith("redo/")) setPath(H, p, clone(v));
+    else if (p.startsWith("log/") || p.startsWith("order")) setPath(remoteRoot, p, clone(v));
   }
   if (online) push(rc); else store.set("spots", spots);
   const sc = {}; for (const [p, v] of Object.entries(rc)) if (p.startsWith("spots/")) sc[p.slice(6)] = v;
@@ -361,10 +376,10 @@ function doRoom(rc){
 }
 function spotPaths(ps, side){ const rc = {}; for (const part of Object.values(ps)) for (const [p, v] of Object.entries(part[side] || {})) rc["spots/" + p] = v; return rc; }
 
-function commit(changes){
+function commit(changes, extra = {}){
   if (!Object.keys(changes).length) return;
   if (!Object.keys(changes).some(isTimer)) {           // not a timer change: apply without touching the history
-    const rc = {}; for (const [p, v] of Object.entries(changes)) rc["spots/" + p] = v;
+    const rc = {...extra}; for (const [p, v] of Object.entries(changes)) rc["spots/" + p] = v;
     return doRoom(rc);
   }
   const ps = {};
@@ -372,30 +387,38 @@ function commit(changes){
     const id = p.split("/")[0], part = ps[id] || (ps[id] = {b:{}, a:{}});
     part.b[p] = clone(getPath(spots, p)); part.a[p] = clone(changes[p]);
   }
-  const rc = {};
+  const rc = {...extra};
   for (const [p, v] of Object.entries(changes)) rc["spots/" + p] = v;
   rc["hist/" + hkey()] = {at: Math.round(now()), p: JSON.stringify(ps)};
   if (Object.keys(H.redo).length) rc["redo"] = null;
   const ks = sortedKeys(H.hist); for (const k of ks.slice(0, Math.max(0, ks.length + 1 - HMAX))) rc["hist/" + k] = null;
   doRoom(rc);
 }
+// kill log follows undo/redo: undoing a kill removes its log entry, redoing puts it back
+const logEntry = (v, p) => ({d: v.d, n: v.n, s: p.split("/")[0], c: p.split("/").pop(), at: v.a});
+function logFix(ps, side){
+  const rc = {}; if (!online) return rc;
+  for (const part of Object.values(ps)) for (const [p, v] of Object.entries(part.a || {}))
+    if (v && v.k) rc["log/" + v.k] = side === "b" ? null : logEntry(v, p);
+  return rc;
+}
 function undo(){
   const k = latestWith(H.hist); if (!k) return;
   const ps = tparts(H.hist[k]);
-  doRoom({...spotPaths(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
+  doRoom({...spotPaths(ps, "b"), ...logFix(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
   toast("Cofnięto");
 }
 function redo(){
   const k = latestWith(H.redo); if (!k) return;
   const ps = tparts(H.redo[k]);
-  doRoom({...spotPaths(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
+  doRoom({...spotPaths(ps, "a"), ...logFix(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: JSON.stringify(ps)}});
   toast("Ponowiono");
 }
 // undo/redo only the part of the latest step that touched this resp
 function spotStep(id, from, to, side, msg){
   const k = latestWith(H[from], id); if (!k) return;
   const ps = tparts(H[from][k]), part = ps[id], rest = {...ps}; delete rest[id];
-  const rc = spotPaths({[id]: part}, side);
+  const rc = {...spotPaths({[id]: part}, side), ...logFix({[id]: part}, side)};
   rc[`${from}/${k}`] = Object.keys(rest).length ? {at: H[from][k].at, p: JSON.stringify(rest)} : null;
   rc[`${to}/${hkey()}`] = {at: Math.round(now()), p: JSON.stringify({[id]: part})};
   doRoom(rc);
@@ -545,7 +568,7 @@ function renderPresence(){
     ? list.map(p => `<li>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</li>`).join("")
     : `<li class="pme">Nikogo nie widać</li>`;
 }
-setInterval(renderPresence, 15000);              // let people drop off the list when their heartbeat stops
+setInterval(() => { renderPresence(); const r = document.getElementById("rota"); if (r && !editingInline()) r.outerHTML = rotaHtml(); }, 15000);              // let people drop off the list when their heartbeat stops
 function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); }
 // saved room list ("a;b;c" in Menu); one room is live at a time, the header select switches between them
 const roomList = () => { const r = store.get("rooms", null); if (Array.isArray(r)) return r; const o = store.get("online", null) || store.get("lastRoom", null); return o && o.room ? [o.room] : []; };
@@ -695,6 +718,7 @@ function refresh(changes){
     if (el) el.outerHTML = spotHtml(spots[id]);
   }
   fitNames();
+  const rb = document.getElementById("rota"); if (rb) rb.outerHTML = rotaHtml();
   renderTabs();
 }
 // compact view: the name column is as wide as the longest resp name on each map, so channels sit right next to it
@@ -712,6 +736,51 @@ function fitNames(){
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitNames());
 let rafPending = false;
 function scheduleRender(){ if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); }
+/* ---------- kill rotation (rooms only) ---------- */
+function todayLog(){ return Object.entries(remoteRoot.log || {}).map(([k, v]) => ({k, ...v})).filter(e => e && e.at > resetAt).sort((a, b) => a.at - b.at); }
+function rota(){
+  const log = todayLog(), order = remoteRoot.order || {};
+  const counts = {}; for (const e of log) { counts[e.d] = (counts[e.d] || 0) + 1; }
+  const list = people().map(p => ({...p, kills: counts[p.id] || 0}))
+    .sort((a, b) => ((order[a.id] ?? 1e9) - (order[b.id] ?? 1e9)) || a.n.localeCompare(b.n, "pl"));
+  const last = log[log.length - 1] || null;
+  const li = last ? list.findIndex(p => p.id === last.d) : -1;
+  const next = list.length ? list[li >= 0 ? (li + 1) % list.length : 0] : null;
+  return {list, last, next, total: log.length};
+}
+const ago = t => { const m = Math.max(0, Math.round((now() - t) / 60000)); return m < 1 ? "przed chwilą" : m < 60 ? `${m} min temu` : `${Math.floor(m / 60)} h ${m % 60} min temu`; };
+function rotaHtml(){
+  if (!online) return "";
+  const {last, next} = rota(), sp = last && spots[last.s];
+  const lastTxt = last ? `<b>${esc(last.n || "?")}</b> <span class="rmeta">${sp ? esc(sp.name) + " " : ""}CH${esc(String(last.c).slice(1))} · ${ago(last.at)}</span>` : `<span class="rmeta">nikt dzisiaj</span>`;
+  const mine = next && next.me;
+  return `<div class="rota${mine ? " mine" : ""}" id="rota">
+    <span class="rcell"><span class="rlab">Ostatnio zbił</span>${lastTxt}</span>
+    <span class="rcell"><span class="rlab">Następny</span>${next ? `<b>${mine ? "Ty!" : esc(next.n)}</b>` : `<span class="rmeta">—</span>`}</span>
+    <button class="btn" data-rota="1">Kolejka</button></div>`;
+}
+function rotaSheet(){
+  sheet(`<h2>Kolejka zbijania</h2><p>Po każdym zbiciu kolej przechodzi na następną osobę z listy. Kolejność zmieniasz strzałkami, liczniki zerują się o 01:00.</p>
+    <ul class="banlist" id="r_list"></ul><div class="acts"><button class="btn" data-close>Zamknij</button></div>`, el => {
+    const draw = () => {
+      const {list, last, next, total} = rota();
+      el.querySelector("#r_list").innerHTML = list.length ? list.map((p, i) => `<li class="${next && next.id === p.id ? "rnext" : ""}">
+        <span><span class="rpos">${i + 1}.</span> ${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}${next && next.id === p.id ? ' <span class="rtag">następny</span>' : ""}${last && last.d === p.id ? ' <span class="pme">ostatni</span>' : ""}</span>
+        <span class="ract"><span class="rkills" title="Zbite dzisiaj">${p.kills}</span><button class="btn" data-mv="${i}|-1"${i === 0 ? " disabled" : ""} aria-label="Wyżej">↑</button><button class="btn" data-mv="${i}|1"${i === list.length - 1 ? " disabled" : ""} aria-label="Niżej">↓</button></span></li>`).join("")
+        + `<li class="pme">Razem dzisiaj: ${total}</li>` : '<li class="pme">Nikogo nie ma w pokoju.</li>';
+    };
+    draw();
+    const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
+    el.addEventListener("click", e => {
+      const b = e.target.closest("[data-mv]"); if (!b) return;
+      const [i, d] = b.dataset.mv.split("|").map(Number), list = rota().list, j = i + d;
+      if (j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      const rc = {}; list.forEach((p, n) => { rc["order/" + p.id] = n; });
+      doRoom(rc); draw();
+    });
+  });
+}
 function renderTabs(){
   const html = visibleMaps().map(m => {
     const ss = mapSpots(m.id);
@@ -740,7 +809,7 @@ function render(){
   renderPending = false;
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
-  $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
+  $("#main").innerHTML = rotaHtml() + `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
     <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
   fitNames();
 }
@@ -835,9 +904,16 @@ function newSpot(kind, mapId){
 document.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.tab) { tab = b.dataset.tab; view = "maps"; saveTab(); render(); window.scrollTo(0, 0); b.scrollIntoView({inline:"nearest", block:"nearest"}); return; }
-  if (b.dataset.kill) { const [id, c] = b.dataset.kill.split("|"); const s = spots[id]; if (s) commit({[`${id}/t/${c}`]: {a: now(), mn: s.min, mx: s.max}}); return; }
+  if (b.dataset.kill) { const [id, c] = b.dataset.kill.split("|"); const s = spots[id]; if (!s) return;
+    const mark = {a: Math.round(now()), mn: s.min, mx: s.max};
+    if (online && myNick()) {                           // in a room: remember who killed it, for the rotation
+      const k = hkey(); Object.assign(mark, {d: deviceId, n: myNick().slice(0, 20), k});
+      commit({[`${id}/t/${c}`]: mark}, {["log/" + k]: logEntry(mark, `${id}/t/${c}`)});
+    } else commit({[`${id}/t/${c}`]: mark});
+    return; }
   if (b.dataset.reset) { const [id, c] = b.dataset.reset.split("|"); if (spots[id] && (spots[id].t || {})[c]) commit({[`${id}/t/${c}`]: null}); return; }
   if (b.dataset.edit) { editSheet(spots[b.dataset.edit]); return; }
+  if (b.dataset.rota) { rotaSheet(); return; }
   if (b.dataset.sundo) { spotUndo(b.dataset.sundo); return; }
   if (b.dataset.sredo) { spotRedo(b.dataset.sredo); return; }
   if (b.dataset.add) { commit(newSpot("metin", b.dataset.add)); return; }
