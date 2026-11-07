@@ -315,6 +315,17 @@
               }
             }
           },
+          "rd": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 7"
+          },
+          "lv": {
+            "$i": {
+              ".validate": "$i.matches(/^[0-7]$/)",
+              "$id": {
+                ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.val() === true"
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }
