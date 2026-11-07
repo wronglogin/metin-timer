@@ -693,7 +693,9 @@ function stopPresence(keepEntry){
   if (!keepEntry && online) fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {});
   if (!keepEntry) { presence = {}; renderPresence(); }
 }
-window.addEventListener("pagehide", () => { if (online) fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {}); });
+window.addEventListener("pagehide", () => { if (!online) return; fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {});
+  const g = remoteRoot.game, r = remoteRoot.roulette, ch = {};
+  if (Object.keys(ch).length) fetch(roomUrl(), {method:"PATCH", keepalive:true, headers:{"Content-Type":"application/json"}, body: JSON.stringify(ch)}).catch(() => {}); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) heartbeat(); });
 function people(){
   return Object.entries(presence || {}).filter(([, v]) => v && v.n && now() - (+v.t || 0) < 360000)
@@ -1853,11 +1855,30 @@ function onRoulette(initial){
   if (initial && age > 8000) return;                     // joined later: don't replay old spins
   if (age < 30000) showSpin(r, Math.max(0, age));       // everyone in the room watches the wheel
 }
-/* one game at a time in a room (the lottery counts too). Returns why a new one can't start, or "" */
+/* one game at a time in a room (the lottery counts too). A game blocks the room only while it is really going on:
+   not finished, something happened in the last 2 minutes, and someone from it (its owner or a player) is still here.
+   A finished, abandoned or idle game never blocks. Returns why a new one can't start, or "". */
+const IDLE_FREE = 2 * 60000;
+// when the room is busy: the message, plus "Zakończ tamtą grę" for its owner and a logged-in admin
+function busyHtml(busy){
+  if (!busy) return "";
+  const g = G(), r = remoteRoot.roulette, mine = (g && g.by === deviceId) || (r && r.bd === deviceId) || isAdmin();
+  return `<p style="color:var(--window)">${esc(busy)}</p>${mine ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" data-endgame>Zakończ tamtą grę</button></div>' : ""}`;
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-endgame]")) return;
+  const g = G(), r = remoteRoot.roulette;
+  if (g && g.id && !["done", "declined", "cancel"].includes(g.state) && (g.by === deviceId || isAdmin())) gamePatch({"game/state": "cancel"});
+  if (r && r.wait && (r.bd === deviceId || isAdmin())) lotWrite({roulette: null});
+  const sc = document.querySelector("#layer [data-close]"); if (sc) sc.click();
+  toast("Zakończono grę – możesz zacząć nową.");
+});
 function roomBusy(fromLottery = false){
-  const g = G(), r = remoteRoot && remoteRoot.roulette, t = now();
-  const gameOn = g && g.id && !["done", "declined", "cancel"].includes(g.state) && t - (+g.at || 0) < 10 * 60000;
-  const lotOn = r && r.id && (r.wait ? t - (+r.at || 0) < 10 * 60000 : t - (+r.at || 0) < 9000);
+  const g = G(), r = remoteRoot && remoteRoot.roulette, t = now(), hereNow = presentSet();
+  const involved = (by, ids) => [by, ...ids].some(id => id && hereNow.has(id));
+  const gameOn = g && g.id && !["done", "declined", "cancel"].includes(g.state) && t - (+g.la || +g.at || 0) < IDLE_FREE
+    && involved(g.by, Object.keys(g.p || {}));
+  const lotOn = r && r.id && (r.wait ? t - (+r.la || +r.at || 0) < IDLE_FREE && involved(r.bd, Object.keys(r.p || {})) : t - (+r.at || 0) < 9000);
   if (gameOn) return `W pokoju trwa już gra „${GAMES[g.type].name}”. Poczekajcie, aż się skończy.`;
   if (lotOn && !fromLottery) return "W pokoju trwa już loteria. Poczekajcie, aż się skończy.";
   return "";
@@ -1865,20 +1886,27 @@ function roomBusy(fromLottery = false){
 /* lottery rematch: 10 s for people to leave or join, then the person who asked for it draws (or the next one if they left) */
 /* lottery lobby: people join or leave; the owner clicks "Losuj", then everyone has 10 s to confirm they are ready.
    Whoever doesn't confirm only watches. If the owner leaves the room or does nothing for 30 s, the next player takes over. */
-function lotWrite(rc){ for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v))); push(rc); }
+let lotClosed = null;
+// who has the lottery window open (a finished or abandoned lottery stops blocking the room once everyone closed it)
+function lotWatch(){}
+function lotWrite(rc, activity = true){
+  if (!activity) {}
+  else if (rc.roulette && typeof rc.roulette === "object") rc.roulette.la = {".sv": "timestamp"};
+  else if (Object.keys(rc).some(k => k.startsWith("roulette/"))) rc["roulette/la"] = {".sv": "timestamp"}; for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v))); push(rc); }
 function showLotteryWait(){
   clearTimeout(rwaitTimer);
   const r = remoteRoot.roulette;
   let el = document.getElementById("spin");
   if (!r || !r.wait) { if (el && el.dataset.wait) el.remove(); return; }
-  if (!el || el.dataset.wait !== r.id) {
+  const hidden = lotClosed === r.id;                    // this person closed the window: keep the logic, skip the window
+  if (!hidden && (!el || el.dataset.wait !== r.id)) {
     if (el) el.remove();
-    el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox"; el.dataset.wait = r.id;
+    el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox"; el.dataset.wait = r.id; lotWatch(r.id, true);
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Loteria");
     el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><div class="wbody"></div>`;
     document.body.appendChild(el); floatPanel(el, "spin");
     el.addEventListener("click", e => {
-      if (e.target.closest("[data-spinclose]")) { el.remove(); return; }
+      if (e.target.closest("[data-spinclose]")) { lotClosed = el.dataset.wait; lotWatch(el.dataset.wait, false); el.remove(); return; }
       const cur = remoteRoot.roulette; if (!cur || !cur.wait) return;
       const b = e.target.closest("[data-lw]"); if (!b) return;
       const a = b.dataset.lw, own = cur.bd === deviceId;
@@ -1908,11 +1936,11 @@ function showLotteryWait(){
       ${own ? `<button class="btn" data-lw="cancel">Odwołaj</button><button class="btn primary" data-lw="start"${ps.length < 2 ? " disabled" : ""}>Losuj</button>` : ""}</div>`
       + (ps.length >= 2 ? `<p class="pme">${own ? `Kliknij Losuj w ciągu ${left} s – potem losowanie przejmie ktoś inny.` : `Jeśli ${esc(r.by || "")} nie kliknie Losuj w ciągu ${left} s, przejmie to ktoś inny.`}</p>` : "");
   }
-  const body = el.querySelector(".wbody"); if (body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
+  const body = !hidden && el && el.querySelector(".wbody"); if (body && body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
   // who runs it: the owner while in the room; otherwise (or after 30 s idle) the present player with the lowest id
   const ownerHere = hereNow.has(r.bd), cands = ps.map(p => p.id).filter(id => hereNow.has(id) && id !== r.bd).sort();
   if (!r.ready && cands[0] === deviceId && ps.length >= 2 && (!ownerHere || t > (+r.os || +r.at || 0) + START_WAIT) && !r._took) {
-    r._took = true; lotWrite({"roulette/bd": deviceId, "roulette/by": myNick().slice(0, 20), "roulette/os": {".sv": "timestamp"}}); toast("Przejmujesz loterię – kliknij Losuj, gdy będziecie gotowi.", 4000);
+    r._took = true; lotWrite({"roulette/bd": deviceId, "roulette/by": myNick().slice(0, 20), "roulette/os": {".sv": "timestamp"}}, false); toast("Przejmujesz loterię – kliknij Losuj, gdy będziecie gotowi.", 4000);
   }
   const runner = ownerHere ? r.bd === deviceId : cands[0] === deviceId;
   if (r.ready && runner && !r._going && (ps.every(p => ok[p.id]) || t >= +r.okd)) {
@@ -1922,7 +1950,7 @@ function showLotteryWait(){
       const rc = {"roulette/ready": null, "roulette/ok": null, "roulette/okd": null, "roulette/os": {".sv": "timestamp"}};
       for (const p of ps) if (!ok[p.id]) rc["roulette/p/" + p.id] = null;
       lotWrite(rc); toast("Za mało gotowych graczy – loteria czeka na start.");
-    } else { el.remove(); spinRoulette(readyPs, r.s); return; }
+    } else { if (el) el.remove(); lotClosed = null; spinRoulette(readyPs, r.s); return; }
   }
   rwaitTimer = setTimeout(showLotteryWait, 300);
 }
@@ -1930,7 +1958,7 @@ function showSpin(r, age){
   const players = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
   const wi = Math.max(0, players.findIndex(p => p.id === r.w)); if (!players.length) return;
   let el = document.getElementById("spin"); if (el) el.remove(); clearTimeout(spinTimer);
-  el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox";
+  el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox"; lotWatch(r.id, true);
   const pool = poolText(r.s, players.length);
   el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Loteria");
   el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
@@ -1939,7 +1967,7 @@ function showSpin(r, age){
 `;
   document.body.appendChild(el);
   floatPanel(el, "spin");
-  el.addEventListener("click", e => { if (e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); el.remove(); } });
+  el.addEventListener("click", e => { if (e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); lotWatch(r.id, false); el.remove(); } });
   const names = el.querySelectorAll(".spn"), res = el.querySelector(".spinres");
   // the highlight walks round the names, slowing down, and stops on the winner (same steps for everyone)
   const laps = 3, total = laps * players.length + wi, delays = [];
@@ -1988,7 +2016,7 @@ function rouletteSheet(){
   if (!online) { toast("Loteria działa we wspólnym pokoju. Połącz się w Menu."); return; }
   const busy = roomBusy();
   sheet(`<h2>Loteria</h2><p>Wpisz stawkę i zaznacz, kto gra. Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
-    ${busy ? `<p style="color:var(--window)">${esc(busy)}</p>` : ""}
+    ${busyHtml(busy)}
     <div class="field"><label for="rl_s">Za ile gramy (stawka od osoby)</label><input id="rl_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     <div class="field"><label>Gracze</label><ul class="banlist" id="rl_p"></ul></div>
     <p id="rl_err" style="color:var(--danger)" hidden></p>
@@ -2038,7 +2066,11 @@ const amIn = g => !!(g && g.p && g.p[deviceId]);
 const secrets = store.get("gsec", {});                  // my hidden values (number to guess, rps choice) per game id
 const svNow = v => v && typeof v === "object" ? (v[".sv"] ? Math.round(now()) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, svNow(x)]))) : v;
 
-function gamePatch(rc){
+function gamePatch(rc, activity = true){
+  // every change to the game marks it as active ("la" = last activity); an idle game stops blocking the room
+  if (!activity) {}
+  else if (rc.game && typeof rc.game === "object") rc.game.la = {".sv": "timestamp"};
+  else if (Object.keys(rc).some(k => k.startsWith("game/") && k !== "game/logged")) rc["game/la"] = {".sv": "timestamp"};
   const out = {};
   for (const [p, v] of Object.entries(rc)) { out[p] = v; setPath(remoteRoot, p, clone(svNow(v))); }
   if (online) push(out);
@@ -2366,7 +2398,7 @@ function poolHandover(g){
   if (hereNow.has(g.by) && now() < poolDeadline(g)) return;
   const next = ids.filter(id => id !== g.by && hereNow.has(id)).sort()[0];
   if (next !== deviceId) return;
-  gamePatch({"game/by": deviceId, "game/byn": myNick().slice(0, 20), "game/os": {".sv": "timestamp"}});
+  gamePatch({"game/by": deviceId, "game/byn": myNick().slice(0, 20), "game/os": {".sv": "timestamp"}}, false);   // a handover is not activity
   toast("Przejmujesz start gry – kliknij Start, gdy będziecie gotowi.", 4000);
 }
 const ownerLine = g => {
@@ -2649,7 +2681,9 @@ function thump(a, when, vol){
 function horseSound(cv, g, t, best, m){
   const st = cv._hs || (cv._hs = {});
   const a = gameSnd ? audio() : null;
-  if (!a) { if (st.crowd && actx) st.cg.gain.setTargetAtTime(0, actx.currentTime, 0.2); return; }
+  // only while the race runs (from the countdown until a few seconds after the finish), silent while betting
+  const racing = (g.state === "race") || (g.state === "done" && st.roarUntil && actx && actx.currentTime < st.roarUntil + 1.5);
+  if (!a || !racing) { if (st.crowd && actx) st.cg.gain.setTargetAtTime(0, actx.currentTime, 0.2); if (!racing) st.next = 0; return; }
   if (!st.crowd) {
     const s = a.createBufferSource(), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g2 = a.createGain();
     s.buffer = noiseBuf(a); s.loop = true; f.type = "bandpass"; f.frequency.value = 850; f.Q.value = 0.6; f2.type = "lowpass"; f2.frequency.value = 2200; g2.gain.value = 0;
@@ -2665,7 +2699,7 @@ function horseSound(cv, g, t, best, m){
     else { vol = 0.07 + Math.max(0, best - 0.6) * 0.3; freq = 900 + best * 500; }
     // a short roar when the first horse crosses the line
     if (m && !st.roared && t > m.horses[m.wh - 1].T) { st.roared = g.seed; st.roarUntil = now_ + 2.5; }
-  } else if (g.state === "done") vol = st.roarUntil && now_ < st.roarUntil ? 0.2 : 0.02;
+  } else if (g.state === "done") vol = st.roarUntil && now_ < st.roarUntil ? 0.2 : 0;
   if (st.roarUntil && now_ < st.roarUntil) { vol = 0.2; freq = 1500; }
   if (st.roared && st.roared !== g.seed) { st.roared = null; st.roarUntil = 0; }
   st.cg.gain.setTargetAtTime(vol, now_, 0.25); st.cf.frequency.setTargetAtTime(freq + Math.sin(now_ * 1.7) * 120, now_, 0.3);
@@ -2807,7 +2841,7 @@ function horseSheet(type = "horse"){
     <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią to samo albo nikt nie trafi, nikt nic nie wygrywa."
       : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
     <div class="field"><label for="hs_s">Stawka od osoby (opcjonalnie)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
-    ${busy ? `<p style="color:var(--window)">${esc(busy)}</p>` : ""}
+    ${busyHtml(busy)}
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="hs_go"${busy ? " disabled" : ""}>Otwórz zakłady</button></div>
     <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
@@ -2845,7 +2879,7 @@ function dropAbsent(g){
   const gone = new Set([...Object.keys(g.p || {}), ...Object.keys(g.b || {})].filter(id => !hereNow.has(id)));
   if (!gone.size) return;
   const rc = {}; for (const id of gone) { rc[`game/p/${id}`] = null; if (g.b && g.b[id]) rc[`game/b/${id}`] = null; }
-  gamePatch(rc);
+  gamePatch(rc, false);
 }
 // the waiting room is over: whoever runs it (the starter, or the next player if the starter is gone) starts the game
 function beginRematch(g, extra = {}){
@@ -2950,7 +2984,7 @@ function gameSheet(type){
           reflex: "Ekran wszystkich graczy w tej samej chwili zrobi się zielony. Wygrywa najszybsze stuknięcie.",
           guess: "Losuje się liczba od 1 do 100. Każdy typuje, wygrywa najbliższy.",
           rps: "Wyzwij jedną osobę. Oboje wybieracie w ukryciu, wynik pokazuje się jednocześnie."}[type]}</p>
-    ${busy ? `<p style="color:var(--window)">${esc(busy)}</p>` : ""}
+    ${busyHtml(busy)}
     <div class="field"><label for="gm_s">Stawka od osoby (opcjonalnie)</label><input id="gm_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     ${type === "coin" ? `<div class="field"><label>Twoja strona</label><div class="seg"><button data-side="orzel" aria-pressed="true">Orzeł</button><button data-side="reszka" aria-pressed="false">Reszka</button></div></div>` : ""}
     <div class="field"><label>${def.duel ? "Przeciwnik" : "Gracze"}</label><ul class="banlist" id="gm_p"></ul></div>

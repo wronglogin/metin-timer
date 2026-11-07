@@ -222,6 +222,14 @@
           "os": {
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
+          "v": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.val() === true"
+            }
+          },
+          "la": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
           "$other": {
             ".validate": false
           }
@@ -394,6 +402,14 @@
           },
           "back": {
             ".validate": "newData.isString() && newData.val().length <= 10"
+          },
+          "v": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.val() === true"
+            }
+          },
+          "la": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
           "$other": {
             ".validate": false
