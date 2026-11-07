@@ -36,6 +36,7 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
+#rotaBtn.mine{background:var(--window);color:#241a00;border-color:var(--window);font-weight:700}
 .rota{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:8px 10px 8px 14px}
 .rota.mine{border-color:var(--window);background:color-mix(in srgb,var(--window) 12%,var(--surface))}
 .rota .rcell{display:flex;align-items:baseline;gap:8px;min-width:0}
@@ -237,6 +238,7 @@ main{padding-top:14px;display:grid;gap:14px}
       <span class="mode" id="mode">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
+      <button class="btn" id="rotaBtn" data-rota="1" hidden title="Kolejka zbijania">Kolejka</button>
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
@@ -569,6 +571,7 @@ function people(){
     .map(([id, v]) => ({id, n: String(v.n).slice(0, 20), me: id === deviceId})).sort((a, b) => (b.me - a.me) || a.n.localeCompare(b.n, "pl"));
 }
 function renderPresence(){
+  updateRotaBtn();
   const el = document.getElementById("people"); if (!el) return;
   const list = online ? people() : [];
   el.hidden = !online;
@@ -579,7 +582,7 @@ function renderPresence(){
     ? list.map(p => `<li>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</li>`).join("")
     : `<li class="pme">Nikogo nie widać</li>`;
 }
-setInterval(() => { renderPresence(); const r = document.getElementById("rota"); if (r && !editingInline()) r.outerHTML = rotaHtml(); }, 15000);              // let people drop off the list when their heartbeat stops
+setInterval(() => { renderPresence(); updateRotaBtn(); }, 15000);              // let people drop off the list when their heartbeat stops
 function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); }
 // saved room list ("a;b;c" in Menu); one room is live at a time, the header select switches between them
 const roomList = () => { const r = store.get("rooms", null); if (Array.isArray(r)) return r; const o = store.get("online", null) || store.get("lastRoom", null); return o && o.room ? [o.room] : []; };
@@ -729,7 +732,7 @@ function refresh(changes){
     if (el) el.outerHTML = spotHtml(spots[id]);
   }
   fitNames();
-  const rb = document.getElementById("rota"); if (rb) rb.outerHTML = rotaHtml();
+  updateRotaBtn();
   renderTabs();
 }
 // compact view: the name column is as wide as the longest resp name on each map, so channels sit right next to it
@@ -768,6 +771,12 @@ function rota(){
   return {list, last, next, total: log.length, picked: !!(next && pick && pick.id === next.id && pick.k === (last ? last.k : ""))};
 }
 const ago = t => { const m = Math.max(0, Math.round((now() - t) / 60000)); return m < 1 ? "przed chwilą" : m < 60 ? `${m} min temu` : `${Math.floor(m / 60)} h ${m % 60} min temu`; };
+function updateRotaBtn(){
+  const b = document.getElementById("rotaBtn"); if (!b) return;
+  b.hidden = !online; if (!online) return;
+  const {next} = rota(); const mine = !!(next && next.me);
+  b.classList.toggle("mine", mine); b.textContent = mine ? "Kolejka · Ty!" : "Kolejka";
+}
 function rotaHtml(){
   if (!online) return "";
   const {next} = rota();
@@ -857,13 +866,14 @@ function fixTab(){
   if (tab === "mine" ? !showMine() : !vis.includes(tab)) tab = showMine() ? "mine" : (vis[0] || "m1");
 }
 function render(){
+  updateRotaBtn();
   fixTab();
   renderTabs();
   if (editingInline()) { renderPending = true; return; } // don't wipe a field someone is typing in
   renderPending = false;
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
-  $("#main").innerHTML = rotaHtml() + `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
+  $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
     <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
   fitNames();
 }
