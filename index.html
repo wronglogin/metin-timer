@@ -230,11 +230,13 @@ const now = () => Date.now() + clockOffset;
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const clone = o => o == null ? null : JSON.parse(JSON.stringify(o));
 
+// default timer = shortest respawn from MiniWiki minus one minute, so you are there before it spawns
+const dmin = r => Math.max(1, r[0] - 1);
 function seedMap(mapId, base = Date.now()){
   const m = mapById[mapId], sd = SEED[mapId], out = {};
   let i = 0;
-  for (let n = 1; n <= sd.metin; n++, i++) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${n}`, kind:"metin", min:m.metin[0], max:m.metin[1], color:null, o:base + i, t:{}}; }
-  for (const b of sd.boss) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${b}`, kind:"boss", min:m.boss[0], max:m.boss[1], color:null, o:base + i++, t:{}}; }
+  for (let n = 1; n <= sd.metin; n++, i++) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${n}`, kind:"metin", min:dmin(m.metin), max:m.metin[1], color:null, o:base + i, t:{}}; }
+  for (const b of sd.boss) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${b}`, kind:"boss", min:dmin(m.boss), max:m.boss[1], color:null, o:base + i++, t:{}}; }
   return out;
 }
 function seedAll(){
@@ -492,7 +494,7 @@ function render(){
 }
 function paneHtml(id){
   const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id];
-  const rng = `Domyślnie: metiny ${m.metin[0]}–${m.metin[1]} min` + (m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : "");
+  const rng = `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + " (minutę przed respem z MiniWiki)";
   return `<section class="pane">
     <div class="maphead"><h1>${esc(m.name)}</h1><span class="ranges">${rng}</span></div>
     <div class="spots">${ss.length ? ss.map(spotHtml).join("") :
@@ -570,7 +572,7 @@ tick.n = 0;
 function newSpot(kind, mapId){
   const m = mapById[mapId], r = m[kind] || m.metin, ss = mapSpots(m.id), n = ss.length;
   const id = uid(), o = ss.length ? Math.max(...ss.map(s => s.o || 0)) + 1 : Date.now();
-  return {[id]: {id, map:m.id, name: `${m.name} ${n + 1}`, kind, min:r[0], max:r[1], color:null, o, t:{}}};
+  return {[id]: {id, map:m.id, name: `${m.name} ${n + 1}`, kind, min:dmin(r), max:r[1], color:null, o, t:{}}};
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
