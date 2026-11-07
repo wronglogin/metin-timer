@@ -49,6 +49,9 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .rtag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--window);color:#241a00;border-radius:4px;padding:1px 6px;margin-left:4px}
 .banlist li.rnext{border-color:var(--window)}
 .banlist li.roff{opacity:.55}
+.rrow{cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:box-shadow .15s}
+.rrow.rdrag{cursor:grabbing;position:relative;z-index:2;box-shadow:0 8px 22px rgba(0,0,0,.45);border-color:var(--accent);background:var(--surface-2);transition:none}
+.rgrip{color:var(--muted);letter-spacing:-3px;font-weight:700;padding-right:2px}
 .rwho{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
 .rchk{width:20px;height:20px;accent-color:var(--ready);margin:0}
 .rname{background:none;border:0;padding:2px 4px;margin:-2px -4px;border-radius:4px;font-weight:700;font-size:16px;color:var(--fg);text-decoration:underline dotted color-mix(in srgb,var(--fg) 40%,transparent);text-underline-offset:3px}
@@ -776,18 +779,54 @@ function rotaHtml(){
     <button class="btn" data-rota="1">Kolejka</button></div>`;
 }
 function rotaSheet(){
-  sheet(`<h2>Kolejka zbijania</h2><p>Po każdym zbiciu kolej przechodzi na następną zaznaczoną osobę. Odznacz tych, którzy nie zbijają. Stuknij nick, żeby ręcznie wybrać następnego. Liczniki zerują się o 01:00.</p>
+  sheet(`<h2>Kolejka zbijania</h2><p>Po każdym zbiciu kolej przechodzi na następną zaznaczoną osobę. Odznacz tych, którzy nie zbijają. Stuknij nick, żeby ręcznie wybrać następnego. Kolejność zmieniasz, przeciągając osoby (na telefonie: przytrzymaj i przesuń). Liczniki zerują się o 01:00.</p>
     <ul class="banlist" id="r_list"></ul><div class="acts"><button class="btn" data-close>Zamknij</button></div>`, el => {
     const draw = () => {
       const {list, last, next, total, picked} = rota();
-      el.querySelector("#r_list").innerHTML = list.length ? list.map((p, i) => `<li class="${next && next.id === p.id ? "rnext" : ""}${p.off ? " roff" : ""}">
-        <span class="rwho"><input type="checkbox" class="rchk" data-on="${esc(p.id)}" ${p.off ? "" : "checked"} aria-label="${esc(p.n)} w kolejce"><span class="rpos">${i + 1}.</span>
+      el.querySelector("#r_list").innerHTML = list.length ? list.map((p, i) => `<li data-rid="${esc(p.id)}" class="rrow${next && next.id === p.id ? " rnext" : ""}${p.off ? " roff" : ""}">
+        <span class="rwho"><span class="rgrip" aria-hidden="true">⋮⋮</span><input type="checkbox" class="rchk" data-on="${esc(p.id)}" ${p.off ? "" : "checked"} aria-label="${esc(p.n)} w kolejce"><span class="rpos">${i + 1}.</span>
           <button class="rname" data-pick="${esc(p.id)}"${p.off ? " disabled" : ""} title="Ustaw jako następnego">${esc(p.n)}</button>${p.me ? ' <span class="pme">(ty)</span>' : ""}${next && next.id === p.id ? ` <span class="rtag">${picked ? "wybrany" : "następny"}</span>` : ""}${last && last.d === p.id ? ' <span class="pme">ostatni</span>' : ""}${p.off ? ' <span class="pme">pomijany</span>' : ""}</span>
-        <span class="ract"><span class="rkills" title="Zbite dzisiaj">${p.kills}</span><button class="btn" data-mv="${i}|-1"${i === 0 ? " disabled" : ""} aria-label="Wyżej">↑</button><button class="btn" data-mv="${i}|1"${i === list.length - 1 ? " disabled" : ""} aria-label="Niżej">↓</button></span></li>`).join("")
+        <span class="ract"><span class="rkills" title="Zbite dzisiaj">${p.kills}</span></span></li>`).join("")
         + `<li class="pme">Razem dzisiaj: ${total}</li>` : '<li class="pme">Nikogo nie ma w pokoju.</li>';
     };
+    let drag = null;                                   // list is not redrawn while someone is dragging
     draw();
-    const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
+    const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); if (!drag) draw(); }, 2000);
+    /* drag to reorder: mouse drags right away, touch after a ~0.45 s hold (normal swipes keep scrolling) */
+    const ul = el.querySelector("#r_list");
+    const begin = (li, y) => { drag = {li, grab: y - li.getBoundingClientRect().top, active: false}; };
+    const activate = () => { drag.active = true; drag.li.classList.add("rdrag"); try { navigator.vibrate && navigator.vibrate(15); } catch {} };
+    const move = y => {
+      const li = drag.li; li.style.transform = "";
+      const prev = li.previousElementSibling, nxt = li.nextElementSibling;
+      const mid = e => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; };
+      if (nxt && nxt.classList.contains("rrow") && y > mid(nxt)) ul.insertBefore(nxt, li);
+      else if (prev && prev.classList.contains("rrow") && y < mid(prev)) ul.insertBefore(li, prev);
+      li.style.transform = `translateY(${y - drag.grab - li.getBoundingClientRect().top}px)`;
+    };
+    const finish = () => {
+      if (!drag) return; const d = drag; drag = null; clearTimeout(d.timer);
+      d.li.classList.remove("rdrag"); d.li.style.transform = "";
+      if (!d.active) return;
+      const rc = {}; [...ul.querySelectorAll(".rrow")].forEach((r, n) => { rc["order/" + r.dataset.rid] = n; });
+      doRoom(rc); draw();
+    };
+    const startable = t => { const li = t.closest(".rrow"); return li && !t.closest("input,button") ? li : null; };
+    ul.addEventListener("mousedown", e => { const li = startable(e.target); if (!li || e.button !== 0) return; e.preventDefault(); begin(li, e.clientY); drag.y0 = e.clientY; });
+    window.addEventListener("mousemove", e => { if (!drag || drag.touch) return; if (!drag.active && Math.abs(e.clientY - drag.y0) > 4) activate(); if (drag.active) move(e.clientY); });
+    window.addEventListener("mouseup", () => { if (drag && !drag.touch) finish(); });
+    ul.addEventListener("touchstart", e => {
+      const li = startable(e.target); if (!li || e.touches.length > 1) return;
+      const t = e.touches[0]; begin(li, t.clientY); drag.touch = true; drag.x0 = t.clientX; drag.y0 = t.clientY;
+      drag.timer = setTimeout(() => { if (drag) activate(); }, 450);
+    }, {passive: true});
+    ul.addEventListener("touchmove", e => {
+      if (!drag) return; const t = e.touches[0];
+      if (!drag.active) { if (Math.hypot(t.clientX - drag.x0, t.clientY - drag.y0) > 10) { clearTimeout(drag.timer); drag = null; } return; }   // it was a scroll
+      e.preventDefault(); move(t.clientY);
+    }, {passive: false});
+    ul.addEventListener("touchend", finish); ul.addEventListener("touchcancel", finish);
+    ul.addEventListener("contextmenu", e => { if (drag) e.preventDefault(); });
     el.addEventListener("change", e => {
       const c = e.target.closest("[data-on]"); if (!c) return;
       doRoom({["off/" + c.dataset.on]: c.checked ? null : true}); draw();
@@ -795,12 +834,6 @@ function rotaSheet(){
     el.addEventListener("click", e => {
       const pk = e.target.closest("[data-pick]");
       if (pk) { const last = rota().last; doRoom({pick: {id: pk.dataset.pick, k: last ? last.k : ""}}); draw(); return; }
-      const b = e.target.closest("[data-mv]"); if (!b) return;
-      const [i, d] = b.dataset.mv.split("|").map(Number), list = rota().list, j = i + d;
-      if (j < 0 || j >= list.length) return;
-      [list[i], list[j]] = [list[j], list[i]];
-      const rc = {}; list.forEach((p, n) => { rc["order/" + p.id] = n; });
-      doRoom(rc); draw();
     });
   });
 }
