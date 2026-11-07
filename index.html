@@ -90,13 +90,13 @@ main{padding-top:14px;display:grid;gap:14px}
 .srow .mini:disabled{opacity:.3;cursor:default}
 .srow .more{background:none;border:1px solid var(--rule);border-radius:5px;padding:2px 10px;color:var(--muted);min-height:30px}
 .srow .more:hover{color:var(--fg);border-color:var(--muted)}
-.cells{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:clamp(3px,1.2cqi,6px);container-type:inline-size}
+.cells{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,84px));gap:clamp(3px,1.2cqi,6px);container-type:inline-size}
 .cell{display:grid;gap:4px;min-width:0}
 .cell .ch{font-size:clamp(10px,calc(14cqi / var(--cols)),12px);letter-spacing:.08em;text-align:center;color:var(--muted)}
 .cell .ct{border:1px solid var(--rule);border-radius:6px;min-height:44px;padding:4px 2px;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:700;font-size:clamp(10px,calc(19cqi / var(--cols)),17px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .cell .ct:hover{border-color:var(--muted)}
 .cell.idle .ct{background:var(--ready);color:#06210f;border-color:var(--ready)}
-.cell.wait .ct{background:var(--surface-2);color:var(--fg);border-color:var(--rule)}
+.cell.wait .ct{background:var(--danger);color:#2a0905;border-color:var(--danger)}
 .cell.window .ct{background:var(--window);color:#241a00;border-color:var(--window)}
 .cell.ready .ct{background:var(--over);color:#04192b;border-color:var(--over)}
 .cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:clamp(9px,calc(13cqi / var(--cols)),11px);letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
@@ -106,7 +106,7 @@ main{padding-top:14px;display:grid;gap:14px}
 .addrow{display:flex;flex-wrap:wrap;gap:8px}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
 .legend b{font-weight:600}
-.legend .w{color:var(--fg)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)}
+.legend .w{color:var(--danger)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)}
 
 /* compact view: only name, undo/redo and channel timers */
 .compact .tag,.compact .mintime,.compact .srow .more,.compact .cell .rs,.compact .ranges,.compact .legend,.compact .addrow{display:none}
@@ -123,6 +123,13 @@ main{padding-top:14px;display:grid;gap:14px}
 .compact .cell .ch{font-size:10px}
 .compact .mineview .pane+.pane{padding-top:8px}
 @container pane (min-width:520px){.compact .spot{grid-template-columns:max(var(--namew,150px),66px) minmax(0,1fr);align-items:center;gap:8px}.compact .shead{flex-wrap:wrap;gap:2px 6px}.compact .shead .nm{flex-basis:100%}}
+/* site password screen */
+.gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
+.gatebox{display:grid;gap:10px;width:min(340px,100%);text-align:center}
+.gatebox h1{margin:0;font-size:30px;letter-spacing:.06em;text-transform:uppercase}
+.gatebox p{margin:0;color:var(--muted)}
+.gatebox input{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 12px;font-size:18px;text-align:center}
+.gatebox .gerr{color:var(--danger)}
 /* wiki */
 .wiki{display:grid;gap:18px}
 .wiki h2{font-size:20px;margin:0 0 6px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
@@ -668,7 +675,7 @@ function render(){
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
   $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
-    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Szary</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
+    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
   fitNames();
 }
 function paneHtml(id){
@@ -1056,7 +1063,40 @@ async function wake(){
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { wake(); loadConfig(); } });
 
 /* ---------- server config (admin) ---------- */
+/* ---------- site password (like squadtimer's magic word) ----------
+   The admin sets it; the database keeps only its SHA-256 (config/sitepw). It keeps casual visitors out,
+   it is not real security: the page code is public. Case-insensitive. */
+const SITEPW_DEFAULT = "36f1d2fb7c7a16d0c788aca60f493e989633071487f17efc21ec80ca7efe1d75";            // "Smerfy"
+let sitepwHash = store.get("sitepwHash", SITEPW_DEFAULT);
+async function sha256(t){
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+const pwKey = t => sha256(String(t).trim().toLowerCase());
+const unlocked = () => store.get("sitepwOk", "") === sitepwHash;
+let afterUnlock = [];
+function gate(){
+  const g = document.getElementById("gate");
+  if (unlocked()) { if (g) g.remove(); const run = afterUnlock; afterUnlock = []; run.forEach(f => f()); return; }
+  if (g) return;
+  const el = document.createElement("div"); el.id = "gate"; el.className = "gate";
+  el.innerHTML = `<form class="gatebox" autocomplete="off"><h1>Metin Timer</h1><p>Podaj hasło, żeby wejść.</p>
+    <input id="g_pw" type="password" aria-label="Hasło" autofocus><p id="g_err" class="gerr" hidden>Złe hasło.</p>
+    <button class="btn primary" type="submit">Wejdź</button></form>`;
+  document.body.appendChild(el);
+  el.querySelector("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const h = await pwKey(el.querySelector("#g_pw").value);
+    if (h === sitepwHash) { store.set("sitepwOk", h); gate(); }
+    else { el.querySelector("#g_err").hidden = false; el.querySelector("#g_pw").select(); }
+  });
+  setTimeout(() => { const i = el.querySelector("#g_pw"); if (i) i.focus(); }, 50);
+}
 async function loadConfig(){
+  try {
+    const r = await fetch(`${DB_URL}/config/sitepw.json`);
+    if (r.ok) { const h = await r.json(); if (typeof h === "string" && /^[0-9a-f]{64}$/.test(h) && h !== sitepwHash) { sitepwHash = h; store.set("sitepwHash", h); gate(); } }
+  } catch {}
   try {
     const r = await fetch(`${DB_URL}/config/channels.json`); if (!r.ok) return;
     const n = await r.json();
@@ -1073,18 +1113,24 @@ function adminSheet(){
   const pw = store.get("adminPw", "");
   sheet(`<h2>Panel admina</h2>
     <div class="field"><label for="a_pw">Hasło admina</label><input id="a_pw" type="password" autocomplete="off" value="${esc(pw)}"></div>
+    <div class="field"><label for="a_site">Nowe hasło do strony (zostaw puste, żeby nie zmieniać)</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy"></div>
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
       <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>`,
   (el, close) => el.querySelector("#a_ok").onclick = async ev => {
     const err = el.querySelector("#a_err"), pw = el.querySelector("#a_pw").value, n = +el.querySelector("#a_ch").value;
+    const site = el.querySelector("#a_site").value.trim();
     err.hidden = true; ev.target.disabled = true;
     try {
-      const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({channels:n, pw})});
+      if (site && site.length < 4) throw new Error("Hasło do strony musi mieć co najmniej 4 znaki.");
+      const body = {channels:n, pw}; if (site) body.sitepw = await pwKey(site);
+      const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
       if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
       if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
-      store.set("adminPw", pw); channels = n; store.set("channels", n); close(); render(); toast("Ustawiono " + n + " kanałów dla wszystkich");
+      store.set("adminPw", pw); channels = n; store.set("channels", n);
+      if (body.sitepw) { sitepwHash = body.sitepw; store.set("sitepwHash", body.sitepw); store.set("sitepwOk", body.sitepw); }
+      close(); render(); toast(body.sitepw ? `Zapisano. Nowe hasło do strony: ${site}` : "Ustawiono " + n + " kanałów dla wszystkich");
     } catch (x) { err.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; err.hidden = false; ev.target.disabled = false; }
   });
 }
@@ -1109,7 +1155,9 @@ if (IN_APP) setTimeout(async () => {
   }
 }, 3000);
 const auto = store.get("online", null);
-if (auto && auto.room) connect(DB_URL, auto.room).catch(() => setMode("Prywatny"));
+// rooms connect only after the site password was entered
+afterUnlock.push(() => { if (auto && auto.room && !online) connect(DB_URL, auto.room).catch(() => setMode("Prywatny")); });
+gate();
 })();
 </script>
 
