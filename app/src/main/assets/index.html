@@ -62,6 +62,8 @@ main{padding-top:14px;display:grid;gap:14px}
 .zoomrow input[type=range]{flex:1;accent-color:var(--accent);min-height:32px}
 .zoomrow output{font-family:var(--f-num);font-size:14px;min-width:44px;text-align:right}
 .spot{display:grid;gap:10px;background:var(--surface);border:1px solid var(--rule);border-left:5px solid var(--c,var(--rule));border-radius:8px;padding:10px 12px}
+/* a coloured resp also gets a top bar and a faint tint behind its name, so neighbours are easy to tell apart */
+.spot.colored{border-top:4px solid var(--c);border-color:color-mix(in srgb,var(--c) 45%,var(--rule));border-left-color:var(--c);border-top-color:var(--c);background:linear-gradient(to bottom,color-mix(in srgb,var(--c) 16%,var(--surface)),var(--surface) 64px)}
 @container pane (min-width:700px){.spot{grid-template-columns:minmax(200px,250px) minmax(0,1fr);align-items:center;gap:14px}}
 .panes{display:grid;gap:26px}
 .pane{container:pane / inline-size;display:grid;gap:12px;min-width:0}
@@ -613,7 +615,7 @@ function spotHtml(s){
       <button class="rs" data-reset="${s.id}|${c}"${st.cls === "idle" ? " disabled" : ""}>zeruj</button>
     </div>`;
   }).join("");
-  return `<div class="spot" data-id="${s.id}"${s.color ? ` style="--c:${esc(s.color)}"` : ""}>
+  return `<div class="spot${s.color ? " colored" : ""}" data-id="${s.id}"${s.color ? ` style="--c:${esc(s.color)}"` : ""}>
     <div class="shead">
       <input class="nm" id="nm_${s.id}" data-f="name" data-id="${s.id}" maxlength="40" value="${esc(s.name)}" aria-label="Nazwa respu">
       <div class="srow"><span class="tag${s.kind === "boss" ? " boss" : ""}">${s.kind === "boss" ? "Boss" : "Metin"}</span>
