@@ -1325,7 +1325,8 @@ async function ensurePlayer(){
   const YT = await loadYtApi(); if (!YT || !YT.Player) { toast("Nie udało się wczytać odtwarzacza YouTube."); return null; }
   document.getElementById("ytdock").hidden = false;
   return new Promise(res => {
-    ytPlayer = new YT.Player("ytplayer", {width: 200, height: 200, playerVars: {playsinline: 1, rel: 0, modestbranding: 1},
+    const pv = {playsinline: 1, rel: 0, enablejsapi: 1}; if (/^https?:/.test(location.origin)) pv.origin = location.origin;
+    ytPlayer = new YT.Player("ytplayer", {width: 200, height: 200, playerVars: pv,
       events: {
         onReady: () => {
           ytReady = true;
@@ -1339,7 +1340,11 @@ async function ensurePlayer(){
           if (e.data === 1) rememberTitle();
           renderRadio();
         },
-        onError: () => radioEnded(),                                           // blocked / removed video: skip it
+        onError: e => {                                                         // say why, then skip the video
+          const why = {2: "zły link", 5: "przeglądarka nie odtwarza tego filmu", 100: "film usunięty albo prywatny", 101: "autor nie pozwala odtwarzać go poza YouTube", 150: "autor nie pozwala odtwarzać go poza YouTube", 153: "YouTube nie rozpoznał strony (brak nagłówka Referer)"}[e.data] || "nieznany problem";
+          const it = curItem(); toast(`YouTube: ${it && it.t ? "„" + it.t + "” – " : ""}${why} (kod ${e.data}). Przechodzę dalej.`);
+          radioEnded();
+        },
       }});
   });
 }
@@ -1357,7 +1362,7 @@ function syncRadio(force){
     if (!data || data.video_id !== it.v) ytPlayer.loadVideoById({videoId: it.v, startSeconds: off});
     else {
       const t = ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0;
-      if (force || Math.abs(t - off) > 3) ytPlayer.seekTo(off, true);
+      if (Math.abs(t - off) > (force ? 1.5 : 3)) ytPlayer.seekTo(off, true);   // only when really out of step
       if (ytPlayer.getPlayerState() !== 1) ytPlayer.playVideo();
     }
   } catch {}
@@ -1381,6 +1386,31 @@ function rememberTitle(){
   const r = RADIO(), it = curItem(); if (!it || it.t) return;
   try { const t = (ytPlayer.getVideoData() || {}).title; if (t) radioPatch({[`queue/${r.cur}/t`]: t.slice(0, 120)}); } catch {}
 }
+// real YouTube titles: oEmbed (no API key needed); the first one who gets a title writes it for everyone
+const titleCache = {};
+async function ytTitle(v){
+  if (titleCache[v]) return titleCache[v];
+  for (const u of [`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent("https://www.youtube.com/watch?v=" + v)}`,
+                   `https://noembed.com/embed?url=${encodeURIComponent("https://www.youtube.com/watch?v=" + v)}`]) {
+    try { const r = await fetch(u); if (!r.ok) continue; const j = await r.json(); if (j && j.title) return (titleCache[v] = String(j.title).slice(0, 120)); } catch {}
+  }
+  return null;
+}
+let titling = false;
+async function fillTitles(){
+  if (titling || !online) return; titling = true;
+  try {
+    const r = RADIO(), ks = rqKeys(); let n = 0;
+    // current track first, then the rest of the queue
+    const order = [r.cur, ...ks].filter((k, i, a) => k && a.indexOf(k) === i);
+    for (const k of order) {
+      const it = (RADIO().queue || {})[k]; if (!it || it.t) continue;
+      const t = await ytTitle(it.v); if (t && (RADIO().queue || {})[k] && !RADIO().queue[k].t) radioPatch({[`queue/${k}/t`]: t});
+      if (++n >= 25) break;                                      // a few at a time; the rest on the next pass
+    }
+  } finally { titling = false; }
+}
+setInterval(fillTitles, 8000);
 // playlist links: let a hidden helper player list the videos (nothing is played)
 async function playlistIds(list){
   const YT = await loadYtApi(); if (!YT) return [];
@@ -1403,11 +1433,14 @@ async function addToRadio(text){
   }
   if (!ids.length) return 0;
   const rc = {}; let first = null;
-  ids.forEach(v => { const k = hkey(); rc[`queue/${k}`] = {v, by: myNick().slice(0, 20)}; first = first || k; });
+  // one millisecond apart, so the queue keeps the order the links were pasted in
+  const base = Math.round(now());
+  ids.forEach((v, i) => { const k = String(base + i).padStart(14, "0") + "-" + uid(); rc[`queue/${k}`] = {v, by: myNick().slice(0, 20)}; first = first || k; });
   const r = RADIO(), curGone = !r.cur || !(r.queue || {})[r.cur];
   if (curGone) { rc.cur = first; rc.start = {".sv": "timestamp"}; }
   radioPatch(rc);
   if (curGone) setPath(remoteRoot, "radio/start", Math.round(now()));
+  fillTitles();
   return ids.length;
 }
 function setRadioOn(on){
@@ -1420,7 +1453,9 @@ function renderRadio(){
   const box = document.getElementById("radio"); if (!box) return;
   box.hidden = !online;
   if (!online) { document.getElementById("ytdock").hidden = true; return; }
-  const it = curItem(), title = it ? (it.t || (ytReady && radioOn && (ytPlayer.getVideoData() || {}).video_id === it.v && (ytPlayer.getVideoData() || {}).title) || "Film " + it.v) : "Kolejka pusta";
+  const it = curItem();
+  let live = ""; try { const d = ytReady && radioOn && ytPlayer.getVideoData(); if (d && it && d.video_id === it.v) live = d.title || ""; } catch {}
+  const title = it ? (it.t || live || titleCache[it.v] || "Wczytywanie tytułu…") : "Kolejka pusta";
   box.classList.toggle("off", !radioOn);
   const html = `<button class="rbtn" data-radio="${radioOn ? "mute" : "on"}" title="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio u mnie"}" aria-label="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio"}">${!radioOn ? ICON.radio : radioMuted ? ICON.muted : ICON.sound}</button>
     <span class="rtitle" title="${esc(title)}"><span>${esc(title)}</span></span>
@@ -1449,7 +1484,7 @@ function radioSheet(){
     const draw = () => {
       const r = RADIO(), ks = rqKeys();
       el.querySelector("#ra_list").innerHTML = ks.length ? ks.map(k => { const it = r.queue[k]; return `<li class="${k === r.cur ? "rnow" : ""}">
-        <button class="rqplay" data-rq="${k}" title="Odtwórz teraz">${k === r.cur ? "▶ " : ""}${esc(it.t || "Film " + it.v)}${it.by ? ` <span class="pme">· ${esc(it.by)}</span>` : ""}</button>
+        <button class="rqplay" data-rq="${k}" title="Odtwórz teraz">${k === r.cur ? "▶ " : ""}${esc(it.t || titleCache[it.v] || "Wczytywanie tytułu…")}${it.by ? ` <span class="pme">· ${esc(it.by)}</span>` : ""}</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; }).join("") : '<li class="pme">Kolejka jest pusta.</li>';
     };
     draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);

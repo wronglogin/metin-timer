@@ -69,6 +69,8 @@ public class MainActivity extends Activity {
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
                 String url = u.toString();
+                // only whole-page navigations leave the app; frames inside the page (YouTube player) load normally
+                if (!req.isForMainFrame()) return false;
                 if (url.startsWith(SITE) || "file".equals(u.getScheme())) return false;
                 startActivity(new Intent(Intent.ACTION_VIEW, u));
                 return true;
