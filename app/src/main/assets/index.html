@@ -79,6 +79,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .hpick{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
 .hbtn{display:grid;gap:0;justify-items:center;padding:3px 2px;border:2px solid var(--rule);border-radius:8px;background:var(--surface-2);color:var(--fg);cursor:pointer;min-height:40px}
 .hbtn b{width:22px;height:22px;border-radius:50%;background:var(--hc);color:#111;display:grid;place-items:center;font-size:13px}
+.hbtn i{font-style:normal;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .hbtn span{font-size:11px;color:var(--muted);font-family:var(--f-num)}
 .hbtn[aria-pressed="true"]{border-color:var(--hc);background:color-mix(in srgb,var(--hc) 18%,var(--surface-2))}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--hc);margin-right:5px;vertical-align:middle}
@@ -2046,6 +2047,7 @@ let settling = null;
 async function gameTick(){
   const g = G(); if (!online || !g || !g.id || !(amIn(g) || g.by === deviceId)) return;
   const ps = gPlayers(g), host = g.by === deviceId;
+  if ((g.type === "horse" || g.type === "wheel") && !host) poolHandover(g);
   if (g.type === "horse" && host) horseTick(g);
   if (g.type === "wheel" && host) wheelTick(g);
   if (g.type === "dice" && g.state === "play" && host) {
@@ -2216,8 +2218,13 @@ const GAME_VIEW = {
    in every stretch) follows from one random seed, so every screen shows the same race and the same winner.
    Winners share the whole pool in proportion to their bets; if nobody backed the winner, everyone gets their bet back. */
 const HORSES = [
-  {n: 1, c: "#ef6a5b"}, {n: 2, c: "#4e9ff0"}, {n: 3, c: "#e8c24a"}, {n: 4, c: "#4fd39b"}, {n: 5, c: "#b57ee8"}, {n: 6, c: "#f29a4a"},
+  {n: 1, c: "#ef6a5b", name: "Błyskawica"}, {n: 2, c: "#4e9ff0", name: "Grom"}, {n: 3, c: "#e8c24a", name: "Iskra"},
+  {n: 4, c: "#4fd39b", name: "Wicher"}, {n: 5, c: "#b57ee8", name: "Kometa"}, {n: 6, c: "#f29a4a", name: "Burza"},
 ];
+const hname = n => HORSES[n - 1] ? HORSES[n - 1].name : "?";
+// every race the horses start from different lanes: game.lanes = "352164" means lane 1 has horse 3, lane 2 horse 5, …
+function shuffleLanes(){ const a = [1, 2, 3, 4, 5, 6]; for (let i = 5; i > 0; i--) { const j = randInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a.join(""); }
+const laneOrder = g => /^[1-6]{6}$/.test(g.lanes || "") ? [...g.lanes].map(Number) : [1, 2, 3, 4, 5, 6];
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const raceCache = new Map();
 function raceModel(seed){
@@ -2255,6 +2262,25 @@ function poolAuto(g){
   if (g.state !== "bet" || !g.auto || now() < +g.auto) return;
   if (horseBets(g).length >= 2) poolStart(); else gamePatch({"game/auto": null});   // too few bets left: wait for the starter
 }
+/* if the person who opened the bets does not start within 20 s (or a rematch's countdown is over and nothing
+   happened), the start passes to another bettor who is in the room: the one with the lowest id, the same choice
+   on every screen. That person gets the start button; 20 s later it can move on again. */
+const START_WAIT = 20000;
+const poolDeadline = g => g.auto ? +g.auto + 3000 : (+g.os || +g.at || 0) + START_WAIT;
+function poolHandover(g){
+  if (g.state !== "bet" || horseBets(g).length < 2 || now() < poolDeadline(g)) return;
+  const here = new Set(people().map(p => p.id));
+  const next = horseBets(g).map(b => b.id).filter(id => id !== g.by && here.has(id)).sort()[0];
+  if (next !== deviceId) return;
+  gamePatch({"game/by": deviceId, "game/byn": myNick().slice(0, 20), "game/os": {".sv": "timestamp"}, "game/auto": null});
+  toast("Przejmujesz start gry – kliknij Start, gdy będziecie gotowi.", 4000);
+}
+const ownerLine = g => {
+  if (g.state !== "bet" || g.auto || horseBets(g).length < 2) return "";
+  const left = Math.max(0, Math.ceil((poolDeadline(g) - now()) / 1000));
+  clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 500);
+  return g.by === deviceId ? `<p class="pme">Wystartuj w ciągu ${left} s – potem start przejmie ktoś inny.</p>` : `<p class="pme">Jeśli ${esc(g.byn || "")} nie wystartuje w ciągu ${left} s, start przejmie ktoś inny.</p>`;
+};
 const autoLine = g => {
   if (!g.auto) return "";
   const left = Math.max(0, Math.ceil((+g.auto - now()) / 1000));
@@ -2269,7 +2295,7 @@ function horseTick(g){
       const {winners, pool} = horsePayout(g, m.wh);
       gamePatch({"game/state": "done", "game/wh": m.wh, "game/w": winners.length ? winners[0].id : "none"});
       const who = winners.length ? winners.map(w => w.n).join(", ") : "nikt";
-      logGame({...G()}, `Koń ${m.wh}: ${who}`, g.s ? poolText(g.s, pool) : "");
+      logGame({...G()}, `${hname(m.wh)}: ${who}`, g.s ? poolText(g.s, pool) : "");
     }
   }
 }
@@ -2301,17 +2327,17 @@ GAME_VIEW.horse = g => {
   if (g.state === "cancel") return head + `<p class="spinres">Wyścig odwołany.</p>`;
   if (g.state === "bet") {
     const pick = hPick || (mine && +mine.h) || null;
-    return head + autoLine(g) + slot + `<div class="hpick">${byHorse.map(h => `<button class="hbtn" data-gact="hpick" data-h="${h.n}" aria-pressed="${pick === h.n}" style="--hc:${h.c}"><b>${h.n}</b><span>${h.bets.length ? `${h.bets.length} os.` : "–"}</span></button>`).join("")}</div>
-      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na konia ${pick}` : `Obstawiasz konia ${mine.h}`) : pick ? `Obstaw konia ${pick}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
+    return head + autoLine(g) + slot + `<div class="hpick">${byHorse.map(h => `<button class="hbtn" data-gact="hpick" data-h="${h.n}" aria-pressed="${pick === h.n}" style="--hc:${h.c}" title="${h.name} – tor ${laneOrder(g).indexOf(h.n) + 1}"><b>${h.n}</b><i>${h.name}</i><span>${h.bets.length ? `${h.bets.length} os.` : "–"}</span></button>`).join("")}</div>
+      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${hname(pick)} (${pick})` : `Obstawiasz: ${hname(mine.h)} (${mine.h})`) : pick ? `Obstaw ${hname(pick)} (${pick})${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
 ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
-      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${b.h}</b></span>`).join("")}</div>` : ""}
-      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Start wyścigu</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}`;
+      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b></span>`).join("")}</div>` : ""}
+      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Start wyścigu</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);   // equal stakes: the winners split the pool evenly
-  return head + slot + `<p class="spinres done">Wygrywa <b style="color:${HORSES[g.wh - 1].c}">koń ${g.wh}</b></p>`
-    + poolResult(g, bets, winners, `Nikt nie obstawił konia ${g.wh}.`);
+  return head + slot + `<p class="spinres done">Wygrywa <b style="color:${HORSES[g.wh - 1].c}">${hname(g.wh)} (${g.wh})</b></p>`
+    + poolResult(g, bets, winners, `Nikt nie obstawił konia ${hname(g.wh)}.`);
 };
 /* result of a pooled bet (horse race, roulette): there is no bank, the money only moves between the people who bet.
    Each loser's stake is split evenly between the winners; a winner's gain is (losers / winners) × stake.
@@ -2340,7 +2366,7 @@ GAME_AFTER.horse = (g, body, draw = drawRace) => {
 /* the race track: striped turf seen slightly from above, a stand with fans at the top, white rails,
    and hand-drawn horses with jockeys in their number's colours; legs move in a gallop cycle */
 const COATS = ["#7b4a2b", "#3d3d44", "#5c3a20", "#1f1f24", "#8d8d94", "#a0592c"];
-function drawHorse(c, x, y, coat, silk, phase, running){
+function drawHorse(c, x, y, coat, silk, phase, running, num){
   const sw = running ? 0.75 : 0.12, leg = (ox, oy, a, col) => {
     const k = Math.sin(a), kn = Math.max(0, Math.sin(a + 1.2));
     const kx = ox + k * 4, ky = oy + 5, hx = kx + k * 2 - kn * 2.5, hy = oy + 10 - kn * 2;
@@ -2371,11 +2397,12 @@ function drawHorse(c, x, y, coat, silk, phase, running){
   // saddle cloth and jockey
   c.fillStyle = "#f4f4f4"; c.fillRect(x - 4, by - 5, 7, 5);
   c.fillStyle = silk;
-  c.beginPath(); c.ellipse(x + 1, by - 8.5, 4.6, 3, -0.35, 0, 7); c.fill();                  // body in silks
+  c.beginPath(); c.ellipse(x + 1, by - 9, 5.6, 4, -0.3, 0, 7); c.fill();                     // body in silks
   c.strokeStyle = silk; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x + 4, by - 9); c.lineTo(x + 9, by - 6); c.stroke();   // arm to the reins
   c.fillStyle = "#e9c9a6"; c.beginPath(); c.arc(x + 5.2, by - 12, 1.9, 0, 7); c.fill();       // face
   c.fillStyle = silk; c.beginPath(); c.arc(x + 4.8, by - 12.8, 2.2, Math.PI, 0); c.fill();     // cap
   c.strokeStyle = "#222"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(x, by - 6); c.lineTo(x + 2, by - 2.5); c.stroke(); // boot
+  if (num) { c.fillStyle = "#111"; c.font = "bold 7.5px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(num, x + 0.6, by - 8.6); }   // number on the shirt
 }
 function drawRace(cv, g, lead){
   const lane = 24, stand = 18, railH = 4, skew = 0, stripe = 7;   // start and finish are straight: every horse runs the same distance
@@ -2407,12 +2434,12 @@ function drawRace(cv, g, lead){
   c.fillStyle = "#fff"; c.fillRect(fx(0) + skew / 2 - 1, stand - 9, 2, 11); c.beginPath(); c.arc(fx(0) + skew / 2, stand - 9, 2.5, 0, 7); c.fill();
   // nicks of the people who backed each horse ride along in its lane: behind the horse, or in front while there is no room
   const backers = {}; for (const b of horseBets(g)) (backers[b.h] = backers[b.h] || []).push(b.n);
-  const tag = (i, x) => {
-    const names = backers[i + 1]; if (!names) return;
+  const tag = (i, x, hn) => {
+    const names = backers[hn], full = hname(hn) + (names ? " · " + names.join(", ") : "");
     c.font = "600 10.5px system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "middle";
-    let txt = names.join(", "); const maxW = Math.max(60, (fx(i) - sx(i)) * 0.45);
+    let txt = full; const maxW = Math.max(70, (fx(i) - sx(i)) * 0.5);
     while (txt.length > 4 && c.measureText(txt).width > maxW) txt = txt.slice(0, -2);
-    if (txt !== names.join(", ")) txt = txt.replace(/[ ,]+$/, "") + "…";
+    if (txt !== full) txt = txt.replace(/[ ,·]+$/, "") + "…";
     const w = c.measureText(txt).width, ty = laneY(i) + lane / 2 + 1;
     const tx = x - 24 - w >= sx(i) + 2 ? x - 24 - w : Math.min(x + 26, cssW - w - 6);
     c.fillStyle = "rgba(0,0,0,.38)"; c.beginPath(); c.roundRect ? c.roundRect(tx - 4, ty - 7, w + 8, 14, 7) : c.rect(tx - 4, ty - 7, w + 8, 14); c.fill();
@@ -2420,24 +2447,25 @@ function drawRace(cv, g, lead){
   };
   // horses, back row first so the near lanes are drawn in front
   let best = 0, bi = -1;
-  HORSES.forEach((h, i) => {
-    const y = laneY(i) + lane - 2, p = m ? horsePos(m.horses[i], tt) : 0;
+  laneOrder(g).forEach((hn, i) => {
+    const h = HORSES[hn - 1], y = laneY(i) + lane - 2, p = m ? horsePos(m.horses[hn - 1], tt) : 0;
     // after the line a horse runs on a little and slows down
-    const over = m ? Math.max(0, tt - m.horses[i].T) : 0, coast = Math.min(1, over / 0.9), running = !!m && tt > 0 && over < 0.9;
-    if (p > best) { best = p; bi = i; }
+    const over = m ? Math.max(0, tt - m.horses[hn - 1].T) : 0, coast = Math.min(1, over / 0.9), running = !!m && tt > 0 && over < 0.9;
+    if (p > best) { best = p; bi = hn; }
     const x = sx(i) + 4 + p * (fx(i) - sx(i) - 22) + (1 - (1 - coast) * (1 - coast)) * 30;
-    if (g.state === "done" && i === g.wh - 1) { c.fillStyle = "rgba(255,255,255,.16)"; c.fillRect(0, laneY(i) + 1, cssW, lane - 1); }
-    c.fillStyle = h.c; c.beginPath(); c.arc(11, laneY(i) + lane / 2, 7.5, 0, 7); c.fill();
-    c.fillStyle = "#111"; c.font = "bold 11px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(h.n, 11, laneY(i) + lane / 2 + .5);
-    drawHorse(c, x, y, COATS[i], h.c, tt * 15 + i * 1.3, running);
-    tag(i, x);
+    if (g.state === "done" && hn === +g.wh) { c.fillStyle = "rgba(255,255,255,.16)"; c.fillRect(0, laneY(i) + 1, cssW, lane - 1); }
+    // lane number on the left (the horse's own number is on the jockey's shirt)
+    c.fillStyle = "rgba(0,0,0,.28)"; c.beginPath(); c.arc(11, laneY(i) + lane / 2, 7.5, 0, 7); c.fill();
+    c.fillStyle = "rgba(255,255,255,.8)"; c.font = "600 10px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(i + 1, 11, laneY(i) + lane / 2 + .5);
+    drawHorse(c, x, y, COATS[hn - 1], h.c, tt * 15 + hn * 1.3, running, hn);
+    tag(i, x, hn);
   });
   if (g.state === "race" && t < 0) {
     c.fillStyle = "rgba(0,0,0,.45)"; c.fillRect(0, 0, cssW, cssH);
     c.fillStyle = "#fff"; c.font = "bold 46px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(Math.ceil(-t)), cssW / 2, cssH / 2);
   }
   if (lead) {
-    const txt = g.state === "bet" ? "" : g.state === "race" ? (t < 0 ? "Start za chwilę…" : bi >= 0 ? `Prowadzi koń ${bi + 1}` : "") : "";
+    const txt = g.state === "bet" ? "" : g.state === "race" ? (t < 0 ? "Start za chwilę…" : bi >= 0 ? `Prowadzi ${hname(bi)} (${bi})` : "") : "";
     if (lead.textContent !== txt) lead.textContent = txt;
   }
 }
@@ -2472,7 +2500,7 @@ GAME_VIEW.wheel = g => {
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
       ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${b.h === 2 ? "#9aa0ad" : WCOL[b.h].c}"><i class="hdot"></i>${esc(b.n)}</span>`).join("")}</div>` : ""}
-      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Zakręć</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}`;
+      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Zakręć</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);
@@ -2575,7 +2603,7 @@ function horseSheet(type = "horse"){
     <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
     el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(x.s)}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
-    el.querySelector("#hs_go").onclick = () => { const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {state: "bet"}); };
+    el.querySelector("#hs_go").onclick = () => { const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type === "horse" ? {lanes: shuffleLanes()} : {}), state: "bet"}); };
   });
 }
 /* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
@@ -2594,7 +2622,7 @@ function rematch(g){
     const res = randInt(2) ? "orzel" : "reszka";
     startGame("coin", [me, other], stake, {state: "done", side, res, w: res === side ? deviceId : other.id, ft: {".sv": "timestamp"}});
   }
-  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: clone(g.b || {}), auto: Math.round(now()) + 10000}); }
+  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: clone(g.b || {}), auto: Math.round(now()) + 10000, ...(g.type === "horse" ? {lanes: shuffleLanes()} : {})}); }
 }
 async function rpsSettle(g){
   const [a, b] = rpsPair(g), rv = g.rv, c = g.c;

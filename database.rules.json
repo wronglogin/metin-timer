@@ -352,6 +352,12 @@
           "auto": {
             ".validate": "newData.isNumber()"
           },
+          "lanes": {
+            ".validate": "newData.isString() && newData.val().matches(/^[1-6]{6}$/)"
+          },
+          "os": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
           "$other": {
             ".validate": false
           }
