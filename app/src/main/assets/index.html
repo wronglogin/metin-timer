@@ -171,6 +171,17 @@ main{padding-top:14px;display:grid;gap:14px}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 14px;z-index:30;font-size:15px;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.cell.window .ct{animation:pulse 1.6s ease-in-out infinite}}
 @keyframes pulse{50%{opacity:.75}}
+/* landscape tablet / desktop: resp cards in several columns instead of one narrow column */
+@media (min-width:1000px){
+  .wrap{max-width:1700px}
+  .spots{grid-template-columns:repeat(auto-fill,minmax(430px,1fr));align-items:start}
+  .spots .spot{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:10px}
+  .compact .spots{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+  .compact .spots .spot{gap:5px}
+  .compact .spots .shead{flex-wrap:nowrap}
+  .compact .spots .shead .nm{flex-basis:auto}
+  .wiki{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+}
 </style>
 
 <div class="wrap">
