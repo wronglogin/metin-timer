@@ -28,12 +28,15 @@ button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:tran
 .wrap{max-width:980px;margin:0 auto}
 
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
-.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+header{grid-template-columns:minmax(0,1fr)}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}}
-.radio{display:flex;align-items:center;gap:2px;min-width:170px;flex:1 1 220px;max-width:340px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+.radio{display:flex;align-items:center;gap:2px;min-width:250px;flex:1 1 260px;max-width:360px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
 .radio .rbtn:hover{background:var(--surface-2)}
+.radio .rvol{width:52px;flex:0 0 auto;accent-color:var(--accent);margin:0 4px 0 0;min-height:28px}
+@media (max-width:520px){.radio .rvol{width:72px}}
 .radio .rtitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;font-size:14px;color:var(--fg);mask-image:linear-gradient(90deg,#000 85%,transparent)}
 .radio .rtitle span{display:inline-block;padding-left:2px}
 .radio.off .rtitle{color:var(--muted)}
@@ -228,7 +231,7 @@ main{padding-top:14px;display:grid;gap:14px}
     <div class="bar">
       <div class="brand">Metin Timer<small>respawn metinów i bossów</small></div>
       <div id="radio" class="radio" hidden></div>
-      <span class="mode" id="mode">Prywatny</span>
+      <span class="mode" id="mode" title="Pokój">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
@@ -503,7 +506,7 @@ async function connect(db, room){
       spots = clone(remoteRoot.spots || {}) || {};
       H = {hist: clone(remoteRoot.hist || {}) || {}, redo: clone(remoteRoot.redo || {}) || {}};
       for (const s of Object.values(spots)) if (!s.t || typeof s.t !== "object") s.t = {};
-      setMode("Pokój: " + room, "on");
+      setMode(room, "on");
       scheduleRender();
     } catch {}
   };
@@ -512,7 +515,7 @@ async function connect(db, room){
   es.addEventListener("cancel", () => setMode("Brak dostępu", "err"));
   es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
   es.onerror = () => setMode("Wznawianie…", "err");
-  es.onopen = () => setMode("Pokój: " + room, "on");
+  es.onopen = () => setMode(room, "on");
   startPresence();
 }
 function disconnect(silent){
@@ -1299,6 +1302,7 @@ function adminSheet(){
    while the radio is on. */
 let ytApi = null, ytPlayer = null, ytReady = false, ytHelper = null;
 let radioOn = store.get("radioOn", false), radioMuted = store.get("radioMuted", false);
+let radioVol = store.get("radioVol", 60); if (!(radioVol >= 0 && radioVol <= 100)) radioVol = 60;   // own volume, separate from alarms
 const RADIO = () => (remoteRoot && remoteRoot.radio) || {};
 const rqKeys = () => sortedKeys(RADIO().queue || {});
 const curItem = () => { const r = RADIO(); return r.cur && r.queue ? r.queue[r.cur] : null; };
@@ -1365,7 +1369,7 @@ function watchStart(v){
   };
   startWatch.t = setTimeout(check, 9000);
 }
-function applyMute(){ if (!ytReady) return; try { radioMuted ? ytPlayer.mute() : (ytPlayer.unMute(), ytPlayer.setVolume(Math.round(settings.volume * 100))); } catch {} }
+function applyMute(){ if (!ytReady) return; try { radioMuted || radioVol === 0 ? ytPlayer.mute() : (ytPlayer.unMute(), ytPlayer.setVolume(radioVol)); } catch {} }
 function radioOffset(){ const r = RADIO(); return Math.max(0, (now() - (+r.start || now())) / 1000); }
 function syncRadio(force){
   renderRadio();
@@ -1475,11 +1479,14 @@ function renderRadio(){
   const title = it ? (it.t || live || titleCache[it.v] || "Wczytywanie tytułu…") : "Kolejka pusta";
   box.classList.toggle("off", !radioOn);
   const html = `<button class="rbtn" data-radio="${radioOn ? "mute" : "on"}" title="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio u mnie"}" aria-label="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio"}">${!radioOn ? ICON.radio : radioMuted ? ICON.muted : ICON.sound}</button>
+    ${radioOn ? `<input type="range" class="rvol" id="rvol" min="0" max="100" step="5" value="${radioVol}" aria-label="Głośność radia" title="Głośność radia: ${radioVol}%">` : ""}
     <span class="rtitle" title="${esc(title)}"><span>${esc(title)}</span></span>
     <button class="rbtn" data-radio="prev" title="Poprzedni" aria-label="Poprzedni">${ICON.prev}</button>
     <button class="rbtn" data-radio="next" title="Następny" aria-label="Następny">${ICON.next}</button>
     <button class="rbtn" data-radio="queue" title="Kolejka radia" aria-label="Kolejka radia">${ICON.list}</button>`;
-  if (box.innerHTML !== html) box.innerHTML = html;
+  const vol = document.getElementById("rvol");
+  if (vol && document.activeElement === vol) return;                    // don't rebuild under a finger on the slider
+  if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
   document.getElementById("ytdock").hidden = !(radioOn && it);
 }
 const ICON = {
@@ -1529,6 +1536,13 @@ function radioSheet(){
     });
   });
 }
+document.getElementById("radio").addEventListener("input", e => {
+  if (e.target.id !== "rvol") return;
+  radioVol = +e.target.value; store.set("radioVol", radioVol); e.target.title = `Głośność radia: ${radioVol}%`;
+  if (radioVol > 0 && radioMuted) { radioMuted = false; store.set("radioMuted", false); }
+  applyMute();
+});
+document.getElementById("radio").addEventListener("change", e => { if (e.target.id === "rvol") { e.target.blur(); renderRadio(); } });
 document.getElementById("radio").addEventListener("click", e => {
   const b = e.target.closest("[data-radio]"); if (!b) return;
   const a = b.dataset.radio;
