@@ -82,6 +82,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .hbtn span{font-size:11px;color:var(--muted);font-family:var(--f-num)}
 .hbtn[aria-pressed="true"]{border-color:var(--hc);background:color-mix(in srgb,var(--hc) 18%,var(--surface-2))}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--hc);margin-right:5px;vertical-align:middle}
+.autoline{color:var(--fg)!important;background:color-mix(in srgb,var(--accent) 18%,transparent);border:1px solid var(--accent);border-radius:8px;padding:5px 8px}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
 .gfloat.mid{width:min(400px,calc(100vw - 24px))}
 .wpick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
@@ -2245,7 +2246,23 @@ function horsePayout(g, wh){
   return {bets, pool, winners: onW.map(b => ({...b, win: wsum ? pool * b.a / wsum : 0}))};
 }
 let hPick = null;
+function poolStart(){
+  const a = new Uint32Array(1); crypto.getRandomValues(a);
+  gamePatch({"game/state": "race", "game/seed": a[0] % 2147483647, "game/go": Math.round(now()) + 3500, "game/auto": null});
+}
+// rematch of a pooled bet: 10 s for everyone to change or withdraw their bet, then it starts by itself
+function poolAuto(g){
+  if (g.state !== "bet" || !g.auto || now() < +g.auto) return;
+  if (horseBets(g).length >= 2) poolStart(); else gamePatch({"game/auto": null});   // too few bets left: wait for the starter
+}
+const autoLine = g => {
+  if (!g.auto) return "";
+  const left = Math.max(0, Math.ceil((+g.auto - now()) / 1000));
+  clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 250);
+  return `<p class="autoline">Rewanż: start za <b>${left} s</b> – możesz zmienić albo wycofać zakład</p>`;
+};
 function horseTick(g){
+  poolAuto(g);
   if (g.state === "race" && g.seed) {
     const m = raceModel(+g.seed);
     if (now() > +g.go + (m.horses[m.wh - 1].T + 1.2) * 1000) {
@@ -2272,8 +2289,7 @@ function horseClick(g, act, b){
   if (act === "hstart") {
     if (g.state !== "bet") return;
     if (horseBets(g).length < 2) { toast(`Do ${g.type === "wheel" ? "losowania" : "wyścigu"} potrzeba co najmniej dwóch zakładów.`); return; }
-    const a = new Uint32Array(1); crypto.getRandomValues(a);
-    gamePatch({"game/state": "race", "game/seed": a[0] % 2147483647, "game/go": Math.round(now()) + 3500});
+    poolStart();
   }
   if (act === "hcancel") gamePatch({"game/state": "cancel"});
 }
@@ -2285,7 +2301,7 @@ GAME_VIEW.horse = g => {
   if (g.state === "cancel") return head + `<p class="spinres">Wyścig odwołany.</p>`;
   if (g.state === "bet") {
     const pick = hPick || (mine && +mine.h) || null;
-    return head + slot + `<div class="hpick">${byHorse.map(h => `<button class="hbtn" data-gact="hpick" data-h="${h.n}" aria-pressed="${pick === h.n}" style="--hc:${h.c}"><b>${h.n}</b><span>${h.bets.length ? `${h.bets.length} os.` : "–"}</span></button>`).join("")}</div>
+    return head + autoLine(g) + slot + `<div class="hpick">${byHorse.map(h => `<button class="hbtn" data-gact="hpick" data-h="${h.n}" aria-pressed="${pick === h.n}" style="--hc:${h.c}"><b>${h.n}</b><span>${h.bets.length ? `${h.bets.length} os.` : "–"}</span></button>`).join("")}</div>
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na konia ${pick}` : `Obstawiasz konia ${mine.h}`) : pick ? `Obstaw konia ${pick}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
 ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
@@ -2437,6 +2453,7 @@ function wheelModel(seed){
   return {pocket, wh: pocketColor(pocket), turns, bturns};
 }
 function wheelTick(g){
+  poolAuto(g);
   if (g.state === "race" && g.seed && now() > +g.go + (WSPIN + 1) * 1000) {
     const m = wheelModel(+g.seed), {winners, pool} = horsePayout(g, m.wh);
     gamePatch({"game/state": "done", "game/wh": m.wh, "game/w": winners.length ? winners[0].id : "none"});
@@ -2450,7 +2467,7 @@ GAME_VIEW.wheel = g => {
   if (g.state === "cancel") return head + `<p class="spinres">Losowanie odwołane.</p>`;
   if (g.state === "bet") {
     const pick = hPick || (mine && +mine.h) || null, chance = {1: "18/37", 2: "18/37", 3: "1/37"};
-    return head + slot + `<div class="wpick">${[1, 2, 3].map(k => { const n = bets.filter(b => b.h === k).length;
+    return head + autoLine(g) + slot + `<div class="wpick">${[1, 2, 3].map(k => { const n = bets.filter(b => b.h === k).length;
         return `<button class="wbtn" data-gact="hpick" data-h="${k}" aria-pressed="${pick === k}" style="--wc:${WCOL[k].c}"><b>${WCOL[k].n}</b><span>${chance[k]} · ${n ? `${n} os.` : "–"}</span></button>`; }).join("")}</div>
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
@@ -2577,7 +2594,7 @@ function rematch(g){
     const res = randInt(2) ? "orzel" : "reszka";
     startGame("coin", [me, other], stake, {state: "done", side, res, w: res === side ? deviceId : other.id, ft: {".sv": "timestamp"}});
   }
-  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: clone(g.b || {})}); }
+  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: clone(g.b || {}), auto: Math.round(now()) + 10000}); }
 }
 async function rpsSettle(g){
   const [a, b] = rpsPair(g), rv = g.rv, c = g.c;
