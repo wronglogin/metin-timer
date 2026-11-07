@@ -2109,7 +2109,7 @@ function renderGame(){
     closeGame();
     el = document.createElement("div"); el.id = "gamewin"; el.className = "gfloat gamebox" + (g.type === "horse" ? " wide" : g.type === "wheel" ? " mid" : ""); el.dataset.gid = g.id;
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", GAMES[g.type].name);
-    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${amIn(g) || g.type === "horse" || g.type === "wheel" ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
+    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${g.type === "wheel" ? `<button class="gx" data-gsnd aria-label="Dźwięk gry">${gameSnd ? "🔊" : "🔇"}</button>` : ""}${amIn(g) || g.type === "horse" || g.type === "wheel" ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
     document.body.appendChild(el);
     floatPanel(el, g.type); hPick = null;
     el.addEventListener("click", gameClick);
@@ -2454,6 +2454,39 @@ GAME_VIEW.wheel = g => {
       : `<p>Nikt nie obstawił tego koloru. Każdy zabiera swoją stawkę.</p>`);
 };
 GAME_AFTER.wheel = (g, body) => GAME_AFTER.horse(g, body, drawWheel);
+/* roulette sounds, made on the fly: the ball rolling round the rim (a whirr that fades as it slows),
+   clicks as it bounces over the pocket dividers, and the final clack when it settles. Toggle: 🔊 in the window. */
+let gameSnd = store.get("gameSnd", true);
+function noiseBuf(a){ if (a._nb) return a._nb; const b = a.createBuffer(1, a.sampleRate, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; return a._nb = b; }
+function clack(a, vol, freq){
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime;
+  s.buffer = noiseBuf(a); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = 3;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  s.connect(f).connect(g).connect(master); s.start(t, Math.random() * 0.5); s.stop(t + 0.06);
+}
+function wheelSound(cv, g, t, rel, ba, drop, settle){
+  const st = cv._snd || (cv._snd = {id: null});
+  if (st.id !== g.id + ":" + g.seed) { if (st.roll) { try { st.roll.stop(); } catch {} } cv._snd = {id: g.id + ":" + g.seed, lastBa: ba, lastRel: rel, done: false}; return; }
+  const a = gameSnd && t > 0 && t < WSPIN + 1 ? audio() : null;
+  const dt = 1 / 60, speed = Math.abs(ba - st.lastBa) / dt;           // ball speed in radians per second (roughly)
+  if (a && !st.roll && !settle) {
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), gn = a.createGain();
+    s.buffer = noiseBuf(a); s.loop = true; f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 0.8; gn.gain.value = 0;
+    s.connect(f).connect(gn).connect(master); s.start(); st.roll = s; st.rollGain = gn; st.rollF = f;
+  }
+  if (st.roll) {
+    const v = settle || !gameSnd ? 0 : Math.min(0.22, speed * 0.012) * (1 - drop * 0.6);
+    st.rollGain.gain.setTargetAtTime(v, st.roll.context.currentTime, 0.05); st.rollF.frequency.setTargetAtTime(600 + speed * 60, st.roll.context.currentTime, 0.1);
+    if (settle || t > WSPIN + 0.5) { const r = st.roll; setTimeout(() => { try { r.stop(); } catch {} }, 400); st.roll = null; }
+  }
+  // clicks over the dividers while the ball drops into the pockets
+  const seg = Math.PI * 2 / WPOCKETS;
+  // the last ~3 s: the ball leaves the rim and rattles over the dividers (several clicks a frame at most)
+  const cross = Math.abs(Math.floor(rel / seg) - Math.floor(st.lastRel / seg));
+  if (a && t > WSPIN - 3 && !settle && cross) for (let k = 0; k < Math.min(2, cross); k++) setTimeout(() => clack(a, (0.25 + Math.random() * 0.25) * (0.5 + drop * 0.5), 2000 + Math.random() * 1200), k * 12);
+  if (a && settle && !st.done) { st.done = true; clack(a, 0.6, 1500); setTimeout(() => clack(a, 0.3, 1800), 110); setTimeout(() => clack(a, 0.15, 2000), 190); }
+  st.lastBa = ba; st.lastRel = rel;
+}
 function drawWheel(cv, g, lead){
   const realW = cv.clientWidth || 300, size = Math.min(realW, 320, Math.max(200, innerHeight * 0.4)), dpr = Math.min(2, devicePixelRatio || 1);
   const pw = Math.round(realW * dpr), ph = Math.round(size * dpr);
@@ -2490,6 +2523,7 @@ function drawWheel(cv, g, lead){
     const be = ease(t / (WSPIN - 0.4)), ba = top + (1 - be) * m.bturns * Math.PI * 2;
     const drop = Math.min(1, Math.max(0, (t - (WSPIN - 1.6)) / 1.2)), br = (R * 0.985) - drop * (R * 0.985 - (rIn + rOut) / 2) * 0.98;
     const settle = t >= WSPIN - 0.4, bx = cx + Math.cos(settle ? top : ba) * br, by = cy + Math.sin(settle ? top : ba) * br;
+    wheelSound(cv, g, t, settle ? top - rot : ba - rot, ba, drop, settle);
     c.fillStyle = "rgba(0,0,0,.35)"; c.beginPath(); c.arc(bx + 1.5, by + 1.5, 5, 0, 7); c.fill();
     const bg = c.createRadialGradient(bx - 1.5, by - 1.5, 0.5, bx, by, 5); bg.addColorStop(0, "#fff"); bg.addColorStop(1, "#bfc3c9");
     c.fillStyle = bg; c.beginPath(); c.arc(bx, by, 5, 0, 7); c.fill();
@@ -2545,6 +2579,8 @@ async function rpsSettle(g){
 }
 async function gameClick(e){
   const g = G(), el = document.getElementById("gamewin");
+  const sb = e.target.closest("[data-gsnd]");
+  if (sb) { gameSnd = !gameSnd; store.set("gameSnd", gameSnd); sb.textContent = gameSnd ? "🔊" : "🔇"; if (gameSnd) audio(); return; }
   if (e.target.closest("[data-gclose]")) { gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
   const b = e.target.closest("[data-gact]"); if (!b || !g) return;
   const act = b.dataset.gact;
