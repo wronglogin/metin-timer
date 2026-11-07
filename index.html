@@ -32,6 +32,11 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
+.people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
+.people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
+.people .plist li{padding:5px 14px;white-space:nowrap}
+.people .pme{color:var(--muted);font-weight:500}
+.people:hover .plist,.people:focus-within .plist,.people.open .plist{display:block}
 .roomsel.on{border-color:var(--ready);color:var(--ready)}
 .roomsel{background:var(--surface-2);border:1px solid var(--rule);border-radius:6px;min-height:38px;padding:4px 8px;max-width:150px}
 .mode{font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--muted)}
@@ -201,6 +206,7 @@ main{padding-top:14px;display:grid;gap:14px}
       <div class="brand">Metin Timer<small>respawn metinów i bossów</small></div>
       <span class="mode" id="mode">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
+      <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
@@ -462,6 +468,10 @@ async function connect(db, room){
       const {path, data} = JSON.parse(ev.data);
       if (kind === "put") setPath(remoteRoot, path, data);
       else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
+      presence = remoteRoot.presence || {};
+      const onlyPresence = path.startsWith("/presence") || (path === "/" && kind === "patch" && Object.keys(data || {}).every(k => k.startsWith("presence")));
+      renderPresence();
+      if (onlyPresence) return;
       spots = clone(remoteRoot.spots || {}) || {};
       H = {hist: clone(remoteRoot.hist || {}) || {}, redo: clone(remoteRoot.redo || {}) || {}};
       for (const s of Object.values(spots)) if (!s.t || typeof s.t !== "object") s.t = {};
@@ -475,8 +485,10 @@ async function connect(db, room){
   es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
   es.onerror = () => setMode("Wznawianie…", "err");
   es.onopen = () => setMode("Pokój: " + room, "on");
+  startPresence();
 }
 function disconnect(silent){
+  stopPresence();
   if (online && online.es) online.es.close();
   const was = !!online;
   online = null; clockOffset = 0;
@@ -487,6 +499,47 @@ function disconnect(silent){
     setMode("Prywatny"); render(); toast("Rozłączono. Wróciłeś do timerów prywatnych.");
   }
 }
+/* ---------- who is in the room ----------
+   Each viewer writes rooms/<room>/presence/<deviceId> = {n: nick, t: server time} every 30 s.
+   Entries newer than 75 s count as online; old ones are cleaned up when someone joins. */
+let presence = {}, presenceTimer = null;
+const deviceId = store.get("cid", null) || (() => { const id = uid(); store.set("cid", id); return id; })();
+const myNick = () => String(store.get("nick", "") || "").trim();
+const presUrl = id => roomUrl("/presence/" + id);
+function heartbeat(){
+  if (!online || !myNick()) return;
+  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}})}).catch(() => {});
+}
+function startPresence(){
+  stopPresence(true);
+  heartbeat(); presenceTimer = setInterval(heartbeat, 30000);
+  // tidy entries left behind by closed apps (older than 10 minutes)
+  setTimeout(() => { const ch = {}; for (const [id, v] of Object.entries(presence)) if (!v || now() - (+v.t || 0) > 600000) ch["presence/" + id] = null;
+    if (Object.keys(ch).length && online) fetch(roomUrl(), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(ch)}).catch(() => {}); }, 4000);
+}
+function stopPresence(keepEntry){
+  if (presenceTimer) clearInterval(presenceTimer); presenceTimer = null;
+  if (!keepEntry && online) fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {});
+  if (!keepEntry) { presence = {}; renderPresence(); }
+}
+window.addEventListener("pagehide", () => { if (online) fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {}); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) heartbeat(); });
+function people(){
+  return Object.entries(presence || {}).filter(([, v]) => v && v.n && now() - (+v.t || 0) < 75000)
+    .map(([id, v]) => ({id, n: String(v.n).slice(0, 20), me: id === deviceId})).sort((a, b) => (b.me - a.me) || a.n.localeCompare(b.n, "pl"));
+}
+function renderPresence(){
+  const el = document.getElementById("people"); if (!el) return;
+  const list = online ? people() : [];
+  el.hidden = !online;
+  if (!online) return;
+  el.querySelector(".pc").textContent = list.length;
+  el.setAttribute("aria-label", `Osoby w pokoju: ${list.length}`);
+  el.querySelector(".plist").innerHTML = list.length
+    ? list.map(p => `<li>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</li>`).join("")
+    : `<li class="pme">Nikogo nie widać</li>`;
+}
+setInterval(renderPresence, 15000);              // let people drop off the list when their heartbeat stops
 function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); }
 // saved room list ("a;b;c" in Menu); one room is live at a time, the header select switches between them
 const roomList = () => { const r = store.get("rooms", null); if (Array.isArray(r)) return r; const o = store.get("online", null) || store.get("lastRoom", null); return o && o.room ? [o.room] : []; };
@@ -505,6 +558,7 @@ function renderRoomSel(){
   sel.value = cur;
 }
 async function switchRoom(room){
+  if (room && !myNick()) { toast("Najpierw wpisz swój nick w Menu."); renderRoomSel(); menuSheet(); return; }
   if (!room) { disconnect(); return; }
   if (online && online.room === room) return;
   try { await connect(DB_URL, room); toast("Pokój: " + room); }
@@ -861,6 +915,7 @@ function menuSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
+    <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}"></div>
     <div class="field"><label for="m_room">Nazwy pokoi (kilka oddziel średnikiem)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
     <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
@@ -910,9 +965,11 @@ function menuSheet(){
     el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
     el.querySelector("#m_on").onclick = async ev => {
       const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
-      const rooms = parseRooms(el.querySelector("#m_room").value);
+      const rooms = parseRooms(el.querySelector("#m_room").value), nick = el.querySelector("#m_nick").value.trim();
       try {
+        if (nick.length < 2) { el.querySelector("#m_nick").focus(); throw new Error("Wpisz swój nick (2–20 znaków), żeby wejść do pokoju."); }
         if (!rooms.length) throw new Error("Wpisz nazwę pokoju.");
+        const nickChanged = nick !== myNick(); store.set("nick", nick); if (nickChanged && online) heartbeat();
         const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
         if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
         const room = online && rooms.includes(online.room) ? online.room : rooms[0];
@@ -1155,6 +1212,8 @@ if (!saved) store.set("spots", spots);
 updateReset(); render(); setInterval(tick, 250); wake();
 loadConfig(); setInterval(loadConfig, 60000);
 document.getElementById("roomSel").addEventListener("change", e => switchRoom(e.target.value));
+document.getElementById("people").addEventListener("click", e => { e.stopPropagation(); e.currentTarget.classList.toggle("open"); });
+document.addEventListener("click", () => document.getElementById("people").classList.remove("open"));
 renderRoomSel();
 // inside the app: tell once per new version that an update is available
 if (IN_APP) setTimeout(async () => {
@@ -1165,7 +1224,12 @@ if (IN_APP) setTimeout(async () => {
 }, 3000);
 const auto = store.get("online", null);
 // rooms connect only after the site password was entered
-afterUnlock.push(() => { if (auto && auto.room && !online) connect(DB_URL, auto.room).catch(() => setMode("Prywatny")); });
+afterUnlock.push(() => {
+  if (!(auto && auto.room) || online) return;
+  // nick is required in rooms: ask for it once if this device joined before nicks existed
+  if (!myNick()) { store.set("online", null); setTimeout(() => { menuSheet(); toast("Wpisz swój nick, żeby wrócić do pokoju " + auto.room); }, 300); return; }
+  connect(DB_URL, auto.room).catch(() => setMode("Prywatny"));
+});
 gate();
 })();
 </script>
