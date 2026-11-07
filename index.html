@@ -1753,6 +1753,11 @@ function showSpin(r, age){
     const w = players[wi];
     res.innerHTML = `Wygrywa <b>${esc(w.n)}</b>${w.id === deviceId ? " (ty!)" : ""} – zgarnia pulę <b>${esc(pool)}</b>`;
     res.classList.add("done"); if (settings.sound) beep(settings.sound, false);
+    // rematch: same players, same stake
+    if (r.p && r.p[deviceId] && !el.querySelector("[data-rematch]")) {
+      res.insertAdjacentHTML("afterend", `<div class="acts" style="justify-content:center"><button class="btn primary" data-rematch>Rewanż</button></div>`);
+      el.querySelector("[data-rematch]").onclick = () => spinRoulette(players, r.s);
+    }
   };
   const step = () => {
     if (!el.isConnected) return;
@@ -1761,6 +1766,15 @@ function showSpin(r, age){
     spinTimer = setTimeout(() => { i++; step(); }, delays[i]);
   };
   if (age > t + 6000) { i = total; finish(); } else step();
+}
+function spinRoulette(ps, stake){
+  const w = ps[randInt(ps.length)], id = hkey();
+  const spin = {id, by: myNick().slice(0, 20), s: String(stake).slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, String(p.n).slice(0, 20)])), w: w.id, at: {".sv": "timestamp"}};
+  const rc = {roulette: spin, [`rlog/${id}`]: {s: spin.s, n: ps.length, w: String(w.n).slice(0, 20), at: {".sv": "timestamp"}}};
+  const old = sortedKeys(remoteRoot.rlog || {}); for (const k of old.slice(0, Math.max(0, old.length + 1 - 20))) rc[`rlog/${k}`] = null;
+  push(rc);
+  const local = {...spin, at: Math.round(now())}; setPath(remoteRoot, "roulette", local); setPath(remoteRoot, `rlog/${id}`, {...rc[`rlog/${id}`], at: local.at});
+  lastSpin = id; showSpin(local, 0);
 }
 function rouletteSheet(){
   if (!online) { toast("Ruletka działa we wspólnym pokoju. Połącz się w Menu."); return; }
@@ -1785,13 +1799,7 @@ function rouletteSheet(){
       if (!stake) { err.textContent = "Wpisz stawkę."; err.hidden = false; return; }
       if (ps.length < 2) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       store.set("rlStake", stake);
-      const w = ps[randInt(ps.length)], id = hkey();
-      const spin = {id, by: myNick().slice(0, 20), s: stake.slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, p.n.slice(0, 20)])), w: w.id, at: {".sv": "timestamp"}};
-      const rc = {roulette: spin, [`rlog/${id}`]: {s: spin.s, n: ps.length, w: w.n.slice(0, 20), at: {".sv": "timestamp"}}};
-      const old = sortedKeys(remoteRoot.rlog || {}); for (const k of old.slice(0, Math.max(0, old.length + 1 - 20))) rc[`rlog/${k}`] = null;
-      push(rc);
-      const local = {...spin, at: Math.round(now())}; setPath(remoteRoot, "roulette", local); setPath(remoteRoot, `rlog/${id}`, {...rc[`rlog/${id}`], at: local.at});
-      lastSpin = id; close(); showSpin(local, 0);
+      close(); spinRoulette(ps, stake);
     };
   });
 }
@@ -1920,7 +1928,8 @@ function renderGame(){
     gameShown = g.id;
   }
   const body = el.querySelector(".gbody");
-  const html = GAME_VIEW[g.type](g);
+  let html = GAME_VIEW[g.type](g);
+  if (g.state === "done" && canRematch(g) && !(g.type === "rps" && g.w === "draw")) html += `<div class="acts" style="justify-content:center"><button class="btn primary" data-gact="rematch">Rewanż</button></div>`;
   if (body.dataset.html !== html) {
     // someone else's move re-draws the window: keep what this person is typing
     const keep = [...body.querySelectorAll("input[id]")].map(i => [i.id, i.value]), focus = document.activeElement && body.contains(document.activeElement) ? document.activeElement.id : null;
@@ -2163,6 +2172,24 @@ function horseSheet(){
     el.querySelector("#hs_go").onclick = () => { close(); hPick = null; startGame("horse", [], "", {state: "bet"}); };
   });
 }
+/* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
+const canRematch = g => amIn(g) || (g.type === "horse" && g.by === deviceId);
+function rematch(g){
+  const ps = gPlayers(g), stake = g.s || "";
+  if (ps.length < 2) { toast("Do rewanżu potrzeba co najmniej dwóch graczy."); return; }
+  if (g.type === "dice") startGame("dice", ps, stake, {state: "play", rd: 0});
+  else if (g.type === "reflex") startGame("reflex", ps, stake, {state: "play", go: Math.round(now()) + 4000 + randInt(4000)});
+  else if (g.type === "guess") { const id = hkey(); secrets[id] = {t: randInt(100) + 1}; startGame("guess", ps, stake, {state: "play"}, id); }
+  else if (g.type === "rps") startGame("rps", [ps.find(p => p.id === deviceId), ps.find(p => p.id !== deviceId)], stake, {state: "play"});
+  else if (g.type === "coin") {
+    // each person keeps their side; the coin is flipped straight away, both already agreed to play
+    const me = ps.find(p => p.id === deviceId), other = ps.find(p => p.id !== deviceId);
+    const side = g.by === deviceId ? g.side : (g.side === "orzel" ? "reszka" : "orzel");
+    const res = randInt(2) ? "orzel" : "reszka";
+    startGame("coin", [me, other], stake, {state: "done", side, res, w: res === side ? deviceId : other.id, ft: {".sv": "timestamp"}});
+  }
+  else if (g.type === "horse") { hPick = null; startGame("horse", ps, "", {state: "bet", b: clone(g.b || {})}); }
+}
 async function rpsSettle(g){
   const [a, b] = rpsPair(g), rv = g.rv, c = g.c;
   const ok = async id => rv[id] && (await sha256(rv[id].ch + ":" + rv[id].salt)) === c[id];
@@ -2175,6 +2202,7 @@ async function gameClick(e){
   if (e.target.closest("[data-gclose]")) { gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
   const b = e.target.closest("[data-gact]"); if (!b || !g) return;
   const act = b.dataset.gact;
+  if (act === "rematch") { if (canRematch(g) && g.state === "done") rematch(g); return; }
   if (g.type === "horse") { horseClick(g, act, b); return; }
   if (!amIn(g)) return;
   if (act === "accept" && g.type === "coin") {
