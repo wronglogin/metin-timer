@@ -174,10 +174,10 @@ main{padding-top:14px;display:grid;gap:14px}
 .srow .mini:disabled{opacity:.3;cursor:default}
 .srow .more{background:none;border:1px solid var(--rule);border-radius:5px;padding:2px 10px;color:var(--muted);min-height:30px}
 .srow .more:hover{color:var(--fg);border-color:var(--muted)}
-.cells{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,64px));gap:clamp(3px,1.2cqi,6px);container-type:inline-size}
+.cells{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,calc(64px * var(--sw,1))));gap:clamp(3px,1.2cqi,6px);container-type:inline-size}
 .cell{display:grid;gap:4px;min-width:0}
 .cell .ch{font-size:clamp(10px,calc(14cqi / var(--cols)),12px);letter-spacing:.08em;text-align:center;color:var(--muted)}
-.cell .ct{border:1px solid var(--rule);border-radius:6px;aspect-ratio:1/1;width:100%;padding:0 1px;letter-spacing:-.04em;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:900;font-size:clamp(11px,calc(24cqi / var(--cols)),18px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+.cell .ct{border:1px solid var(--rule);border-radius:6px;aspect-ratio:1/1;width:100%;padding:0 1px;letter-spacing:-.04em;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:900;font-size:clamp(11px,calc(24cqi / var(--cols)),calc(18px * var(--sw,1)));font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .cell .ct:hover{border-color:var(--muted)}
 .cell.idle .ct{background:var(--ready);color:#06210f;border-color:var(--ready)}
 .cell.wait .ct{background:var(--danger);color:#2a0905;border-color:var(--danger)}
@@ -205,21 +205,29 @@ main{padding-top:14px;display:grid;gap:14px}
 .compact .mintime input{width:38px;padding:1px 2px;font-size:13px}
 .compact .srow .mini{min-height:26px;min-width:28px;padding:0 4px}
 .compact .cell{gap:2px}
-.compact .cells{grid-template-columns:repeat(var(--cols),minmax(0,56px))}
-.compact .cell .ct{font-size:clamp(10px,calc(21cqi / var(--cols)),15.5px)}
+.compact .cells{grid-template-columns:repeat(var(--cols),minmax(0,calc(56px * var(--sw,1))))}
+.compact .cell .ct{font-size:clamp(10px,calc(21cqi / var(--cols)),calc(15.5px * var(--sw,1)))}
 /* long values like -160:09 step down a size so they still fit the square */
-.cell .ct.mid{font-size:clamp(10px,calc(21cqi / var(--cols)),16px);letter-spacing:-.05em}
-.compact .cell .ct.mid{font-size:clamp(9px,calc(19cqi / var(--cols)),14px)}
-.cell .ct.long{font-size:clamp(10px,calc(19cqi / var(--cols)),14.5px);letter-spacing:-.06em}
-.compact .cell .ct.long{font-size:clamp(9px,calc(17cqi / var(--cols)),12.5px)}
+.cell .ct.mid{font-size:clamp(10px,calc(21cqi / var(--cols)),calc(16px * var(--sw,1)));letter-spacing:-.05em}
+.compact .cell .ct.mid{font-size:clamp(9px,calc(19cqi / var(--cols)),calc(14px * var(--sw,1)))}
+.cell .ct.long{font-size:clamp(10px,calc(19cqi / var(--cols)),calc(14.5px * var(--sw,1)));letter-spacing:-.06em}
+.compact .cell .ct.long{font-size:clamp(9px,calc(17cqi / var(--cols)),calc(12.5px * var(--sw,1)))}
 .compact .cell .ch{font-size:10px}
 .compact .mineview .pane+.pane{padding-top:8px}
 @container pane (min-width:520px){.compact .spot{grid-template-columns:max(var(--namew,150px),66px) minmax(0,1fr);align-items:center;gap:8px}.compact .shead{flex-wrap:wrap;gap:2px 6px}.compact .shead .nm{flex-basis:100%}}
 /* resp cards are only as wide as their timers and sit in the middle of the page */
-.spot{width:100%;justify-self:center;--cw:calc(var(--cols,5) * 64px + (var(--cols,5) - 1) * 6px);max-width:calc(max(var(--cw), 330px) + 30px)}
+.spot{width:100%;justify-self:center;--cw:calc(var(--cols,5) * 64px * var(--sw,1) + (var(--cols,5) - 1) * 6px);max-width:calc(max(var(--cw), 330px) + 30px)}
 @container pane (min-width:700px){.spot{max-width:calc(250px + 14px + var(--cw) + 30px)}}
-.compact .spot{--cw:calc(var(--cols,5) * 56px + (var(--cols,5) - 1) * 6px);max-width:calc(max(var(--cw), 300px) + 22px)}
+.compact .spot{--cw:calc(var(--cols,5) * 56px * var(--sw,1) + (var(--cols,5) - 1) * 6px);max-width:calc(max(var(--cw), 300px) + 22px)}
 @container pane (min-width:520px){.compact .spot{max-width:calc(max(var(--namew,150px),66px) + 8px + var(--cw) + 22px)}}
+/* stretch handle on the right edge of every resp card: drag to make all timers bigger or smaller (this device only) */
+.spot{position:relative}
+.sgrip{position:absolute;top:50%;right:-7px;transform:translateY(-50%);width:14px;height:44px;border-radius:7px;background:var(--surface-2);border:1px solid var(--rule);cursor:ew-resize;touch-action:none;opacity:0;transition:opacity .15s;padding:0;display:grid;place-items:center;z-index:2}
+.sgrip::before{content:"";width:2px;height:18px;border-left:2px solid var(--muted);border-right:2px solid var(--muted);box-sizing:content-box;width:2px}
+.spot:hover .sgrip,.sgrip:focus-visible,.sgrip.drag{opacity:1}
+@media (hover:none){.sgrip{opacity:.55}}
+.tablet .sgrip{display:none}
+body.sizing{cursor:ew-resize;user-select:none}
 /* site password screen */
 .gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
 .gatebox{display:grid;gap:10px;width:min(340px,100%);text-align:center}
@@ -364,6 +372,26 @@ if (!(settings.volume >= 0 && settings.volume <= 1)) settings.volume = 0.8;
 if (!(settings.zoom >= 0.6 && settings.zoom <= 1.5)) settings.zoom = 1;
 const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); document.documentElement.classList.toggle("tablet", !!settings.tablet); if (typeof fitNames === "function" && document.querySelector(".spots")) fitNames(); };
 applyZoom();
+/* timer size set by dragging the handle on a resp card (scale 0.6–3, per device) */
+let spotScale = +store.get("sw", 1); if (!(spotScale >= 0.6 && spotScale <= 3)) spotScale = 1;
+const applyScale = () => document.documentElement.style.setProperty("--sw", spotScale);
+applyScale();
+document.addEventListener("pointerdown", e => {
+  const g = e.target.closest("[data-grip]"); if (!g) return;
+  e.preventDefault();
+  const card = g.closest(".spot"), cells = card.querySelector(".cells");
+  const x0 = e.clientX, s0 = spotScale, w0 = cells.getBoundingClientRect().width || 1;
+  const z = +getComputedStyle(document.documentElement).getPropertyValue("--zoom") || 1;
+  g.setPointerCapture(e.pointerId); g.classList.add("drag"); document.body.classList.add("sizing");
+  const move = ev => {
+    // the card is centred, so it grows on both sides: twice the pointer movement goes into the timers
+    const w = w0 + 2 * (ev.clientX - x0) / z;
+    spotScale = Math.min(3, Math.max(0.6, Math.round(s0 * w / w0 * 100) / 100)); applyScale();
+  };
+  const up = () => { g.removeEventListener("pointermove", move); g.classList.remove("drag"); document.body.classList.remove("sizing"); store.set("sw", spotScale); if (typeof fitNames === "function") fitNames(); };
+  g.addEventListener("pointermove", move); g.addEventListener("pointerup", up, {once: true}); g.addEventListener("pointercancel", up, {once: true});
+});
+document.addEventListener("dblclick", e => { if (!e.target.closest("[data-grip]")) return; spotScale = 1; applyScale(); store.set("sw", 1); toast("Domyślny rozmiar timerów"); });
 // channel count is set by the admin for everyone (database: config/channels); last known value is cached here
 let channels = store.get("channels", 5);
 if (!(channels >= 1 && channels <= 10)) channels = 5;
@@ -865,6 +893,7 @@ function spotHtml(s){
         <button class="more" data-edit="${s.id}" aria-label="Więcej opcji: ${esc(s.name)}">⋯</button></div>
     </div>
     <div class="cells">${cells}</div>
+    <button class="sgrip" data-grip tabindex="-1" title="Przeciągnij, żeby rozciągnąć timery · dwuklik: domyślny rozmiar" aria-label="Rozciągnij timery"></button>
   </div>`;
 }
 const wikiOpen = new Set();
