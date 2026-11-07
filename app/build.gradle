@@ -1,0 +1,34 @@
+plugins { id 'com.android.application' }
+
+def vc = (project.findProperty('vc') ?: '1') as Integer
+
+android {
+    namespace 'pl.metintimer.app'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'pl.metintimer.app'
+        minSdk 24
+        targetSdk 35
+        versionCode vc
+        versionName "1.${vc}"
+    }
+    signingConfigs {
+        release {
+            // stały klucz: każda nowa wersja instaluje się na poprzednią
+            storeFile file('release.jks')
+            storePassword 'metintimer'
+            keyAlias 'metin'
+            keyPassword 'metintimer'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig file('release.jks').exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

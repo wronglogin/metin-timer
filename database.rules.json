@@ -1,0 +1,114 @@
+{
+  "rules": {
+    "rooms": {
+      "$room": {
+        ".read": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/)",
+        ".write": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/)",
+        "spots": {
+          "$id": {
+            ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['id', 'map', 'name', 'min', 'max'])",
+            "id": {
+              ".validate": "newData.val() === $id"
+            },
+            "map": {
+              ".validate": "newData.isString() && newData.val().length <= 10"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40"
+            },
+            "kind": {
+              ".validate": "newData.val() === 'metin' || newData.val() === 'boss'"
+            },
+            "min": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "max": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "color": {
+              ".validate": "newData.isString() && newData.val().length <= 9"
+            },
+            "o": {
+              ".validate": "newData.isNumber()"
+            },
+            "t": {
+              "$c": {
+                ".validate": "$c.matches(/^c([1-9]|10)$/) && newData.hasChildren(['a'])",
+                "a": {
+                  ".validate": "newData.isNumber()"
+                },
+                "mn": {
+                  ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+                },
+                "mx": {
+                  ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+                },
+                "$other": {
+                  ".validate": false
+                }
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "hist": {
+          "$k": {
+            ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['at', 'p'])",
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "p": {
+              ".validate": "newData.isString() && newData.val().length <= 100000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "redo": {
+          "$k": {
+            ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['at', 'p'])",
+            "at": {
+              ".validate": "newData.isNumber()"
+            },
+            "p": {
+              ".validate": "newData.isString() && newData.val().length <= 100000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "clock": {
+      "$c": {
+        ".read": true,
+        ".write": true,
+        ".validate": "newData.val() === now"
+      }
+    },
+    "admin": {
+      ".read": false,
+      ".write": false
+    },
+    "config": {
+      ".write": "root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val()",
+      "channels": {
+        ".read": true,
+        ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10 && newData.val() % 1 === 0"
+      },
+      "pw": {
+        ".validate": "newData.isString()"
+      },
+      "$other": {
+        ".validate": false
+      }
+    }
+  }
+}

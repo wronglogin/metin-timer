@@ -1,0 +1,50 @@
+name: Zbuduj aplikację i stronę
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+
+      - name: Klucz podpisu
+        run: base64 -d release.jks.b64 > app/release.jks
+
+      - name: Budowanie .apk
+        run: gradle assembleRelease -Pvc=${{ github.run_number }} --no-daemon
+
+      - name: Nazwa pliku
+        run: cp app/build/outputs/apk/release/app-release.apk MetinTimer.apk
+
+      - name: Wydanie do pobrania
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: Metin Timer 1.${{ github.run_number }}
+          body: "Pobierz MetinTimer.apk poniżej i zainstaluj na telefonie z Androidem."
+          files: MetinTimer.apk
+          make_latest: "true"
+
+      - name: Strona (GitHub Pages)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: app/src/main/assets
+          publish_branch: gh-pages
+          enable_jekyll: false
