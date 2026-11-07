@@ -1856,9 +1856,9 @@ function onRoulette(initial){
   if (age < 30000) showSpin(r, Math.max(0, age));       // everyone in the room watches the wheel
 }
 /* one game at a time in a room (the lottery counts too). A game blocks the room only while it is really going on:
-   not finished, something happened in the last 2 minutes, and someone from it (its owner or a player) is still here.
+   not finished, something happened in the last 45 seconds, and someone from it (its owner or a player) is still here.
    A finished, abandoned or idle game never blocks. Returns why a new one can't start, or "". */
-const IDLE_FREE = 2 * 60000;
+const IDLE_FREE = 45000;
 // when the room is busy: the message, plus "Zakończ tamtą grę" for its owner and a logged-in admin
 function busyHtml(busy){
   if (!busy) return "";
