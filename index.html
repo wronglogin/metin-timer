@@ -758,14 +758,64 @@ function menuSheet(){
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
   });
 }
+/* ---------- export / import (own format + squadtimer.netlify.app) ----------
+   squadtimer code = base64("name::minutes::%23color;;…###line_channel::respawnTimestamp;;…###")
+   lines are 0-based, channels 1-based, the timestamp is when the metin respawns (start + minutes). */
+const b64enc = t => btoa(unescape(encodeURIComponent(t)));
+const b64dec = t => decodeURIComponent(escape(atob(String(t).trim().replace(/\s+/g, ""))));
+const udec = t => { try { return decodeURIComponent(t); } catch { return t; } };
+function parseSquad(text){
+  const raw = b64dec(text);
+  if (!raw.includes("###") || !raw.includes("::")) return null;
+  const [linesPart, marksPart] = raw.split("###");
+  const lines = linesPart.split(";;").filter(Boolean).map(l => { const [name, min] = l.split("::"); return {name: udec(name || "").slice(0, 40) || "Resp", min: Math.min(600, Math.max(1, Math.round(+min) || 1))}; });
+  if (!lines.length) return null;
+  for (const m of (marksPart || "").split(";;").filter(Boolean)) {
+    const [key, ts] = m.split("::"), [li, chn] = key.split("_").map(Number), line = lines[li];
+    if (!line || !(chn >= 1 && chn <= 10) || !(+ts > 0)) continue;
+    const a = +ts - line.min * 60000;                     // their timestamp is the respawn moment; ours is the kill
+    if (a > resetAt) (line.t = line.t || {})["c" + chn] = {a, mn: line.min, mx: line.min};
+  }
+  return lines;
+}
+function squadCode(mapId){
+  const ss = mapSpots(mapId);
+  const lines = ss.map(s => `${encodeURIComponent(s.name)}::${s.min}::%232a2a2a`).join(";;");
+  const marks = [];
+  ss.forEach((s, i) => { for (const [c, v] of Object.entries(s.t || {})) {
+    const a = typeof v === "number" ? v : v && v.a, mn = (v && v.mn) || s.min;
+    if (a > resetAt) marks.push(`${i}_${c.slice(1)}::${Math.round(a + mn * 60000)}`);
+  } });
+  return b64enc(`${lines}###${marks.join(";;")}###`);
+}
+const mapOptions = sel => visibleMaps().map(m => `<option value="${m.id}"${m.id === sel ? " selected" : ""}>${esc(m.name)}</option>`).join("");
+const curMap = () => mapById[tab] ? tab : (visibleMaps()[0] || MAPS[0]).id;
+function copyText(ta, code){
+  ta.select();
+  Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } });
+}
 function exportSheet(){
-  const code = btoa(unescape(encodeURIComponent(JSON.stringify(Object.values(spots).map(({id, ...r}) => r)))));
-  sheet(`<h2>Eksportuj respy</h2><p>Skopiuj kod i wyślij znajomemu. Zawiera respy ze wszystkich map (nazwy, czasy respa, kolory) razem z aktualnymi licznikami kanałów.</p>
+  const code = b64enc(JSON.stringify(Object.values(spots).map(({id, ...r}) => r)));
+  sheet(`<h2>Eksportuj respy</h2>
+    <div class="field"><label>Format</label><div class="seg"><button data-fmt="own" aria-pressed="true">Ten timer</button><button data-fmt="squad" aria-pressed="false">Squadtimer</button></div></div>
+    <p id="x_info">Wszystkie mapy: respy (nazwy, czasy, kolory) razem z licznikami kanałów. Wklej w „Importuj respy” w tym timerze.</p>
+    <div class="field" id="x_mapf" hidden><label for="x_map">Mapa do wyeksportowania</label><select id="x_map">${mapOptions(curMap())}</select></div>
     <div class="field"><textarea id="x_code" readonly>${code}</textarea></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="x_copy">Kopiuj</button></div>`,
-  el => { const ta = el.querySelector("#x_code");
-    el.querySelector("#x_copy").onclick = () => { ta.select();
-      Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } }); }; });
+  el => {
+    const ta = el.querySelector("#x_code"), mapSel = el.querySelector("#x_map");
+    let fmt = "own";
+    const update = () => {
+      ta.value = fmt === "own" ? code : squadCode(mapSel.value);
+      el.querySelector("#x_mapf").hidden = fmt === "own";
+      el.querySelector("#x_info").textContent = fmt === "own"
+        ? "Wszystkie mapy: respy (nazwy, czasy, kolory) razem z licznikami kanałów. Wklej w „Importuj respy” w tym timerze."
+        : "Respy jednej mapy jako linie squadtimera, razem z licznikami. Wklej w squadtimerze w „Importuj kod”.";
+    };
+    el.querySelectorAll("[data-fmt]").forEach(b => b.onclick = () => { fmt = b.dataset.fmt; el.querySelectorAll("[data-fmt]").forEach(x => x.setAttribute("aria-pressed", x === b)); update(); });
+    mapSel.onchange = update;
+    el.querySelector("#x_copy").onclick = () => copyText(ta, ta.value);
+  });
 }
 // keep only well-formed channel marks that are still from today (after the 01:00 reset)
 function importMarks(t){
@@ -780,19 +830,53 @@ function importMarks(t){
   return out;
 }
 function importSheet(){
-  sheet(`<h2>Importuj respy</h2><p>Wklej kod. Obecne respy zostaną zastąpione. Tego nie da się cofnąć.</p>
-    <div class="field"><textarea id="i_code" placeholder="Wklej kod tutaj"></textarea></div><p id="i_err" style="color:var(--danger)" hidden></p>
+  sheet(`<h2>Importuj respy</h2><p>Wklej kod z tego timera albo ze squadtimera. Format rozpozna się sam.</p>
+    <div class="field"><textarea id="i_code" placeholder="Wklej kod tutaj"></textarea></div>
+    <div id="i_sq" class="field" hidden>
+      <p id="i_sqinfo"></p>
+      <label for="i_map">Wstaw na mapę</label><select id="i_map">${mapOptions(curMap())}</select>
+      <div class="seg" style="margin-top:6px"><button data-mode="replace" aria-pressed="true">Zastąp respy tej mapy</button><button data-mode="add" aria-pressed="false">Dodaj do respów tej mapy</button></div>
+    </div>
+    <p id="i_own" hidden>Kod z tego timera: zastąpi wszystkie respy na wszystkich mapach.</p>
+    <p style="font-size:13px">Importu nie da się cofnąć.</p>
+    <p id="i_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="i_ok">Importuj respy</button></div>`,
-  (el, close) => el.querySelector("#i_ok").onclick = () => {
-    try {
-      const arr = JSON.parse(decodeURIComponent(escape(atob(el.querySelector("#i_code").value.trim()))));
-      if (!Array.isArray(arr)) throw 0;
-      const ch = {}; for (const id of Object.keys(spots)) ch[id] = null;
-      let n = 0;
-      arr.forEach((r, i) => { if (!mapById[r.map]) return; const id = uid(); n++;
-        ch[id] = {id, map:r.map, name:String(r.name || "Resp").slice(0, 40), kind:r.kind === "boss" ? "boss" : "metin", min:+r.min || 10, max:+r.max || 20, color:COLORS.includes(r.color) ? r.color : null, o:+r.o || Date.now() + i, t:importMarks(r.t)}; });
+  (el, close) => {
+    const ta = el.querySelector("#i_code"), err = el.querySelector("#i_err");
+    let mode = "replace", kind = null, data = null;
+    const detect = () => {
+      kind = null; data = null; err.hidden = true;
+      const v = ta.value.trim();
+      if (v) {
+        try { const arr = JSON.parse(b64dec(v)); if (Array.isArray(arr)) { kind = "own"; data = arr; } } catch {}
+        if (!kind) try { const lines = parseSquad(v); if (lines) { kind = "squad"; data = lines; } } catch {}
+      }
+      el.querySelector("#i_sq").hidden = kind !== "squad";
+      el.querySelector("#i_own").hidden = kind !== "own";
+      if (kind === "squad") {
+        const marks = data.reduce((n, l) => n + Object.keys(l.t || {}).length, 0);
+        el.querySelector("#i_sqinfo").textContent = `Kod ze squadtimera: ${data.length} ${data.length === 1 ? "linia" : data.length < 5 ? "linie" : "linii"}, ${marks} ${marks === 1 ? "zaznaczony kanał" : "zaznaczonych kanałów"}.`;
+      }
+    };
+    ta.addEventListener("input", detect);
+    el.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { mode = b.dataset.mode; el.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
+    el.querySelector("#i_ok").onclick = () => {
+      detect();
+      if (!kind) { err.textContent = "Nie rozpoznaję tego kodu. Wklej cały kod z „Eksportuj” tego timera albo z „Eksportuj kod” squadtimera."; err.hidden = false; return; }
+      const ch = {}; let n = 0;
+      if (kind === "own") {
+        for (const id of Object.keys(spots)) ch[id] = null;
+        data.forEach((r, i) => { if (!mapById[r.map]) return; const id = uid(); n++;
+          ch[id] = {id, map:r.map, name:String(r.name || "Resp").slice(0, 40), kind:r.kind === "boss" ? "boss" : "metin", min:+r.min || 10, max:+r.max || 20, color:COLORS.includes(r.color) ? r.color : null, o:+r.o || Date.now() + i, t:importMarks(r.t)}; });
+      } else {
+        const map = el.querySelector("#i_map").value, existing = mapSpots(map);
+        if (mode === "replace") for (const s of existing) ch[s.id] = null;
+        let o = mode === "add" && existing.length ? Math.max(...existing.map(s => s.o || 0)) + 1 : Date.now();
+        for (const l of data) { const id = uid(); n++;
+          ch[id] = {id, map, name:l.name, kind:"metin", min:l.min, max:l.min, color:null, o:o++, t:l.t || {}}; }
+      }
       close(); commit(ch); toast("Zaimportowano " + n + " respów");
-    } catch { const er = el.querySelector("#i_err"); er.textContent = "To nie jest poprawny kod timera."; er.hidden = false; }
+    };
   });
 }
 function resetSheet(){
