@@ -25,12 +25,28 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.wrap{max-width:860px;margin:0 auto}
+.wrap{max-width:980px;margin:0 auto}
 
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
 .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}}
+.radio{display:flex;align-items:center;gap:2px;min-width:170px;flex:1 1 220px;max-width:340px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+.radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
+.radio .rbtn:hover{background:var(--surface-2)}
+.radio .rtitle{flex:1;min-width:0;overflow:hidden;white-space:nowrap;font-size:14px;color:var(--fg);mask-image:linear-gradient(90deg,#000 85%,transparent)}
+.radio .rtitle span{display:inline-block;padding-left:2px}
+.radio.off .rtitle{color:var(--muted)}
+.radio.off [data-radio="on"]{color:var(--ready)}
+@media (prefers-reduced-motion:no-preference){.radio:not(.off) .rtitle span{animation:marq 14s linear infinite}}
+@keyframes marq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(min(0px,calc(-100% + 160px)))}}
+.ytdock{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:12;width:200px;height:200px;border-radius:8px;overflow:hidden;border:1px solid var(--rule);box-shadow:0 8px 24px rgba(0,0,0,.45);background:#000}
+.ytdock iframe{width:200px;height:200px;display:block}
+.rq li{padding:4px 4px 4px 6px}
+.rq li.rnow{border-color:var(--accent)}
+.rqplay{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rq .btn{min-height:30px;padding:2px 9px}
+@media (max-width:520px){.radio{flex:1 1 100%;max-width:none}}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
@@ -211,6 +227,7 @@ main{padding-top:14px;display:grid;gap:14px}
   <header>
     <div class="bar">
       <div class="brand">Metin Timer<small>respawn metinów i bossów</small></div>
+      <div id="radio" class="radio" hidden></div>
       <span class="mode" id="mode">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
@@ -224,6 +241,7 @@ main{padding-top:14px;display:grid;gap:14px}
   <main id="main"></main>
 </div>
 <div id="layer"></div>
+<div id="ytdock" class="ytdock" hidden><div id="ytplayer"></div></div>
 
 <script>
 (() => {
@@ -477,9 +495,11 @@ async function connect(db, room){
       if (kind === "put") setPath(remoteRoot, path, data);
       else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
       presence = remoteRoot.presence || {};
-      const onlyPresence = path.startsWith("/presence") || (path === "/" && kind === "patch" && Object.keys(data || {}).every(k => k.startsWith("presence")));
+      const side = k => k.startsWith("presence") || k.startsWith("radio");
+      const onlySide = side(path.slice(1)) || (path === "/" && kind === "patch" && Object.keys(data || {}).every(side));
       renderPresence();
-      if (onlyPresence) return;
+      if (path === "/" || path.startsWith("/radio") || (kind === "patch" && Object.keys(data || {}).some(k => k.startsWith("radio")))) syncRadio(false);
+      if (onlySide) return;
       spots = clone(remoteRoot.spots || {}) || {};
       H = {hist: clone(remoteRoot.hist || {}) || {}, redo: clone(remoteRoot.redo || {}) || {}};
       for (const s of Object.values(spots)) if (!s.t || typeof s.t !== "object") s.t = {};
@@ -497,6 +517,7 @@ async function connect(db, room){
 }
 function disconnect(silent){
   stopPresence();
+  try { ytPlayer && ytPlayer.stopVideo(); } catch {}
   if (online && online.es) online.es.close();
   const was = !!online;
   online = null; clockOffset = 0;
@@ -548,7 +569,7 @@ function renderPresence(){
     : `<li class="pme">Nikogo nie widać</li>`;
 }
 setInterval(renderPresence, 15000);              // let people drop off the list when their heartbeat stops
-function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); }
+function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); if (typeof renderRadio === "function") renderRadio(); }
 // saved room list ("a;b;c" in Menu); one room is live at a time, the header select switches between them
 const roomList = () => { const r = store.get("rooms", null); if (Array.isArray(r)) return r; const o = store.get("online", null) || store.get("lastRoom", null); return o && o.room ? [o.room] : []; };
 const parseRooms = t => [...new Set(String(t || "").split(/[;,]/).map(x => x.trim()).filter(Boolean))];
@@ -1270,6 +1291,202 @@ function adminSheet(){
     };
   });
 }
+
+/* ---------- room radio (YouTube) ----------
+   Shared state in rooms/<room>/radio: queue {key: {v: videoId, t: title, by: nick}}, cur: key, start: server ms.
+   Everyone computes the position from "start" and follows it. Each person turns the radio on/off and mutes
+   it for themselves. YouTube requires its player to stay visible (min. 200×200), so it sits in a corner
+   while the radio is on. */
+let ytApi = null, ytPlayer = null, ytReady = false, ytHelper = null;
+let radioOn = store.get("radioOn", false), radioMuted = store.get("radioMuted", false);
+const RADIO = () => (remoteRoot && remoteRoot.radio) || {};
+const rqKeys = () => sortedKeys(RADIO().queue || {});
+const curItem = () => { const r = RADIO(); return r.cur && r.queue ? r.queue[r.cur] : null; };
+function ytIdFrom(u){
+  u = String(u).trim();
+  let m = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/.exec(u);
+  if (m) return m[1];
+  return /^[\w-]{11}$/.test(u) ? u : null;
+}
+const ytListFrom = u => { const m = /[?&]list=([\w-]{10,64})/.exec(String(u)); return m ? m[1] : null; };
+function loadYtApi(){
+  if (ytApi) return ytApi;
+  ytApi = new Promise(res => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) try { prev(); } catch {} res(window.YT); };
+    const s = document.createElement("script"); s.src = "https://www.youtube.com/iframe_api"; s.async = true;
+    s.onerror = () => res(null); document.head.appendChild(s);
+    setTimeout(() => res(window.YT && window.YT.Player ? window.YT : null), 12000);
+  });
+  return ytApi;
+}
+async function ensurePlayer(){
+  if (ytPlayer) return ytPlayer;
+  const YT = await loadYtApi(); if (!YT || !YT.Player) { toast("Nie udało się wczytać odtwarzacza YouTube."); return null; }
+  document.getElementById("ytdock").hidden = false;
+  return new Promise(res => {
+    ytPlayer = new YT.Player("ytplayer", {width: 200, height: 200, playerVars: {playsinline: 1, rel: 0, modestbranding: 1},
+      events: {
+        onReady: () => {
+          ytReady = true;
+          // browsers block sound before the first tap: start muted and unmute on the first interaction
+          if (navigator.userActivation && !navigator.userActivation.hasBeenActive) { try { ytPlayer.mute(); } catch {} document.addEventListener("pointerdown", applyMute, {once: true}); }
+          else applyMute();
+          res(ytPlayer); syncRadio(true);
+        },
+        onStateChange: e => {
+          if (e.data === 0) radioEnded();                                     // ended → next track
+          if (e.data === 1) rememberTitle();
+          renderRadio();
+        },
+        onError: () => radioEnded(),                                           // blocked / removed video: skip it
+      }});
+  });
+}
+function applyMute(){ if (!ytReady) return; try { radioMuted ? ytPlayer.mute() : (ytPlayer.unMute(), ytPlayer.setVolume(Math.round(settings.volume * 100))); } catch {} }
+function radioOffset(){ const r = RADIO(); return Math.max(0, (now() - (+r.start || now())) / 1000); }
+function syncRadio(force){
+  renderRadio();
+  if (!online || !radioOn) return;
+  const it = curItem();
+  if (!ytReady) { if (it) ensurePlayer(); return; }
+  try {
+    if (!it) { ytPlayer.stopVideo(); return; }
+    const data = ytPlayer.getVideoData ? ytPlayer.getVideoData() : {};
+    const off = radioOffset();
+    if (!data || data.video_id !== it.v) ytPlayer.loadVideoById({videoId: it.v, startSeconds: off});
+    else {
+      const t = ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : 0;
+      if (force || Math.abs(t - off) > 3) ytPlayer.seekTo(off, true);
+      if (ytPlayer.getPlayerState() !== 1) ytPlayer.playVideo();
+    }
+  } catch {}
+}
+function radioPatch(rc){ const out = {}; for (const [p, v] of Object.entries(rc)) { out["radio/" + p] = v; setPath(remoteRoot, "radio/" + p, clone(v)); } if (online) push(out); syncRadio(true); }
+function playKey(k){ radioPatch({cur: k || null, start: {".sv": "timestamp"}}); setPath(remoteRoot, "radio/start", Math.round(now())); syncRadio(true); }
+function stepRadio(d){
+  const ks = rqKeys(), i = ks.indexOf(RADIO().cur);
+  if (!ks.length) return;
+  const j = i < 0 ? 0 : i + d;
+  if (j < 0 || j >= ks.length) { if (d > 0) playKey(null); return; }
+  playKey(ks[j]);
+}
+let endedLock = 0;
+function radioEnded(){
+  // every listener notices the end; whoever is first moves on, the rest see that cur already changed
+  const ended = RADIO().cur; if (!ended || Date.now() - endedLock < 3000) return; endedLock = Date.now();
+  setTimeout(() => { if (RADIO().cur === ended) stepRadio(1); }, 300 + Math.random() * 700);
+}
+function rememberTitle(){
+  const r = RADIO(), it = curItem(); if (!it || it.t) return;
+  try { const t = (ytPlayer.getVideoData() || {}).title; if (t) radioPatch({[`queue/${r.cur}/t`]: t.slice(0, 120)}); } catch {}
+}
+// playlist links: let a hidden helper player list the videos (nothing is played)
+async function playlistIds(list){
+  const YT = await loadYtApi(); if (!YT) return [];
+  return new Promise(res => {
+    const host = document.createElement("div"); host.style.cssText = "position:fixed;left:-9999px;top:0;width:200px;height:200px"; document.body.appendChild(host);
+    const inner = document.createElement("div"); host.appendChild(inner);
+    let done = false; const finish = ids => { if (done) return; done = true; try { p.destroy(); } catch {} host.remove(); res(ids || []); };
+    const p = new YT.Player(inner, {width: 200, height: 200, playerVars: {listType: "playlist", list},
+      events: {onReady: () => { let n = 0; const iv = setInterval(() => { const ids = p.getPlaylist && p.getPlaylist(); if ((ids && ids.length) || ++n > 20) { clearInterval(iv); finish(ids); } }, 300); },
+               onError: () => finish([])}});
+    setTimeout(() => finish([]), 10000);
+  });
+}
+async function addToRadio(text){
+  const ids = [];
+  for (const part of String(text).split(/\s+/).filter(Boolean)) {
+    const list = ytListFrom(part), vid = ytIdFrom(part);
+    if (list) { const got = await playlistIds(list); ids.push(...got.slice(0, 200)); if (!got.length && vid) ids.push(vid); }
+    else if (vid) ids.push(vid);
+  }
+  if (!ids.length) return 0;
+  const rc = {}; let first = null;
+  ids.forEach(v => { const k = hkey(); rc[`queue/${k}`] = {v, by: myNick().slice(0, 20)}; first = first || k; });
+  const r = RADIO(), curGone = !r.cur || !(r.queue || {})[r.cur];
+  if (curGone) { rc.cur = first; rc.start = {".sv": "timestamp"}; }
+  radioPatch(rc);
+  if (curGone) setPath(remoteRoot, "radio/start", Math.round(now()));
+  return ids.length;
+}
+function setRadioOn(on){
+  radioOn = on; store.set("radioOn", on);
+  if (on) { ensurePlayer().then(() => syncRadio(true)); }
+  else { try { ytPlayer && ytPlayer.pauseVideo(); } catch {} document.getElementById("ytdock").hidden = true; }
+  renderRadio();
+}
+function renderRadio(){
+  const box = document.getElementById("radio"); if (!box) return;
+  box.hidden = !online;
+  if (!online) { document.getElementById("ytdock").hidden = true; return; }
+  const it = curItem(), title = it ? (it.t || (ytReady && radioOn && (ytPlayer.getVideoData() || {}).video_id === it.v && (ytPlayer.getVideoData() || {}).title) || "Film " + it.v) : "Kolejka pusta";
+  box.classList.toggle("off", !radioOn);
+  const html = `<button class="rbtn" data-radio="${radioOn ? "mute" : "on"}" title="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio u mnie"}" aria-label="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio"}">${!radioOn ? ICON.radio : radioMuted ? ICON.muted : ICON.sound}</button>
+    <span class="rtitle" title="${esc(title)}"><span>${esc(title)}</span></span>
+    <button class="rbtn" data-radio="prev" title="Poprzedni" aria-label="Poprzedni">${ICON.prev}</button>
+    <button class="rbtn" data-radio="next" title="Następny" aria-label="Następny">${ICON.next}</button>
+    <button class="rbtn" data-radio="queue" title="Kolejka radia" aria-label="Kolejka radia">${ICON.list}</button>`;
+  if (box.innerHTML !== html) box.innerHTML = html;
+  document.getElementById("ytdock").hidden = !(radioOn && it);
+}
+const ICON = {
+  radio: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>',
+  sound: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>',
+  muted: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9zm11.6 3 2.2-2.2-1.4-1.4-2.2 2.2-2.2-2.2-1.4 1.4 2.2 2.2-2.2 2.2 1.4 1.4 2.2-2.2 2.2 2.2 1.4-1.4z"/></svg>',
+  prev: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>',
+  next: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
+  list: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3 6h13v2H3zm0 5h13v2H3zm0 5h9v2H3zm15-5v6.2a2.5 2.5 0 1 0 2 2.4V13h2v-2z"/></svg>',
+};
+function radioSheet(){
+  sheet(`<h2>Radio pokoju</h2>
+    <p>Wklej link do filmiku albo playlisty z YouTube. Wszyscy w pokoju słyszą to samo. Kilka linków oddziel spacją.</p>
+    <div class="field"><label for="ra_url">Link z YouTube</label><input id="ra_url" autocomplete="off" spellcheck="false" placeholder="https://www.youtube.com/watch?v=…"></div>
+    <p id="ra_err" style="color:var(--danger)" hidden></p>
+    <div class="acts"><button class="btn primary" id="ra_add">Dodaj do kolejki</button></div>
+    <ol class="banlist rq" id="ra_list"></ol>
+    <div class="acts"><button class="btn danger grow" id="ra_clear">Wyczyść kolejkę</button><button class="btn" id="ra_off">${radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"}</button><button class="btn" data-close>Zamknij</button></div>`, el => {
+    const draw = () => {
+      const r = RADIO(), ks = rqKeys();
+      el.querySelector("#ra_list").innerHTML = ks.length ? ks.map(k => { const it = r.queue[k]; return `<li class="${k === r.cur ? "rnow" : ""}">
+        <button class="rqplay" data-rq="${k}" title="Odtwórz teraz">${k === r.cur ? "▶ " : ""}${esc(it.t || "Film " + it.v)}${it.by ? ` <span class="pme">· ${esc(it.by)}</span>` : ""}</button>
+        <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; }).join("") : '<li class="pme">Kolejka jest pusta.</li>';
+    };
+    draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
+    const add = async () => {
+      const inp = el.querySelector("#ra_url"), err = el.querySelector("#ra_err"); err.hidden = true;
+      const btn = el.querySelector("#ra_add"); btn.disabled = true; btn.textContent = "Dodawanie…";
+      const n = await addToRadio(inp.value);
+      btn.disabled = false; btn.textContent = "Dodaj do kolejki";
+      if (!n) { err.textContent = "Nie rozpoznaję linku. Wklej link do filmiku albo playlisty z YouTube."; err.hidden = false; return; }
+      inp.value = ""; toast(n === 1 ? "Dodano do kolejki" : `Dodano ${n} utworów`); if (!radioOn) setRadioOn(true); draw();
+    };
+    el.querySelector("#ra_add").onclick = add;
+    el.querySelector("#ra_url").addEventListener("keydown", e => { if (e.key === "Enter") add(); });
+    el.querySelector("#ra_off").onclick = ev => { setRadioOn(!radioOn); ev.target.textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"; };
+    el.querySelector("#ra_clear").onclick = ev => {
+      if (!ev.target.dataset.sure) { ev.target.dataset.sure = 1; ev.target.textContent = "Na pewno wyczyścić?"; return; }
+      radioPatch({queue: null, cur: null}); ev.target.dataset.sure = ""; ev.target.textContent = "Wyczyść kolejkę"; draw();
+    };
+    el.addEventListener("click", e => {
+      const pl = e.target.closest("[data-rq]"); if (pl) { playKey(pl.dataset.rq); if (!radioOn) setRadioOn(true); draw(); return; }
+      const del = e.target.closest("[data-rqdel]"); if (!del) return;
+      const k = del.dataset.rqdel;
+      if (RADIO().cur === k) stepRadio(1);
+      radioPatch({[`queue/${k}`]: null}); draw();
+    });
+  });
+}
+document.getElementById("radio").addEventListener("click", e => {
+  const b = e.target.closest("[data-radio]"); if (!b) return;
+  const a = b.dataset.radio;
+  if (a === "on") setRadioOn(true);
+  else if (a === "mute") { radioMuted = !radioMuted; store.set("radioMuted", radioMuted); applyMute(); renderRadio(); }
+  else if (a === "prev") stepRadio(-1);
+  else if (a === "next") stepRadio(1);
+  else if (a === "queue") radioSheet();
+});
+setInterval(() => { if (online && radioOn && ytReady) syncRadio(false); }, 5000);
 
 /* ---------- boot ---------- */
 const saved = store.get("spots", null);
