@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Metin Timer</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Metin Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -379,6 +380,28 @@ function updateHistButtons(){
 
 /* ---------- online room (Firebase Realtime Database REST + SSE) ---------- */
 const IN_APP = / MetinTimerApp/.test(navigator.userAgent);
+const APP_VER = (navigator.userAgent.match(/MetinTimerApp\/([\d.]+)/) || [])[1] || null;   // installed app version (1.15+)
+const RELEASE_API = "https://api.github.com/repos/wronglogin/metin-timer/releases/latest";
+const verNum = v => +String(v || "").replace(/^v?1\./, "") || 0;
+// newest app release from GitHub, cached for 10 minutes (the API allows 60 requests per hour)
+async function latestRelease(){
+  const c = store.get("rel", null);
+  if (c && Date.now() - c.t < 600000) return c;
+  try {
+    const r = await fetch(RELEASE_API, {headers: {Accept: "application/vnd.github+json"}}); if (!r.ok) return c;
+    const j = await r.json(); const rel = {v: String(j.tag_name || "").replace(/^v/, ""), at: j.published_at, t: Date.now()};
+    if (rel.v) store.set("rel", rel); return rel.v ? rel : c;
+  } catch { return c; }
+}
+const fmtDate = iso => new Date(iso).toLocaleString("pl-PL", {day:"numeric", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit"});
+function appInfoHtml(rel){
+  const when = rel && rel.at ? `, zaktualizowana ${fmtDate(rel.at)}` : "";
+  const latest = rel && rel.v ? `Najnowsza wersja: <b>${esc(rel.v)}</b>${when}.` : "Nie udało się sprawdzić najnowszej wersji.";
+  if (!IN_APP) return `<p>${latest}</p><p>Pobierz plik i otwórz go na telefonie. Android poprosi o zgodę na instalację z tego źródła.</p>`;
+  if (!APP_VER) return `<p>${latest}</p><p>Masz starszą wersję aplikacji. Pobierz nową i zainstaluj ją na obecną. Respy i ustawienia zostaną.</p>`;
+  if (rel && verNum(rel.v) > verNum(APP_VER)) return `<p>Twoja wersja: <b>${esc(APP_VER)}</b>. ${latest}</p><p>Pobierz nową i zainstaluj ją na obecną. Respy i ustawienia zostaną.</p>`;
+  return `<p>Twoja wersja: <b>${esc(APP_VER)}</b>${rel && rel.v ? ` – to najnowsza${when}` : ""}.</p>`;
+}
 const APK_URL = "https://github.com/wronglogin/metin-timer/releases/latest/download/MetinTimer.apk";
 const DB_URL = "https://timermetin-default-rtdb.europe-west1.firebasedatabase.app";
 let remoteRoot = {};
@@ -803,12 +826,13 @@ function menuSheet(){
     <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">Globalny reset</button></div>
-    ${IN_APP ? "" : `<hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
-    <p>Pobierz plik i otwórz go na telefonie. Android poprosi o zgodę na instalację z tego źródła.</p>
-    <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz MetinTimer.apk</a></div>`}
+    <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
+    <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz MetinTimer.apk</a></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>`,
   (el, close) => {
+    latestRelease().then(rel => { const box = el.querySelector("#appinfo"); if (box && box.isConnected) box.innerHTML = appInfoHtml(rel); });
     const vr = el.querySelector("#vol"), vv = el.querySelector("#volv");
     vr.oninput = () => { settings.volume = vr.value / 100; vv.textContent = vr.value + "%"; store.set("settings", settings); audio(); };
     vr.onchange = () => beep(settings.sound || 1);              // play a sample when the slider is released
@@ -1052,6 +1076,13 @@ updateReset(); render(); setInterval(tick, 250); wake();
 loadConfig(); setInterval(loadConfig, 60000);
 document.getElementById("roomSel").addEventListener("change", e => switchRoom(e.target.value));
 renderRoomSel();
+// inside the app: tell once per new version that an update is available
+if (IN_APP) setTimeout(async () => {
+  const rel = await latestRelease();
+  if (rel && verNum(rel.v) > verNum(APP_VER || "1.0") && store.get("updNotice", "") !== rel.v) {
+    store.set("updNotice", rel.v); toast(`Jest nowa wersja aplikacji ${rel.v}. Pobierzesz ją w Menu.`);
+  }
+}, 3000);
 const auto = store.get("online", null);
 if (auto && auto.room) connect(DB_URL, auto.room).catch(() => setMode("Prywatny"));
 })();
