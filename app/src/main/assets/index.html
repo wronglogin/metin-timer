@@ -2213,34 +2213,85 @@ GAME_AFTER.horse = (g, body) => {
     requestAnimationFrame(frame);
   }
 };
+/* the race track: striped turf seen slightly from above, a stand with fans at the top, white rails,
+   and hand-drawn horses with jockeys in their number's colours; legs move in a gallop cycle */
+const COATS = ["#7b4a2b", "#3d3d44", "#5c3a20", "#1f1f24", "#8d8d94", "#a0592c"];
+function drawHorse(c, x, y, coat, silk, phase, running){
+  const sw = running ? 0.75 : 0.12, leg = (ox, oy, a, col) => {
+    const k = Math.sin(a), kn = Math.max(0, Math.sin(a + 1.2));
+    const kx = ox + k * 4, ky = oy + 5, hx = kx + k * 2 - kn * 2.5, hy = oy + 10 - kn * 2;
+    c.strokeStyle = col; c.lineWidth = 2; c.lineCap = "round";
+    c.beginPath(); c.moveTo(ox, oy); c.lineTo(kx, ky); c.lineTo(hx, hy); c.stroke();
+  };
+  const dark = "rgba(0,0,0,.35)", p = running ? phase : 0;
+  // shadow
+  c.fillStyle = "rgba(0,0,0,.25)"; c.beginPath(); c.ellipse(x, y + 1, 13, 2.6, 0, 0, 7); c.fill();
+  const by = y - 11 + (running ? Math.sin(p * 2) * 1.2 : 0);
+  // far legs (darker)
+  c.save(); c.globalAlpha = .75;
+  leg(x + 7, by + 2, p * 1 + 2.4, coat); leg(x - 8, by + 2, p * 1 + 0.9, coat);
+  c.restore();
+  // tail
+  c.strokeStyle = coat; c.lineWidth = 2.6; c.lineCap = "round";
+  c.beginPath(); c.moveTo(x - 11, by - 2); c.quadraticCurveTo(x - 17, by - 1 + Math.sin(p) * 2, x - 17 - Math.cos(p) * 1.5, by + 6); c.stroke();
+  // body, neck, head
+  c.fillStyle = coat;
+  c.beginPath(); c.ellipse(x, by, 11.5, 5.2, 0, 0, 7); c.fill();
+  c.beginPath(); c.moveTo(x + 6, by - 3); c.lineTo(x + 12, by - 11); c.lineTo(x + 16, by - 10); c.lineTo(x + 11, by + 1); c.closePath(); c.fill();
+  c.beginPath(); c.ellipse(x + 16.5, by - 10, 4.6, 2.4, 0.45, 0, 7); c.fill();
+  c.beginPath(); c.moveTo(x + 13, by - 12); c.lineTo(x + 13.5, by - 15); c.lineTo(x + 15, by - 12.5); c.fill();
+  c.fillStyle = dark; c.beginPath(); c.ellipse(x - 1, by + 2.2, 9, 2, 0, 0, 7); c.fill();   // belly shade
+  // near legs
+  leg(x + 8, by + 2, p * 1 + 0.6 + Math.PI, coat); leg(x - 7, by + 2, p * 1 + 3.9, coat);
+  void sw;
+  // saddle cloth and jockey
+  c.fillStyle = "#f4f4f4"; c.fillRect(x - 4, by - 5, 7, 5);
+  c.fillStyle = silk;
+  c.beginPath(); c.ellipse(x + 1, by - 8.5, 4.6, 3, -0.35, 0, 7); c.fill();                  // body in silks
+  c.strokeStyle = silk; c.lineWidth = 1.6; c.beginPath(); c.moveTo(x + 4, by - 9); c.lineTo(x + 9, by - 6); c.stroke();   // arm to the reins
+  c.fillStyle = "#e9c9a6"; c.beginPath(); c.arc(x + 5.2, by - 12, 1.9, 0, 7); c.fill();       // face
+  c.fillStyle = silk; c.beginPath(); c.arc(x + 4.8, by - 12.8, 2.2, Math.PI, 0); c.fill();     // cap
+  c.strokeStyle = "#222"; c.lineWidth = 1.4; c.beginPath(); c.moveTo(x, by - 6); c.lineTo(x + 2, by - 2.5); c.stroke(); // boot
+}
 function drawRace(cv, g, lead){
-  const cssW = cv.clientWidth || 300, lane = 24, top = 5, cssH = top * 2 + lane * 6, dpr = Math.min(2, devicePixelRatio || 1);
+  const lane = 24, stand = 18, railH = 4, skew = 7;
+  const cssW = cv.clientWidth || 300, cssH = stand + railH + lane * 6 + 8, dpr = Math.min(2, devicePixelRatio || 1);
   if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.height = cssH + "px"; }
   const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cssW, cssH);
-  const x0 = 34, x1 = cssW - 22, run = x1 - x0 - 26;
+  const top = stand + railH, sx = i => 30 + (5 - i) * skew, fx = i => cssW - 48 - i * skew, laneY = i => top + i * lane;
   const m = g.seed ? raceModel(+g.seed) : null, t = m ? (now() - +g.go) / 1000 : 0;
   const tt = g.state === "done" && m ? Math.max(t, m.horses[g.wh - 1].T) : t;
-  // track
-  c.fillStyle = "#2b2116"; c.fillRect(0, 0, cssW, cssH);
-  for (let i = 0; i < 6; i++) { c.fillStyle = i % 2 ? "#3a2c1d" : "#33271a"; c.fillRect(0, top + i * lane, cssW, lane); }
-  c.strokeStyle = "rgba(255,255,255,.12)"; c.lineWidth = 1;
-  for (let i = 0; i <= 6; i++) { c.beginPath(); c.moveTo(0, top + i * lane + .5); c.lineTo(cssW, top + i * lane + .5); c.stroke(); }
-  c.fillStyle = "rgba(255,255,255,.55)"; c.fillRect(x0 - 2, top, 2, lane * 6);
-  for (let y = 0; y < lane * 6; y += 6) for (let k = 0; k < 2; k++) { c.fillStyle = ((y / 6 + k) % 2) ? "#fff" : "#111"; c.fillRect(x1 + k * 6, top + y, 6, 6); }
-  // horses
+  // stand with fans
+  c.fillStyle = "#4a4f5c"; c.fillRect(0, 0, cssW, stand);
+  const fans = ["#e9e3d5", "#d65a4a", "#4e8fd6", "#e8c24a", "#7a5fa0", "#2f3440", "#c98f6a"];
+  for (let r = 0; r < 3; r++) for (let x = (r % 2) * 3; x < cssW; x += 6) { const h = (x * 7 + r * 13) % 23; c.fillStyle = fans[h % fans.length]; c.fillRect(x, 2 + r * 5, 3, 3); }
+  // turf with mowing stripes
+  c.fillStyle = "#3f8f2f"; c.fillRect(0, stand, cssW, cssH - stand);
+  c.fillStyle = "#4a9e37";
+  for (let x = -60; x < cssW + 60; x += 36) { c.beginPath(); c.moveTo(x, stand); c.lineTo(x + 18, stand); c.lineTo(x + 18 - 6 * skew, cssH); c.lineTo(x - 6 * skew, cssH); c.fill(); }
+  // rails
+  c.fillStyle = "#f2f2f2"; c.fillRect(0, stand, cssW, 2.5); c.fillRect(0, cssH - 5, cssW, 2.5);
+  c.strokeStyle = "rgba(255,255,255,.22)"; c.lineWidth = 1;
+  for (let i = 1; i < 6; i++) { c.beginPath(); c.moveTo(0, laneY(i) + .5); c.lineTo(cssW, laneY(i) + .5); c.stroke(); }
+  // start and finish lines (slanted, the track is seen at an angle)
+  c.strokeStyle = "rgba(255,255,255,.75)"; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(sx(0) + skew / 2, top); c.lineTo(sx(5) - skew / 2, top + lane * 6); c.stroke();
+  c.strokeStyle = "#fff"; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(fx(0) + skew / 2, top); c.lineTo(fx(5) - skew / 2, top + lane * 6); c.stroke();
+  c.fillStyle = "#fff"; c.fillRect(fx(0) + skew / 2 - 1, stand - 9, 2, 11); c.beginPath(); c.arc(fx(0) + skew / 2, stand - 9, 2.5, 0, 7); c.fill();
+  // horses, back row first so the near lanes are drawn in front
   let best = 0, bi = -1;
   HORSES.forEach((h, i) => {
-    const y = top + i * lane + lane / 2;
-    c.fillStyle = h.c; c.beginPath(); c.arc(14, y, 8, 0, 7); c.fill();
-    c.fillStyle = "#111"; c.font = "bold 12px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(h.n, 14, y + .5);
-    const p = m ? horsePos(m.horses[i], tt) : 0, running = m && tt > 0 && p < 1;
+    const y = laneY(i) + lane - 2, p = m ? horsePos(m.horses[i], tt) : 0;
+    // after the line a horse runs on a little and slows down
+    const over = m ? Math.max(0, tt - m.horses[i].T) : 0, coast = Math.min(1, over / 0.9), running = !!m && tt > 0 && over < 0.9;
     if (p > best) { best = p; bi = i; }
-    const x = x0 + 4 + p * run, bob = running ? Math.sin(tt * 22 + i * 1.7) * 2.2 : 0;
-    c.save(); c.translate(x + 13, y + bob); c.scale(-1, 1); c.font = "18px system-ui,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("🐎", 0, 0); c.restore();
-    c.fillStyle = h.c; c.fillRect(x + 5, y + 8 + bob, 15, 2);
-    if (g.state === "done" && i === g.wh - 1) { c.strokeStyle = h.c; c.lineWidth = 2; c.strokeRect(1, y - lane / 2 + 1, cssW - 2, lane - 2); }
+    const x = sx(i) + 4 + p * (fx(i) - sx(i) - 22) + (1 - (1 - coast) * (1 - coast)) * 30;
+    if (g.state === "done" && i === g.wh - 1) { c.fillStyle = "rgba(255,255,255,.16)"; c.fillRect(0, laneY(i) + 1, cssW, lane - 1); }
+    c.fillStyle = h.c; c.beginPath(); c.arc(11, laneY(i) + lane / 2, 7.5, 0, 7); c.fill();
+    c.fillStyle = "#111"; c.font = "bold 11px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(h.n, 11, laneY(i) + lane / 2 + .5);
+    drawHorse(c, x, y, COATS[i], h.c, tt * 15 + i * 1.3, running);
   });
-  // countdown
   if (g.state === "race" && t < 0) {
     c.fillStyle = "rgba(0,0,0,.45)"; c.fillRect(0, 0, cssW, cssH);
     c.fillStyle = "#fff"; c.font = "bold 46px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(Math.ceil(-t)), cssW / 2, cssH / 2);
