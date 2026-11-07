@@ -63,7 +63,15 @@ header{grid-template-columns:minmax(0,1fr)}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
-.spin{z-index:40}
+.gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:25;width:min(360px,calc(100vw - 24px));max-height:min(72vh,600px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
+.gfloat.moving{opacity:.9;box-shadow:0 16px 40px rgba(0,0,0,.7)}
+.gfloat p{margin:0;color:var(--muted);font-size:15px}
+.ghead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;margin:0 -14px;padding:8px 8px 8px 14px;background:var(--surface-2);border-bottom:1px solid var(--rule);cursor:move;touch-action:none;user-select:none}
+.ghead h2{flex:1;margin:0;font-size:17px;text-align:left}
+.ghead .pme{font-size:13px}
+.ghead .gx{background:none;border:1px solid var(--rule);border-radius:6px;color:var(--muted);min-width:32px;min-height:30px;font-size:15px;cursor:pointer}
+.ghead .gx:hover{color:var(--fg);border-color:var(--muted)}
+.reflexbtn.watch{display:grid;place-items:center;min-height:120px}
 .spinbox{text-align:center}
 .spinnames{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:6px 0}
 .spn{padding:8px 14px;border:1px solid var(--rule);border-radius:999px;font-weight:700;font-size:17px;background:var(--bg);transition:background .08s,color .08s}
@@ -73,7 +81,8 @@ header{grid-template-columns:minmax(0,1fr)}
 .spinres.done b{color:var(--ready)}
 .gamebox .gbody{display:grid;gap:8px}
 .gline{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--rule);border-radius:6px;text-align:left}
-.gline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gline>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gline>span.pme{flex:0 0 auto;font-size:14px}
 .grow2{display:grid;gap:6px}
 .dice{font-size:30px;line-height:1;margin-left:auto;letter-spacing:2px}
 .coin{width:110px;height:110px;margin:6px auto;border-radius:50%;display:grid;place-items:center;font-size:19px;font-weight:700;background:var(--window);color:#2a2000;border:4px solid #b8962e}
@@ -1671,6 +1680,27 @@ setInterval(() => { if (online && radioOn && ytReady) syncRadio(false); }, 5000)
 /* ---------- roulette (przycisk Gry) ----------
    rooms/<room>/roulette = {id, by, s: stake, p: {deviceId: nick}, w: winnerId, at}. The person who spins draws the
    winner with crypto randomness; everyone in the room sees the same animation and result. rlog keeps recent results. */
+/* game and roulette windows float over the page without blocking it: drag them by the title bar, the spot is remembered */
+function floatPanel(el){
+  const clamp = () => {
+    const r = el.getBoundingClientRect(), W = innerWidth, Hh = innerHeight;
+    const x = Math.min(Math.max(6, r.left), Math.max(6, W - r.width - 6)), y = Math.min(Math.max(6, r.top), Math.max(6, Hh - Math.min(r.height, Hh - 12) - 6));
+    el.style.left = x + "px"; el.style.top = y + "px"; el.style.right = "auto"; el.style.bottom = "auto";
+  };
+  const pos = store.get("gpos", null);
+  if (pos && pos.x >= 0 && pos.y >= 0) { el.style.left = pos.x + "px"; el.style.top = pos.y + "px"; el.style.right = "auto"; el.style.bottom = "auto"; requestAnimationFrame(clamp); }
+  const head = el.querySelector("[data-drag]");
+  head.addEventListener("pointerdown", e => {
+    if (e.target.closest("button")) return;
+    e.preventDefault(); clamp();
+    const r = el.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    head.setPointerCapture(e.pointerId); el.classList.add("moving");
+    const move = ev => { el.style.left = (ev.clientX - dx) + "px"; el.style.top = (ev.clientY - dy) + "px"; };
+    const up = () => { head.removeEventListener("pointermove", move); el.classList.remove("moving"); clamp(); const q = el.getBoundingClientRect(); store.set("gpos", {x: Math.round(q.left), y: Math.round(q.top)}); };
+    head.addEventListener("pointermove", move); head.addEventListener("pointerup", up, {once: true}); head.addEventListener("pointercancel", up, {once: true});
+  });
+}
+window.addEventListener("resize", () => document.querySelectorAll(".gfloat").forEach(el => { if (el.style.top) { const r = el.getBoundingClientRect(); el.style.left = Math.min(Math.max(6, r.left), Math.max(6, innerWidth - r.width - 6)) + "px"; el.style.top = Math.min(Math.max(6, r.top), Math.max(6, innerHeight - 60)) + "px"; } }));
 let lastSpin = null, spinTimer = null;
 const randInt = n => { const a = new Uint32Array(1); let x; const lim = Math.floor(0x100000000 / n) * n; do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim); return x % n; };
 function poolText(stake, n){
@@ -1691,15 +1721,16 @@ function showSpin(r, age){
   const players = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
   const wi = Math.max(0, players.findIndex(p => p.id === r.w)); if (!players.length) return;
   let el = document.getElementById("spin"); if (el) el.remove(); clearTimeout(spinTimer);
-  el = document.createElement("div"); el.id = "spin"; el.className = "scrim spin";
+  el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox";
   const pool = poolText(r.s, players.length);
-  el.innerHTML = `<div class="sheet spinbox" role="dialog" aria-modal="true" aria-label="Ruletka">
-    <h2>Ruletka</h2><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Ruletka");
+  el.innerHTML = `<div class="ghead" data-drag><h2>Ruletka</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
     <div class="spinnames">${players.map((p, i) => `<span class="spn" data-i="${i}">${esc(p.n)}</span>`).join("")}</div>
     <p class="spinres" aria-live="polite">Losowanie…</p>
-    <div class="acts"><button class="btn" data-spinclose>Zamknij</button></div></div>`;
+`;
   document.body.appendChild(el);
-  el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); el.remove(); } });
+  floatPanel(el);
+  el.addEventListener("click", e => { if (e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); el.remove(); } });
   const names = el.querySelectorAll(".spn"), res = el.querySelector(".spinres");
   // the highlight walks round the names, slowing down, and stops on the winner (same steps for everyone)
   const laps = 3, total = laps * players.length + wi, delays = [];
@@ -1862,17 +1893,15 @@ function renderGame(){
   const g = G(); if (!g || !g.id || !online) return closeGame();
   if (gameShown === g.id + ":seen") return;
   const done = g.state === "done" || g.state === "declined" || g.state === "cancel";
-  if (!amIn(g)) {                                          // not playing: a short note with the result, once
-    if (done && g.state === "done" && gameShown !== g.id + ":note") { gameShown = g.id + ":note"; toast(`${GAMES[g.type].name}: ${gameResultText(g)}`, 6000); }
-    return;
-  }
+  // everyone in the room sees the game; only the players get buttons
   let el = document.getElementById("gamewin");
   if (!el || el.dataset.gid !== g.id) {
     closeGame();
-    el = document.createElement("div"); el.id = "gamewin"; el.className = "scrim spin"; el.dataset.gid = g.id;
-    el.innerHTML = `<div class="sheet spinbox gamebox" role="dialog" aria-modal="true"><h2>${GAMES[g.type].name}</h2><div class="gbody"></div>
-      <div class="acts"><button class="btn" data-gclose>Zamknij</button></div></div>`;
+    el = document.createElement("div"); el.id = "gamewin"; el.className = "gfloat gamebox"; el.dataset.gid = g.id;
+    el.setAttribute("role", "dialog"); el.setAttribute("aria-label", GAMES[g.type].name);
+    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${amIn(g) ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
     document.body.appendChild(el);
+    floatPanel(el);
     el.addEventListener("click", gameClick);
     gameShown = g.id;
   }
@@ -1907,7 +1936,7 @@ const GAME_VIEW = {
     const head = stakeLine(g) + `<p><b>${esc(nickOf(g, a))}</b>: ${label(pick)} · <b>${esc(nickOf(g, b))}</b>: ${label(other)}</p>`;
     if (g.state === "invite") return head + (deviceId === b
       ? `<p>${esc(nickOf(g, a))} wyzywa cię na rzut monetą.</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="decline">Odrzuć</button><button class="btn primary" data-gact="accept">Przyjmij</button></div>`
-      : `<p class="spinres">Czekam, aż ${esc(nickOf(g, b))} przyjmie wyzwanie…</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="cancel">Anuluj</button></div>`);
+      : `<p class="spinres">Czekam, aż ${esc(nickOf(g, b))} przyjmie wyzwanie…</p>${deviceId === a ? '<div class="acts" style="justify-content:center"><button class="btn" data-gact="cancel">Anuluj</button></div>' : ""}`);
     if (g.state === "declined") return head + `<p class="spinres">${esc(nickOf(g, b))} odrzucił wyzwanie.</p>`;
     if (g.state === "cancel") return head + `<p class="spinres">Wyzwanie anulowane.</p>`;
     const age = now() - (+g.ft || now());
@@ -1921,6 +1950,7 @@ const GAME_VIEW = {
     const list = ps.map(p => `<div class="gline"><span>${esc(p.n)}</span><b>${r[p.id] === undefined ? (over ? "brak" : "…") : r[p.id] < 0 ? "falstart" : r[p.id] + " ms"}</b></div>`).join("");
     if (over || g.state === "done") return stakeLine(g) + list + (g.w ? resLine(g) : `<p class="spinres">Liczenie wyników…</p>`);
     clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, mine === undefined && t < go ? Math.min(250, go - t + 5) : 400);
+    if (!amIn(g)) return stakeLine(g) + `<div class="reflexbtn ${t < go ? "wait" : "go"} watch">${t < go ? "Czekaj…" : "TERAZ!"}</div>` + list;
     if (mine !== undefined) return stakeLine(g) + `<p class="spinres">Twój czas: <b>${mine < 0 ? "falstart" : mine + " ms"}</b>. Czekam na resztę…</p>` + list;
     if (t < go - 1500) return stakeLine(g) + `<p>Stuknij duży przycisk, gdy zrobi się <b style="color:var(--ready)">zielony</b>. Za wczesne stuknięcie to falstart.</p><button class="reflexbtn wait" data-gact="tap">Przygotuj się…</button>`;
     if (t < go) return stakeLine(g) + `<button class="reflexbtn wait" data-gact="tap">Czekaj…</button>`;
@@ -1932,7 +1962,7 @@ const GAME_VIEW = {
     const all = ps.every(p => gs[p.id] !== undefined);
     const list = ps.map(p => `<div class="gline"><span>${esc(p.n)}</span><b>${gs[p.id] === undefined ? "…" : g.state === "done" || p.id === deviceId ? gs[p.id] : "✓"}</b></div>`).join("");
     if (g.state === "done") return stakeLine(g) + `<p>Wylosowana liczba: <b class="bignum">${g.t}</b></p>` + list + resLine(g);
-    const form = mine === undefined ? `<p>Liczba od 1 do 100. Wygrywa najbliższy typ.</p><div class="raadd"><input id="g_num" type="number" min="1" max="100" inputmode="numeric" placeholder="Twój typ"><button class="btn primary" data-gact="guess">Typuję</button></div>`
+    const form = !amIn(g) ? `<p>Gracze typują liczbę od 1 do 100…</p>` : mine === undefined ? `<p>Liczba od 1 do 100. Wygrywa najbliższy typ.</p><div class="raadd"><input id="g_num" type="number" min="1" max="100" inputmode="numeric" placeholder="Twój typ"><button class="btn primary" data-gact="guess">Typuję</button></div>`
       : `<p class="spinres">Twój typ: <b>${mine}</b>. Czekam na resztę…</p>`;
     const reveal = g.by === deviceId && !all && secrets[g.id] ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="reveal">Odkryj teraz</button></div>` : "";
     return stakeLine(g) + form + list + reveal;
@@ -1942,7 +1972,7 @@ const GAME_VIEW = {
     const head = stakeLine(g) + `<p><b>${esc(nickOf(g, a))}</b> vs <b>${esc(nickOf(g, b))}</b></p>`;
     if (g.state === "invite") return head + (deviceId === b
       ? `<p>${esc(nickOf(g, a))} wyzywa cię.</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="decline">Odrzuć</button><button class="btn primary" data-gact="accept">Przyjmij</button></div>`
-      : `<p class="spinres">Czekam, aż ${esc(nickOf(g, b))} przyjmie wyzwanie…</p><div class="acts" style="justify-content:center"><button class="btn" data-gact="cancel">Anuluj</button></div>`);
+      : `<p class="spinres">Czekam, aż ${esc(nickOf(g, b))} przyjmie wyzwanie…</p>${deviceId === a ? '<div class="acts" style="justify-content:center"><button class="btn" data-gact="cancel">Anuluj</button></div>' : ""}`);
     if (g.state === "declined") return head + `<p class="spinres">${esc(nickOf(g, b))} odrzucił wyzwanie.</p>`;
     if (g.state === "cancel") return head + `<p class="spinres">Wyzwanie anulowane.</p>`;
     const c = g.c || {}, rv = g.rv || {};
@@ -1951,8 +1981,9 @@ const GAME_VIEW = {
     if (g.state === "done") {
       const show = id => rv[id] ? RPS[rv[id].ch] : "?";
       return head + `<div class="gline"><span>${esc(nickOf(g, a))}</span><b>${show(a)}</b></div><div class="gline"><span>${esc(nickOf(g, b))}</span><b>${show(b)}</b></div>` + resLine(g)
-        + (g.w === "draw" ? `<div class="acts" style="justify-content:center"><button class="btn primary" data-gact="again">Jeszcze raz</button></div>` : "");
+        + (g.w === "draw" && amIn(g) ? `<div class="acts" style="justify-content:center"><button class="btn primary" data-gact="again">Jeszcze raz</button></div>` : "");
     }
+    if (!amIn(g)) return head + `<div class="gline"><span>${esc(nickOf(g, a))}</span><b>${c[a] ? "wybrał ✓" : "wybiera…"}</b></div><div class="gline"><span>${esc(nickOf(g, b))}</span><b>${c[b] ? "wybrał ✓" : "wybiera…"}</b></div>`;
     if (!c[deviceId]) return head + `<p>Wybierz w ukryciu:</p><div class="rpsbtns">${Object.entries(RPS).map(([k, v]) => `<button class="btn" data-gact="rps" data-ch="${k}">${v}</button>`).join("")}</div>`;
     return head + `<p class="spinres">Wybrałeś: <b>${sec ? RPS[sec.ch] : "?"}</b>. ${c[opp] ? "Odkrywanie…" : `Czekam na ${esc(nickOf(g, opp))}…`}</p>`;
   },
@@ -1966,8 +1997,8 @@ async function rpsSettle(g){
 }
 async function gameClick(e){
   const g = G(), el = document.getElementById("gamewin");
-  if (e.target === el || e.target.closest("[data-gclose]")) { gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
-  const b = e.target.closest("[data-gact]"); if (!b || !g) return;
+  if (e.target.closest("[data-gclose]")) { gameShown = g ? g.id + ":seen" : null; closeGame(); return; }
+  const b = e.target.closest("[data-gact]"); if (!b || !g || !amIn(g)) return;
   const act = b.dataset.gact;
   if (act === "accept" && g.type === "coin") {
     const res = randInt(2) ? "orzel" : "reszka", w = res === g.side ? g.by : deviceId;
