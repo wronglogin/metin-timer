@@ -178,7 +178,7 @@
           }
         },
         "roulette": {
-          ".validate": "newData.hasChildren(['id', 's', 'p', 'w', 'at'])",
+          ".validate": "newData.hasChildren(['id', 's', 'p', 'at'])",
           "id": {
             ".validate": "newData.isString() && newData.val().length <= 40"
           },
@@ -198,6 +198,15 @@
           },
           "at": {
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "wait": {
+            ".validate": "newData.isBoolean()"
+          },
+          "auto": {
+            ".validate": "newData.isNumber()"
+          },
+          "bd": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
           },
           "$other": {
             ".validate": false
@@ -249,7 +258,7 @@
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
           "state": {
-            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|bet|race|done|declined|cancel)$/)"
+            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|bet|race|wait|done|declined|cancel)$/)"
           },
           "w": {
             ".validate": "newData.isString() && newData.val().length <= 24"
@@ -357,6 +366,9 @@
           },
           "os": {
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "oz": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
           },
           "$other": {
             ".validate": false
