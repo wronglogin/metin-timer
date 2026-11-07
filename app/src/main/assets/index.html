@@ -6,7 +6,7 @@
 <title>Metin Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@500;700&family=Saira+Condensed:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@500;700;900&family=Saira+Condensed:wght@500;600;700&display=swap">
 <style>
 /* Layout: sticky top bar + scrollable map tabs; each map shows its respawn spots as rows, channels CH1–CH5/6 left to right. Dark only — a night-time game tool. */
 :root{
@@ -93,7 +93,7 @@ main{padding-top:14px;display:grid;gap:14px}
 .cells{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,64px));gap:clamp(3px,1.2cqi,6px);container-type:inline-size}
 .cell{display:grid;gap:4px;min-width:0}
 .cell .ch{font-size:clamp(10px,calc(14cqi / var(--cols)),12px);letter-spacing:.08em;text-align:center;color:var(--muted)}
-.cell .ct{border:1px solid var(--rule);border-radius:6px;aspect-ratio:1/1;width:100%;padding:0 1px;letter-spacing:-.03em;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:700;font-size:clamp(10px,calc(19cqi / var(--cols)),14px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+.cell .ct{border:1px solid var(--rule);border-radius:6px;aspect-ratio:1/1;width:100%;padding:0 1px;letter-spacing:-.04em;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:900;font-size:clamp(11px,calc(24cqi / var(--cols)),18px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .cell .ct:hover{border-color:var(--muted)}
 .cell.idle .ct{background:var(--ready);color:#06210f;border-color:var(--ready)}
 .cell.wait .ct{background:var(--danger);color:#2a0905;border-color:var(--danger)}
@@ -120,7 +120,12 @@ main{padding-top:14px;display:grid;gap:14px}
 .compact .srow .mini{min-height:26px;min-width:28px;padding:0 4px}
 .compact .cell{gap:2px}
 .compact .cells{grid-template-columns:repeat(var(--cols),minmax(0,56px))}
-.compact .cell .ct{font-size:clamp(10px,calc(17cqi / var(--cols)),12.5px)}
+.compact .cell .ct{font-size:clamp(10px,calc(21cqi / var(--cols)),15.5px)}
+/* long values like -160:09 step down a size so they still fit the square */
+.cell .ct.mid{font-size:clamp(10px,calc(21cqi / var(--cols)),16px);letter-spacing:-.05em}
+.compact .cell .ct.mid{font-size:clamp(9px,calc(19cqi / var(--cols)),14px)}
+.cell .ct.long{font-size:clamp(10px,calc(19cqi / var(--cols)),14.5px);letter-spacing:-.06em}
+.compact .cell .ct.long{font-size:clamp(9px,calc(17cqi / var(--cols)),12.5px)}
 .compact .cell .ch{font-size:10px}
 .compact .mineview .pane+.pane{padding-top:8px}
 @container pane (min-width:520px){.compact .spot{grid-template-columns:max(var(--namew,150px),66px) minmax(0,1fr);align-items:center;gap:8px}.compact .shead{flex-wrap:wrap;gap:2px 6px}.compact .shead .nm{flex-basis:100%}}
@@ -689,12 +694,14 @@ function paneHtml(id){
     <div class="addrow"><button class="btn" data-add="${m.id}">+ Dodaj resp</button></div>
   </section>`;
 }
+// longer counter texts get a smaller font so they fit the square cell
+const sizeCls = t => t.length > 6 ? " long" : t.length === 6 ? " mid" : "";
 function spotHtml(s){
   const cells = CHS().map((c, i) => {
     const st = status(s, c);
     return `<div class="cell ${st.cls}" data-cell="${s.id}|${c}">
       <span class="ch">CH${i + 1}</span>
-      <button class="ct" data-kill="${s.id}|${c}" aria-label="${esc(s.name)} CH${i + 1}: zbity" title="${st.label}">${st.text}</button>
+      <button class="ct${sizeCls(st.text)}" data-kill="${s.id}|${c}" aria-label="${esc(s.name)} CH${i + 1}: zbity" title="${st.label}">${st.text}</button>
       <button class="rs" data-reset="${s.id}|${c}"${st.cls === "idle" ? " disabled" : ""}>zeruj</button>
     </div>`;
   }).join("");
@@ -742,7 +749,7 @@ function tick(){
     // write to the page only when something changed, so a tap is never competing with redraws
     const cls = "cell " + st.cls;
     if (el.className !== cls) { el.className = cls; b.title = st.label; el.querySelector(".rs").disabled = st.cls === "idle"; }
-    if (b.textContent !== st.text) b.textContent = st.text;
+    if (b.textContent !== st.text) { b.textContent = st.text; b.classList.toggle("long", st.text.length > 6); b.classList.toggle("mid", st.text.length === 6); }
   });
   let changed = false, strong = false; const said = [];
   for (const s of Object.values(spots)) for (const c of CHS()) {
