@@ -16,15 +16,16 @@ android {
         release {
             // stały klucz: każda nowa wersja instaluje się na poprzednią
             storeFile file('release.jks')
-            storePassword 'metintimer'
+            // hasło przychodzi z sekretu GitHuba KEYSTORE_PASSWORD, nie z repozytorium
+            storePassword System.getenv('KEYSTORE_PASSWORD') ?: ''
             keyAlias 'metin'
-            keyPassword 'metintimer'
+            keyPassword System.getenv('KEYSTORE_PASSWORD') ?: ''
         }
     }
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig file('release.jks').exists() ? signingConfigs.release : signingConfigs.debug
+            signingConfig (file('release.jks').exists() && System.getenv('KEYSTORE_PASSWORD')) ? signingConfigs.release : signingConfigs.debug
         }
     }
     compileOptions {
