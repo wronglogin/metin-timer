@@ -230,6 +230,9 @@
           "la": {
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
+          "oc": {
+            ".validate": "newData.isBoolean()"
+          },
           "$other": {
             ".validate": false
           }
@@ -410,6 +413,9 @@
           },
           "la": {
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
+          "oc": {
+            ".validate": "newData.isBoolean()"
           },
           "$other": {
             ".validate": false
