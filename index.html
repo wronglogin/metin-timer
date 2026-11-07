@@ -63,7 +63,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
-.gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:19;width:min(360px,calc(100vw - 24px));max-height:min(72vh,600px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
+.gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:19;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
 .gfloat.moving{opacity:.9;box-shadow:0 16px 40px rgba(0,0,0,.7)}
 .gfloat p{margin:0;color:var(--muted);font-size:15px}
 .ghead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;margin:0 -14px;padding:8px 8px 8px 14px;background:var(--surface-2);border-bottom:1px solid var(--rule);cursor:move;touch-action:none;user-select:none}
@@ -74,14 +74,22 @@ header{grid-template-columns:minmax(0,1fr)}
 .gfloat.wide{width:min(520px,calc(100vw - 24px))}
 canvas.htrack{width:100%;display:block;border-radius:8px}
 .hpick{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
-.hbtn{display:grid;gap:1px;justify-items:center;padding:5px 2px;border:2px solid var(--rule);border-radius:8px;background:var(--surface-2);color:var(--fg);cursor:pointer;min-height:48px}
+.hbtn{display:grid;gap:0;justify-items:center;padding:3px 2px;border:2px solid var(--rule);border-radius:8px;background:var(--surface-2);color:var(--fg);cursor:pointer;min-height:40px}
 .hbtn b{width:22px;height:22px;border-radius:50%;background:var(--hc);color:#111;display:grid;place-items:center;font-size:13px}
 .hbtn span{font-size:11px;color:var(--muted);font-family:var(--f-num)}
 .hbtn[aria-pressed="true"]{border-color:var(--hc);background:color-mix(in srgb,var(--hc) 18%,var(--surface-2))}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--hc);margin-right:5px;vertical-align:middle}
-.hbets{display:grid;gap:5px}
+.hbets{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.hchip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border:1px solid var(--rule);border-radius:999px;font-size:13px;background:var(--surface-2)}
+.hchip b{color:var(--hc)}.hchip .hdot{background:var(--hc);margin:0}
+.hchip.me{border-color:var(--hc)}
+.hact{display:flex;align-items:center;justify-content:center;gap:10px}
+.hact .btn{flex:1;min-height:38px}
+.gfloat .hnote{font-size:12.5px}
+.gfloat .acts{margin:0}
 .linkbtn{background:none;border:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-size:14px;padding:0 2px}
-.hlead{min-height:24px;font-size:16px}
+.hlead:empty{display:none}
+.hlead{min-height:22px;font-size:15px;margin:-2px 0!important}
 .reflexbtn.watch{display:grid;place-items:center;min-height:120px}
 .spinbox{text-align:center}
 .spinnames{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:6px 0}
@@ -2097,9 +2105,10 @@ GAME_VIEW.horse = g => {
   if (g.state === "bet") {
     const pick = hPick || (mine && +mine.h) || null;
     return head + slot + `<div class="hpick">${byHorse.map(h => `<button class="hbtn" data-gact="hpick" data-h="${h.n}" aria-pressed="${pick === h.n}" style="--hc:${h.c}"><b>${h.n}</b><span>${h.bets.length ? `${h.bets.length} os.` : "–"}</span></button>`).join("")}</div>
-      <button class="btn primary dicebtn" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na konia ${pick}` : `Obstawiasz konia ${mine.h}`) : pick ? `Obstaw konia ${pick}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
-      ${mine ? `<p>Twój zakład: <b>koń ${mine.h}</b>${g.s ? ` za <b>${esc(g.s)}</b>` : ""} <button class="linkbtn" data-gact="hunbet">wycofaj</button></p>` : `<p>Wybierz konia i kliknij Obstaw.</p>`}
-      ${bets.length ? `<div class="hbets">${bets.map(b => `<div class="gline"><span>${esc(b.n)}${b.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span><b><i class="hdot" style="--hc:${HORSES[b.h - 1].c}"></i>koń ${b.h}</b></div>`).join("")}</div>` : ""}
+      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na konia ${pick}` : `Obstawiasz konia ${mine.h}`) : pick ? `Obstaw konia ${pick}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
+${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
+      <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
+      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${b.h}</b></span>`).join("")}</div>` : ""}
       ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Start wyścigu</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}`;
   }
   if (g.state === "race") return head + slot;
@@ -2122,7 +2131,7 @@ GAME_AFTER.horse = (g, body) => {
   }
 };
 function drawRace(cv, g, lead){
-  const cssW = cv.clientWidth || 300, lane = 30, top = 8, cssH = top * 2 + lane * 6, dpr = Math.min(2, devicePixelRatio || 1);
+  const cssW = cv.clientWidth || 300, lane = 24, top = 5, cssH = top * 2 + lane * 6, dpr = Math.min(2, devicePixelRatio || 1);
   if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.height = cssH + "px"; }
   const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cssW, cssH);
   const x0 = 34, x1 = cssW - 22, run = x1 - x0 - 26;
@@ -2139,13 +2148,13 @@ function drawRace(cv, g, lead){
   let best = 0, bi = -1;
   HORSES.forEach((h, i) => {
     const y = top + i * lane + lane / 2;
-    c.fillStyle = h.c; c.beginPath(); c.arc(14, y, 9, 0, 7); c.fill();
+    c.fillStyle = h.c; c.beginPath(); c.arc(14, y, 8, 0, 7); c.fill();
     c.fillStyle = "#111"; c.font = "bold 12px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(h.n, 14, y + .5);
     const p = m ? horsePos(m.horses[i], tt) : 0, running = m && tt > 0 && p < 1;
     if (p > best) { best = p; bi = i; }
     const x = x0 + 4 + p * run, bob = running ? Math.sin(tt * 22 + i * 1.7) * 2.2 : 0;
-    c.save(); c.translate(x + 13, y + bob); c.scale(-1, 1); c.font = "22px system-ui,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("🐎", 0, 0); c.restore();
-    c.fillStyle = h.c; c.fillRect(x + 4, y + 9 + bob, 18, 3);
+    c.save(); c.translate(x + 13, y + bob); c.scale(-1, 1); c.font = "18px system-ui,'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText("🐎", 0, 0); c.restore();
+    c.fillStyle = h.c; c.fillRect(x + 5, y + 8 + bob, 15, 2);
     if (g.state === "done" && i === g.wh - 1) { c.strokeStyle = h.c; c.lineWidth = 2; c.strokeRect(1, y - lane / 2 + 1, cssW - 2, lane - 2); }
   });
   // countdown
@@ -2154,7 +2163,7 @@ function drawRace(cv, g, lead){
     c.fillStyle = "#fff"; c.font = "bold 46px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(Math.ceil(-t)), cssW / 2, cssH / 2);
   }
   if (lead) {
-    const txt = g.state === "bet" ? "Zakłady otwarte" : g.state === "race" ? (t < 0 ? "Start za chwilę…" : bi >= 0 ? `Prowadzi koń ${bi + 1}` : "") : "";
+    const txt = g.state === "bet" ? "" : g.state === "race" ? (t < 0 ? "Start za chwilę…" : bi >= 0 ? `Prowadzi koń ${bi + 1}` : "") : "";
     if (lead.textContent !== txt) lead.textContent = txt;
   }
 }
