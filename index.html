@@ -83,6 +83,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .hbtn span{font-size:11px;color:var(--muted);font-family:var(--f-num)}
 .hbtn[aria-pressed="true"]{border-color:var(--hc);background:color-mix(in srgb,var(--hc) 18%,var(--surface-2))}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--hc);margin-right:5px;vertical-align:middle}
+.kick{background:none;border:0;color:var(--danger);cursor:pointer;font-size:13px;padding:0 2px;margin-left:4px;line-height:1}
+.kick:hover{color:var(--fg)}
 .autoline{color:var(--fg)!important;background:color-mix(in srgb,var(--accent) 18%,transparent);border:1px solid var(--accent);border-radius:8px;padding:5px 8px}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
 .gfloat.mid{width:min(400px,calc(100vw - 24px))}
@@ -1437,11 +1439,11 @@ function adminSheet(){
       lb.disabled = true; lb.textContent = "Sprawdzam…";
       try {
         await adminPatch({});
-        el.querySelector("#a_body").hidden = false; el.querySelector("#a_pw").readOnly = true; lb.hidden = true;
+        el.querySelector("#a_body").hidden = false; el.querySelector("#a_pw").readOnly = true; lb.hidden = true; store.set("adminOk", true); renderGame();
         drawPeople(); drawBans(); drawDebts();
         const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
       } catch (x) {
-        store.set("adminPw", "");
+        store.set("adminPw", ""); store.set("adminOk", false);
         lerr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; lerr.hidden = false;
         lb.disabled = false; lb.textContent = "Zaloguj";
       }
@@ -1867,15 +1869,18 @@ function showLotteryWait(){
       if (e.target.closest("[data-spinclose]")) { el.remove(); return; }
       const cur = remoteRoot.roulette; if (!cur || !cur.wait) return;
       const b = e.target.closest("[data-lw]"); if (!b) return;
+      if (b.dataset.lw === "kick") { if (cur.bd !== deviceId && !isAdmin()) return; const k = "roulette/p/" + b.dataset.id; push({[k]: null}); setPath(remoteRoot, k, null); showLotteryWait(); return; }
       const v = b.dataset.lw === "in" ? myNick().slice(0, 20) : null; if (b.dataset.lw === "in" && !v) return;
       push({["roulette/p/" + deviceId]: v}); setPath(remoteRoot, "roulette/p/" + deviceId, v); showLotteryWait();
     });
   }
-  const ps = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
+  const hereNow = presentSet();
+  const ps = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).filter(p => hereNow.has(p.id) || p.id === deviceId).sort((a, b) => a.n.localeCompare(b.n, "pl"));
   const left = Math.max(0, Math.ceil((+r.auto - now()) / 1000)), mine = !!(r.p && r.p[deviceId]);
+  const kickable = r.bd === deviceId || isAdmin();
   const html = `<p>Stawka <b>${esc(r.s)}</b> · ${ps.length} graczy · pula <b>${esc(poolText(r.s, ps.length))}</b></p>
     <p class="autoline">Losowanie za <b>${left} s</b> – możesz się wypisać albo dołączyć</p>
-    <div class="spinnames">${ps.map(p => `<span class="spn">${esc(p.n)}${p.id === deviceId ? " (ty)" : ""}</span>`).join("")}</div>
+    <div class="spinnames">${ps.map(p => `<span class="spn">${esc(p.n)}${p.id === deviceId ? " (ty)" : ""}${kickable && p.id !== deviceId ? `<button class="kick" data-lw="kick" data-id="${esc(p.id)}" aria-label="Usuń z gry">✕</button>` : ""}</span>`).join("")}</div>
     <div class="acts" style="justify-content:center">${mine ? '<button class="btn" data-lw="out">Wypisz się</button>' : '<button class="btn primary" data-lw="in">Dołącz</button>'}</div>`;
   const body = el.querySelector(".wbody"); if (body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
   // time is up: the one who asked for the rematch draws; if they are gone, the present player with the lowest id does
@@ -1919,7 +1924,8 @@ function showSpin(r, age){
     if (r.p && r.p[deviceId] && !el.querySelector("[data-rematch]")) {
       res.insertAdjacentHTML("afterend", `<div class="acts" style="justify-content:center"><button class="btn primary" data-rematch>Rewanż</button></div>`);
       el.querySelector("[data-rematch]").onclick = () => {
-        const w = {id: hkey(), by: myNick().slice(0, 20), bd: deviceId, s: String(r.s).slice(0, 30), p: Object.fromEntries(players.map(p => [p.id, p.n.slice(0, 20)])), wait: true, auto: Math.round(now()) + 10000, at: {".sv": "timestamp"}};
+        const hereNow = presentSet();
+        const w = {id: hkey(), by: myNick().slice(0, 20), bd: deviceId, s: String(r.s).slice(0, 30), p: Object.fromEntries(players.filter(p => hereNow.has(p.id)).map(p => [p.id, p.n.slice(0, 20)])), wait: true, auto: Math.round(now()) + 10000, at: {".sv": "timestamp"}};
         push({roulette: w}); setPath(remoteRoot, "roulette", {...w, at: Math.round(now())}); onRoulette(false);
       };
     }
@@ -2093,6 +2099,7 @@ async function gameTick(){
   const g = G(); if (!online || !g || !g.id || !(amIn(g) || g.by === deviceId)) return;
   const ps = gPlayers(g), host = g.by === deviceId;
   if ((g.type === "horse" || g.type === "wheel") && !host) poolHandover(g);
+  dropAbsent(g);
   if (g.state === "wait") waitTick(g);
   if (g.type === "horse" && host) horseTick(g);
   if (g.type === "wheel" && host) wheelTick(g);
@@ -2357,6 +2364,7 @@ function horseClick(g, act, b){
     gamePatch({[`game/b/${deviceId}`]: {h, a: 1, n: myNick().slice(0, 20)}, [`game/p/${deviceId}`]: myNick().slice(0, 20)});
     return;
   }
+  if (act === "hkick") { if (canKick(g) && g.state === "bet") gamePatch({[`game/b/${b.dataset.id}`]: null, [`game/p/${b.dataset.id}`]: null}); return; }
   if (act === "hunbet") { if (g.state !== "bet") return; gamePatch({[`game/b/${deviceId}`]: null, [`game/p/${deviceId}`]: null}); return; }
   if (g.by !== deviceId) return;
   if (act === "hstart") {
@@ -2379,7 +2387,7 @@ GAME_VIEW.horse = g => {
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${hname(pick)} (${pick})` : `Obstawiasz: ${hname(mine.h)} (${mine.h})`) : pick ? `Obstaw ${hname(pick)} (${pick})${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
 ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
-      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b></span>`).join("")}</div>` : ""}
+      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b>${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
       ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 || g.auto ? " disabled" : ""}>${g.auto ? "Start po odliczaniu" : "Start wyścigu"}</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
@@ -2547,7 +2555,7 @@ GAME_VIEW.wheel = g => {
         return `<button class="wbtn" data-gact="hpick" data-h="${k}" aria-pressed="${pick === k}" style="--wc:${WCOL[k].c}"><b>${WCOL[k].n}</b><span>${chance[k]} · ${n ? `${n} os.` : "–"}</span></button>`; }).join("")}</div>
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
-      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${b.h === 2 ? "#9aa0ad" : WCOL[b.h].c}"><i class="hdot"></i>${esc(b.n)}</span>`).join("")}</div>` : ""}
+      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${b.h === 2 ? "#9aa0ad" : WCOL[b.h].c}"><i class="hdot"></i>${esc(b.n)}${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
       ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 || g.auto ? " disabled" : ""}>${g.auto ? "Kręci po odliczaniu" : "Zakręć"}</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
@@ -2657,7 +2665,7 @@ function horseSheet(type = "horse"){
 /* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
 const canRematch = g => amIn(g) || ((g.type === "horse" || g.type === "wheel") && g.by === deviceId);
 function rematch(g){
-  const ps = gPlayers(g), stake = g.s || "";
+  const hereNow = presentSet(), ps = gPlayers(g).filter(p => hereNow.has(p.id)), stake = g.s || "";
   if (ps.length < 2) { toast("Do rewanżu potrzeba co najmniej dwóch graczy."); return; }
   if (g.type !== "horse" && g.type !== "wheel") {
     // 10 s for everyone to leave (or, in group games, join) before the rematch starts by itself
@@ -2665,7 +2673,23 @@ function rematch(g){
     if (g.type === "coin") extra.oz = g.side === "orzel" ? g.by : ps.find(p => p.id !== g.by).id;   // who has "orzeł"
     startGame(g.type, ps, stake, extra);
   }
-  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: clone(g.b || {}), auto: Math.round(now()) + 10000, ...(g.type === "horse" ? {lanes: shuffleLanes()} : {})}); }
+  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), auto: Math.round(now()) + 10000, ...(g.type === "horse" ? {lanes: shuffleLanes()} : {})}); }
+}
+/* people who closed the page are dropped: absent players are not copied into a rematch, and while bets are open
+   or a rematch is waiting, the person running the game removes anyone who is no longer in the room.
+   The person running the game and a logged-in admin can also remove someone by hand (✕). */
+const presentSet = () => new Set(people().map(p => p.id));
+const here = id => presentSet().has(id);
+const isAdmin = () => !!store.get("adminOk", false);
+const canKick = g => g.by === deviceId || isAdmin();
+const kickBtn = (g, id, act) => canKick(g) && id !== deviceId ? `<button class="kick" data-gact="${act}" data-id="${esc(id)}" title="Usuń z gry" aria-label="Usuń z gry">✕</button>` : "";
+function dropAbsent(g){
+  if (g.by !== deviceId || !(g.state === "bet" || g.state === "wait")) return;
+  const hereNow = presentSet(); if (!hereNow.has(deviceId)) return;          // presence not loaded yet: do nothing
+  const gone = new Set([...Object.keys(g.p || {}), ...Object.keys(g.b || {})].filter(id => !hereNow.has(id)));
+  if (!gone.size) return;
+  const rc = {}; for (const id of gone) { rc[`game/p/${id}`] = null; if (g.b && g.b[id]) rc[`game/b/${id}`] = null; }
+  gamePatch(rc);
 }
 // the waiting room is over: whoever runs it (the starter, or the next player if the starter is gone) starts the game
 function beginRematch(g){
@@ -2695,7 +2719,7 @@ GAME_VIEW_WAIT = g => {
   clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 250);
   const btn = amIn(g) ? `<button class="btn" data-gact="wout">Wypisz się</button>` : duel ? "" : `<button class="btn primary" data-gact="win">Dołącz</button>`;
   return stakeLine(g) + `<p class="autoline">Rewanż: start za <b>${left} s</b> – możesz się jeszcze wypisać${duel ? "" : " albo dołączyć"}</p>`
-    + ps.map(p => `<div class="gline"><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span><b>gra</b></div>`).join("")
+    + ps.map(p => `<div class="gline"><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span><b>${here(p.id) ? "gra" : '<span class="neg">nieaktywny</span>'}${kickBtn(g, p.id, "wkick")}</b></div>`).join("")
     + (btn ? `<div class="acts" style="justify-content:center">${btn}</div>` : "");
 };
 async function rpsSettle(g){
@@ -2716,6 +2740,7 @@ async function gameClick(e){
   if (g.type === "horse" || g.type === "wheel") { horseClick(g, act, b); return; }
   if (g.state === "wait") {
     if (act === "wout" && amIn(g)) gamePatch({[`game/p/${deviceId}`]: null});
+    if (act === "wkick" && canKick(g)) gamePatch({[`game/p/${b.dataset.id}`]: null});
     if (act === "win" && !amIn(g) && !GAMES[g.type].duel && myNick()) gamePatch({[`game/p/${deviceId}`]: myNick().slice(0, 20)});
     return;
   }
