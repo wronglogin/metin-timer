@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
+<title>Metin Timer</title>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
+<title>Metin Timer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@500;700&family=Saira+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: sticky top bar + scrollable map tabs; each map shows its respawn spots as rows, channels CH1–CH5/6 left to right. Dark only — a night-time game tool. */
+:root{
+  --bg:#0f1417; --surface:#182026; --surface-2:#202a31; --rule:#2b3740;
+  --fg:#e7ece9; --muted:#8c9b98; --accent:#c8955a; --accent-ink:#1b130a;
+  --wait:#9fb4c4; --window:#e8c24a; --ready:#4fd39b; --over:#4ea3e8; --danger:#ef6a5b;
+  --f-ui:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-num:"Chivo Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--f-ui);font-size:17px;line-height:1.35;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));padding-block:0 40px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:860px;margin:0 auto}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
+@media (max-width:520px){.brand{flex-basis:100%}}
+.brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
+.mode{font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--muted)}
+.mode.on{color:var(--ready);border-color:var(--ready)}
+.mode.err{color:var(--danger);border-color:var(--danger)}
+.btn{background:var(--surface-2);border:1px solid var(--rule);border-radius:6px;padding:6px 12px;min-height:38px}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+#wikiBtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--rule))}
+.icon{min-width:42px;padding:6px 8px;font-weight:700}
+
+.tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin;border-bottom:1px solid var(--rule);padding-bottom:0}
+.tab{flex:0 0 auto;background:none;border:0;border-bottom:3px solid transparent;padding:8px 10px 6px;color:var(--muted);font-weight:600;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tab.mine{color:var(--accent)}
+.tab.mine[aria-selected="true"]{color:var(--fg)}
+.tab.mine::after{content:"";width:1px;height:18px;background:var(--rule);margin-left:8px}
+.badge{font-family:var(--f-num);font-size:12px;border-radius:9px;padding:0 6px;background:var(--surface-2);color:var(--muted)}
+.badge.ready{background:var(--over);color:#04192b}
+
+main{padding-top:14px;display:grid;gap:14px}
+.maphead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.maphead h1{font-size:26px;margin:0;letter-spacing:.02em;text-wrap:balance}
+.ranges{font-family:var(--f-num);font-size:13px;color:var(--muted)}
+.spots{display:grid;gap:8px}
+.spot{display:grid;gap:10px;background:var(--surface);border:1px solid var(--rule);border-left:5px solid var(--c,var(--rule));border-radius:8px;padding:10px 12px}
+@container pane (min-width:700px){.spot{grid-template-columns:minmax(200px,250px) minmax(0,1fr);align-items:center;gap:14px}}
+.panes{display:grid;gap:26px}
+.pane{container:pane / inline-size;display:grid;gap:12px;min-width:0}
+.mineview .pane+.pane{border-top:1px solid var(--rule);padding-top:16px}
+.mineview .maphead h1{font-size:22px}
+
+.shead{display:grid;gap:6px;min-width:0}
+.shead .nm{background:transparent;border:1px solid transparent;border-radius:6px;padding:4px 6px;margin:-4px -6px;font-weight:700;font-size:19px;width:calc(100% + 12px);min-width:0}
+.shead .nm:hover{border-color:var(--rule)}
+.shead .nm:focus{border-color:var(--accent);background:var(--bg);outline:none}
+.srow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:14px;color:var(--muted)}
+.tag{font-size:12px;letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--rule);border-radius:4px;padding:1px 6px}
+.tag.boss{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,var(--rule))}
+.srow input{width:52px;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:3px 6px;font-family:var(--f-num);font-size:14px;text-align:center}
+.srow .sur{margin-left:auto;display:flex;gap:4px}
+.srow .mini{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);min-height:30px;min-width:34px;padding:0 6px;font-weight:700}
+.srow .mini:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
+.srow .mini:disabled{opacity:.3;cursor:default}
+.srow .more{background:none;border:1px solid var(--rule);border-radius:5px;padding:2px 10px;color:var(--muted);min-height:30px}
+.srow .more:hover{color:var(--fg);border-color:var(--muted)}
+.cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:6px}
+.cell{display:grid;gap:4px;min-width:0}
+.cell .ch{font-size:12px;letter-spacing:.08em;text-align:center;color:var(--muted)}
+.cell .ct{border:1px solid var(--rule);border-radius:6px;min-height:44px;padding:4px 2px;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+@media (min-width:480px){.cell .ct{font-size:17px}}
+.cell .ct:hover{border-color:var(--muted)}
+.cell.idle .ct{background:var(--ready);color:#06210f;border-color:var(--ready)}
+.cell.wait .ct{background:var(--surface-2);color:var(--fg);border-color:var(--rule)}
+.cell.window .ct{background:var(--window);color:#241a00;border-color:var(--window)}
+.cell.ready .ct{background:var(--over);color:#04192b;border-color:var(--over)}
+.cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
+.cell .rs:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
+.cell .rs:disabled{opacity:.3;cursor:default}
+.empty{border:1px dashed var(--rule);border-radius:8px;padding:18px;color:var(--muted);display:grid;gap:10px;justify-items:start}
+.addrow{display:flex;flex-wrap:wrap;gap:8px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.legend b{font-weight:600}
+.legend .w{color:var(--fg)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)}
+
+/* wiki */
+.wiki{display:grid;gap:18px}
+.wiki h2{font-size:20px;margin:0 0 6px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent)}
+.wmaps{display:grid;gap:6px}
+.wmap{background:var(--surface);border:1px solid var(--rule);border-radius:8px}
+.wmap[open]{border-color:color-mix(in srgb,var(--accent) 45%,var(--rule))}
+.wmap summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;font-weight:700;font-size:18px}
+.wmap summary::-webkit-details-marker{display:none}
+.wmap summary::after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+.wmap[open] summary::after{transform:rotate(-135deg)}
+.wmap summary .sub{font-weight:500;font-size:14px;color:var(--muted)}
+.wbody{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:0 14px 14px}
+.wcol{background:var(--surface-2);border-radius:6px;padding:10px 12px;display:grid;gap:6px}
+.wcol h3{margin:0;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.wrow{display:flex;justify-content:space-between;gap:12px;font-size:16px}
+.wrow span:first-child{color:var(--muted)}
+.wrow span:last-child{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.wnote{color:var(--muted);font-size:14px;margin:8px 0 0}
+.rosy{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.rosa{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 12px}
+.rosa h3{margin:0 0 4px;font-size:17px}
+.rosa ol{margin:0;padding-left:20px;font-size:15px}
+.rosa p{margin:6px 0 0;font-size:14px;color:var(--muted)}
+
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);border:1px solid var(--rule);border-radius:12px 12px 0 0;width:min(560px,100%);max-height:88vh;overflow:auto;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:12px}
+@media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:12px}}
+.sheet h2{margin:0;font-size:22px}
+.sheet p{margin:0;color:var(--muted);font-size:15px}
+.field{display:grid;gap:4px}
+.field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
+.field textarea{font-family:var(--f-num);font-size:12px;min-height:110px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.sw{width:34px;height:34px;border-radius:50%;border:2px solid var(--rule);background:var(--c)}
+.sw.none{background:linear-gradient(135deg,transparent 45%,var(--muted) 45%,var(--muted) 55%,transparent 55%),var(--bg)}
+.sw[aria-pressed="true"]{border-color:var(--fg);box-shadow:0 0 0 2px var(--bg) inset}
+.acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.acts .grow{margin-right:auto}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 12px;min-height:38px}
+.seg button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 14px;z-index:30;font-size:15px;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){.cell.window .ct{animation:pulse 1.6s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.75}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="bar">
+      <div class="brand">Metin Timer<small>respawn metinów i bossów</small></div>
+      <span class="mode" id="mode">Prywatny</span>
+      <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
+      <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
+      <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
+      <button class="btn" id="menuBtn">Menu</button>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist"></nav>
+  </header>
+  <main id="main"></main>
+</div>
+<div id="layer"></div>
+
+<script>
+(() => {
+"use strict";
+/* ---------- data ---------- */
+const MAPS = [
+  {id:"m1",  name:"Miasta pierwsze",   metin:[11,25], boss:[15,20],  wiki:{metin:"13 (11–25 min)", metinN:"+3 do 13 (10–25 min)", boss:"9 (15–20 min)", bossN:"—"}},
+  {id:"m2",  name:"Miasta drugie",     metin:[12,15], boss:[15,33],  wiki:{metin:"10 (12–15 min)", metinN:"+3 do 6 (12–20 min)", boss:"15 (15–33 min)", bossN:"+1 (25–33 min)"}},
+  {id:"m3",  name:"M3",                metin:[12,25], boss:null,     wiki:{metin:"2 (12–25 min)", metinN:"+1 (12–20 min)", boss:"0", bossN:"—"}},
+  {id:"dol", name:"Dolina Seungryong", metin:[18,33], boss:[48,87],  wiki:{metin:"7 (18–33 min)", metinN:"+2 do 4 (27–33 min)", boss:"1 stały, 1 lootny (48–87 min)", bossN:"+1 (53–95 min)"}},
+  {id:"pus", name:"Pustynia Yongbi",   metin:[21,29], boss:[60,80],  wiki:{metin:"13 (21–29 min)", metinN:"+3 do 6 (21–42 min)", boss:"1 (60–80 min)", bossN:"—"}},
+  {id:"hwa", name:"Świątynia Hwang",   metin:[27,32], boss:[120,120],wiki:{metin:"7 (27–32 min)", metinN:"+1 (27–32 min)", boss:"2 (2 h, stała godzina)", bossN:"—"}},
+  {id:"soh", name:"Góra Sohan",        metin:[23,34], boss:[20,35],  wiki:{metin:"5 (23–34 min)", metinN:"+5 (28–32 min)", boss:"1 stały, 1 lootny (20–35 min)", bossN:"+2 (28–37 min)"}},
+  {id:"pie", name:"Piekielna Ziemia",  metin:[28,32], boss:[60,83],  wiki:{metin:"4 (28–32 min)", metinN:"+1 do 2 (28–32 min)", boss:"2 (60–83 min)", bossN:"—"}},
+  {id:"wez", name:"Wężowe Pole",       metin:[7,77],  boss:null,     wiki:{metin:"7 (7–77 min)", metinN:"+1 (7–77 min)", boss:"0", bossN:"—"}},
+  {id:"kra", name:"Kraina Gigantów",   metin:[30,40], boss:null,     wiki:{metin:"brak danych", metinN:"—", boss:"brak danych", bossN:"—"}},
+  {id:"duc", name:"Las Duchów",        metin:[43,47], boss:[60,83],  wiki:{metin:"4 (43–47 min)", metinN:"+1 do 2 (40–60 min)", boss:"1 (60–83 min)", bossN:"—"}},
+  {id:"cze", name:"Czerwony Las",      metin:[36,47], boss:[48,52],  wiki:{metin:"4 (36–47 min)", metinN:"+1 do 2 (36–46 min)", boss:"1 (48–52 min)", bossN:"—"}},
+];
+const ROSY = [
+  {n:"Biała", d:"obrona", s:["Pokrzywa → Sok","Sok + Bez → Dok","Dok + Róża → Sam-Bo"], f:"20× Sam-Bo + 10× Butelka → 10× Rosa"},
+  {n:"Czerwona", d:"krytyk", s:["Pokrzywa → Sok","Sok + Bez → Dok"], f:"20× Dok + 10× Butelka → 10× Rosa"},
+  {n:"Niebieska", d:"atak", s:["Brzoskwinia → Sok","Sok + Bez → Sim","Sim + Róża → Zin"], f:"20× Zin + 10× Butelka → 10× Rosa"},
+  {n:"Pomarańczowa", d:"przeszywka", s:["Brzoskwinia → Sok","Sok + Bez → Sim"], f:"20× Sim + 10× Butelka → 10× Rosa"},
+  {n:"Zielona", d:"magia", s:["Kaki → Sok","Sok + Grzyb → Bo","Bo + Morwa → Mong"], f:"20× Mong + 10× Butelka → 10× Rosa"},
+  {n:"Żółta", d:"szybkość", s:["Gango → Sok","Sok + Grzyb → Young","Young + Morwa → Hwal"], f:"20× Hwal + 10× Butelka → 10× Rosa"},
+];
+const COLORS = ["#c8955a","#e8c24a","#4fd39b","#5bb8ef","#a98bef","#ef6a9b","#ef6a5b","#cfd8d5"];
+const mapById = Object.fromEntries(MAPS.map(m => [m.id, m]));
+// default respawn spots per map: number of metin spots, boss spot names
+const SEED = {
+  m1:{metin:13, boss:["boss"]}, m2:{metin:10, boss:["boss"]}, m3:{metin:2, boss:[]},
+  dol:{metin:7, boss:["boss stały","boss lootny"]}, pus:{metin:13, boss:["boss"]},
+  soh:{metin:5, boss:["boss stały","boss lootny"]}, pie:{metin:4, boss:["boss 1","boss 2"]},
+  hwa:{metin:7, boss:["boss 1","boss 2"]}, cze:{metin:4, boss:["boss"]}, duc:{metin:4, boss:["boss"]}, wez:{metin:7, boss:[]}, kra:{metin:0, boss:[]},
+};
+
+/* ---------- storage (safe) ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem("mt_"+k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem("mt_"+k, JSON.stringify(v)); } catch {} },
+};
+
+/* ---------- state ---------- */
+// spot: {id, map, name, kind, min, max, color, o, t:{c1:timestamp, c2:..}}
+let spots = {};
+let view = store.get("view", "maps");           // "maps" | "wiki"
+let tab = store.get("tab", "m1");               // map id or "mine"
+const showMine = () => settings.hidden.length > 0 && visibleMaps().length >= 2;
+const saveTab = () => { store.set("tab", tab); store.set("view", view); };
+let settings = Object.assign({sound:0, wake:false, hidden:[]}, store.get("settings", {}));
+// channel count is set by the admin for everyone (database: config/channels); last known value is cached here
+let channels = store.get("channels", 5);
+if (!(channels >= 1 && channels <= 10)) channels = 5;
+if (!Array.isArray(settings.hidden)) settings.hidden = [];
+const isHidden = id => settings.hidden.includes(id);
+const visibleMaps = () => MAPS.filter(m => !isHidden(m.id));
+const CHS = () => Array.from({length: channels}, (_, i) => "c" + (i + 1));
+let online = null;         // {db, room, es}
+let clockOffset = 0;       // serverTime - localTime
+const alerted = {};        // "id:c1" -> state key already beeped
+const now = () => Date.now() + clockOffset;
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const clone = o => o == null ? null : JSON.parse(JSON.stringify(o));
+
+function seedMap(mapId, base = Date.now()){
+  const m = mapById[mapId], sd = SEED[mapId], out = {};
+  let i = 0;
+  for (let n = 1; n <= sd.metin; n++, i++) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${n}`, kind:"metin", min:m.metin[0], max:m.metin[1], color:null, o:base + i, t:{}}; }
+  for (const b of sd.boss) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${b}`, kind:"boss", min:m.boss[0], max:m.boss[1], color:null, o:base + i++, t:{}}; }
+  return out;
+}
+function seedAll(){
+  const t = Date.now(); let out = {};
+  MAPS.forEach((m, k) => Object.assign(out, seedMap(m.id, t + k * 1000)));
+  // a few running timers on the first map so the states are visible right away
+  const first = Object.values(out).filter(s => s.map === "m1").sort((a, b) => a.o - b.o);
+  if (first[0]) first[0].t = {c1: t - 13*60000, c2: t - 19*60000, c3: t - 27*60000, c4: t - 5*60000};
+  if (first[1]) first[1].t = {c2: t - 22*60000, c5: t - 2*60000};
+  for (const sp of first.slice(0, 2)) for (const c in sp.t) sp.t[c] = {a: sp.t[c], mn: sp.min, mx: sp.max};
+  return out;
+}
+
+/* ---------- paths & changes ---------- */
+function getPath(root, path){ let o = root; for (const p of path.split("/").filter(Boolean)) { if (o == null || typeof o !== "object") return null; o = o[p]; } return o === undefined ? null : o; }
+function setPath(root, path, val){
+  const parts = path.split("/").filter(Boolean);
+  if (!parts.length) { for (const k of Object.keys(root)) delete root[k]; if (val && typeof val === "object") Object.assign(root, val); return; }
+  let o = root;
+  for (let i = 0; i < parts.length - 1; i++) { if (typeof o[parts[i]] !== "object" || !o[parts[i]]) { if (val === null) return; o[parts[i]] = {}; } o = o[parts[i]]; }
+  const last = parts[parts.length - 1];
+  if (val === null) delete o[last]; else o[last] = val;
+}
+// changes: {"spotId": obj|null, "spotId/t/c3": value|null, "spotId/name": "…"} — paths inside `spots`
+function apply(changes){ for (const [p, v] of Object.entries(changes)) setPath(spots, p, clone(v)); }
+
+/* ---------- shared undo/redo history ----------
+   One history per room (or per device in private mode), so anyone can undo or redo what anyone did.
+   Entry: {at, p: JSON string of {spotId: {b: {path: before}, a: {path: after}}}}. Stored as a string so
+   paths with "/" and null values survive the database. Keys sort by time. */
+let H = {hist:{}, redo:{}};
+const HMAX = 120;
+const parsed = new Map();
+const parts = e => { if (!e || typeof e.p !== "string") return {}; let v = parsed.get(e.p); if (!v) { try { v = JSON.parse(e.p) || {}; } catch { v = {}; } parsed.set(e.p, v); } return v; };
+const hkey = () => String(Math.round(now())).padStart(14, "0") + "-" + uid();
+const sortedKeys = o => Object.keys(o || {}).sort();
+const latestWith = (o, id) => sortedKeys(o).reverse().find(k => id ? parts(o[k])[id] : true);
+
+// apply a room-level change set: "spots/…", "hist/…", "redo/…"
+function doRoom(rc){
+  for (const [p, v] of Object.entries(rc)) {
+    if (p.startsWith("spots/")) setPath(spots, p.slice(6), clone(v));
+    else if (p === "redo") H.redo = {};
+    else if (p.startsWith("hist/") || p.startsWith("redo/")) setPath(H, p, clone(v));
+  }
+  if (online) push(rc); else store.set("spots", spots);
+  const sc = {}; for (const [p, v] of Object.entries(rc)) if (p.startsWith("spots/")) sc[p.slice(6)] = v;
+  refresh(sc);
+}
+function spotPaths(ps, side){ const rc = {}; for (const part of Object.values(ps)) for (const [p, v] of Object.entries(part[side] || {})) rc["spots/" + p] = v; return rc; }
+
+function commit(changes){
+  if (!Object.keys(changes).length) return;
+  const ps = {};
+  for (const p of Object.keys(changes)) {
+    const id = p.split("/")[0], part = ps[id] || (ps[id] = {b:{}, a:{}});
+    part.b[p] = clone(getPath(spots, p)); part.a[p] = clone(changes[p]);
+  }
+  const rc = {};
+  for (const [p, v] of Object.entries(changes)) rc["spots/" + p] = v;
+  rc["hist/" + hkey()] = {at: Math.round(now()), p: JSON.stringify(ps)};
+  if (Object.keys(H.redo).length) rc["redo"] = null;
+  const ks = sortedKeys(H.hist); for (const k of ks.slice(0, Math.max(0, ks.length + 1 - HMAX))) rc["hist/" + k] = null;
+  doRoom(rc);
+}
+function undo(){
+  const k = latestWith(H.hist); if (!k) return;
+  const ps = parts(H.hist[k]);
+  doRoom({...spotPaths(ps, "b"), ["hist/" + k]: null, ["redo/" + hkey()]: {at: Math.round(now()), p: H.hist[k].p}});
+  toast("Cofnięto");
+}
+function redo(){
+  const k = latestWith(H.redo); if (!k) return;
+  const ps = parts(H.redo[k]);
+  doRoom({...spotPaths(ps, "a"), ["redo/" + k]: null, ["hist/" + hkey()]: {at: Math.round(now()), p: H.redo[k].p}});
+  toast("Ponowiono");
+}
+// undo/redo only the part of the latest step that touched this resp
+function spotStep(id, from, to, side, msg){
+  const k = latestWith(H[from], id); if (!k) return;
+  const ps = parts(H[from][k]), part = ps[id], rest = {...ps}; delete rest[id];
+  const rc = spotPaths({[id]: part}, side);
+  rc[`${from}/${k}`] = Object.keys(rest).length ? {at: H[from][k].at, p: JSON.stringify(rest)} : null;
+  rc[`${to}/${hkey()}`] = {at: Math.round(now()), p: JSON.stringify({[id]: part})};
+  doRoom(rc);
+  toast(msg + (spots[id] ? spots[id].name : "resp"));
+}
+const spotUndo = id => spotStep(id, "hist", "redo", "b", "Cofnięto: ");
+const spotRedo = id => spotStep(id, "redo", "hist", "a", "Ponowiono: ");
+function histIds(o){ const s = new Set(); for (const k of Object.keys(o || {})) for (const id of Object.keys(parts(o[k]))) s.add(id); return s; }
+function updateHistButtons(){
+  $("#undo").disabled = !Object.keys(H.hist).length; $("#redo").disabled = !Object.keys(H.redo).length;
+  const u = histIds(H.hist), r = histIds(H.redo);
+  document.querySelectorAll("[data-sundo]").forEach(b => { const d = !u.has(b.dataset.sundo); if (b.disabled !== d) b.disabled = d; });
+  document.querySelectorAll("[data-sredo]").forEach(b => { const d = !r.has(b.dataset.sredo); if (b.disabled !== d) b.disabled = d; });
+}
+
+/* ---------- online room (Firebase Realtime Database REST + SSE) ---------- */
+const IN_APP = / MetinTimerApp/.test(navigator.userAgent);
+const APK_URL = "https://github.com/wronglogin/metin-timer/releases/latest/download/MetinTimer.apk";
+const DB_URL = "https://timermetin-default-rtdb.europe-west1.firebasedatabase.app";
+let remoteRoot = {};
+function roomUrl(sub = ""){ return `${online.db}/rooms/${encodeURIComponent(online.room)}${sub}.json`; }
+async function push(changes){
+  try {
+    const r = await fetch(roomUrl(), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(changes)});
+    if (!r.ok) throw new Error(r.status);
+  } catch (e) { setMode("Błąd zapisu", "err"); }
+}
+async function syncClock(db){
+  try {
+    const key = `${db}/clock/${uid()}.json`, t0 = Date.now();
+    const r = await fetch(key, {method:"PUT", body: JSON.stringify({".sv":"timestamp"})});
+    const server = await r.json(), t1 = Date.now();
+    if (typeof server === "number") clockOffset = server - (t0 + t1) / 2;
+    fetch(key, {method:"DELETE"}).catch(() => {});
+  } catch {}
+}
+async function connect(db, room){
+  db = db.trim().replace(/\/+$/, ""); room = room.trim();
+  if (!/^https:\/\/[\w.-]+$/.test(db)) throw new Error("Adres bazy musi zaczynać się od https:// i nie mieć ścieżki.");
+  if (!/^[\w-]{3,40}$/.test(room)) throw new Error("Nazwa pokoju: 3–40 znaków, litery, cyfry, - lub _.");
+  disconnect(true);
+  online = {db, room, es:null};
+  setMode("Łączenie…");
+  const test = await fetch(roomUrl("/spots")).catch(() => null);
+  if (!test || !test.ok) { online = null; setMode("Prywatny"); throw new Error(test ? `Baza odmówiła dostępu (${test.status}). Sprawdź reguły bazy.` : "Brak połączenia z bazą."); }
+  await syncClock(db);
+  store.set("online", {db, room});
+  remoteRoot = {}; H = {hist:{}, redo:{}};
+  const es = new EventSource(roomUrl());
+  online.es = es;
+  const handle = kind => ev => {
+    try {
+      const {path, data} = JSON.parse(ev.data);
+      if (kind === "put") setPath(remoteRoot, path, data);
+      else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
+      spots = clone(remoteRoot.spots || {}) || {};
+      H = {hist: clone(remoteRoot.hist || {}) || {}, redo: clone(remoteRoot.redo || {}) || {}};
+      for (const s of Object.values(spots)) if (!s.t || typeof s.t !== "object") s.t = {};
+      setMode("Pokój: " + room, "on");
+      scheduleRender();
+    } catch {}
+  };
+  es.addEventListener("put", handle("put"));
+  es.addEventListener("patch", handle("patch"));
+  es.addEventListener("cancel", () => setMode("Brak dostępu", "err"));
+  es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
+  es.onerror = () => setMode("Wznawianie…", "err");
+  es.onopen = () => setMode("Pokój: " + room, "on");
+}
+function disconnect(silent){
+  if (online && online.es) online.es.close();
+  const was = !!online;
+  online = null; clockOffset = 0;
+  if (was && !silent) {
+    store.set("online", null);
+    spots = store.get("spots", null) || seedAll();
+    H = {hist:{}, redo:{}};
+    setMode("Prywatny"); render(); toast("Rozłączono. Wróciłeś do timerów prywatnych.");
+  }
+}
+function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; }
+
+/* ---------- timers ---------- */
+const SOON = 4 * 60000;
+function status(s, c){
+  // a kill stores the respawn time valid at that moment: {a: timestamp, mn, mx}; editing the row only affects the next kill
+  const v = s.t && s.t[c];
+  if (!v) return {cls:"idle", text:"--:--", label:"nie liczy"};
+  const t = typeof v === "number" ? v : v.a;
+  const el = now() - t, mn = (v.mn || s.min)*60000, mx = (v.mx || s.max)*60000;
+  // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero
+  if (el < mn - SOON) return {cls:"wait", text: fmt(mn - el), label:"odlicza", phase:0};
+  if (el < mn) return {cls:"window", text: fmt(mn - el), label:"za chwilę", phase:1};
+  return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie", phase:2};
+}
+function fmt(ms){
+  const s = Math.max(0, Math.floor(ms / 1000)), m = Math.floor(s / 60), ss = s % 60;
+  if (m >= 1000) return Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0");
+  return String(m).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+}
+
+/* ---------- sound ---------- */
+let actx = null;
+function audio(){ try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch {} return actx; }
+function beep(kind = settings.sound, strong = false){
+  if (!kind) return; const a = audio(); if (!a) return;
+  const pats = {1:[[880,.12],[0,.08],[880,.12]], 2:[[523,.14],[659,.14],[784,.22]], 3:[[1200,.06],[0,.05],[1200,.06],[0,.05],[1200,.06]]};
+  let t = a.currentTime + .02;
+  for (let r = 0; r < (strong ? 2 : 1); r++) for (const [f, d] of pats[kind]) {
+    if (f) { const o = a.createOscillator(), g = a.createGain(); o.type = kind === 2 ? "triangle" : "square"; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+      o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + .02); }
+    t += d + .03;
+  }
+}
+document.addEventListener("pointerdown", audio, {once:true});
+
+/* ---------- render ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const mapSpots = map => Object.values(spots).filter(s => s.map === map).sort((a, b) => (a.o || 0) - (b.o || 0));
+const editingInline = () => { const a = document.activeElement; return a && a.matches && a.matches("#main input"); };
+let renderPending = false;
+
+// redraw only the resp rows a change touched; fall back to a full render when rows are added, removed or reordered
+function refresh(changes){
+  if (view !== "maps" || editingInline()) return render();
+  const ids = new Set();
+  for (const p of Object.keys(changes)) {
+    const [id, f] = p.split("/");
+    if (!f || f === "o") return render();
+    ids.add(id);
+  }
+  for (const id of ids) {
+    const el = document.querySelector(`.spot[data-id="${id}"]`);
+    if (!spots[id]) return render();
+    if (el) el.outerHTML = spotHtml(spots[id]);
+  }
+  renderTabs();
+}
+let rafPending = false;
+function scheduleRender(){ if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); }
+function renderTabs(){
+  const html = visibleMaps().map(m => {
+    const ss = mapSpots(m.id);
+    let ready = 0; for (const s of ss) for (const c of CHS()) if (status(s, c).cls === "ready") ready++;
+    const b = ready ? `<span class="badge ready" title="Na minusie">${ready}</span>` : "";
+    return `<button class="tab" role="tab" data-tab="${m.id}" aria-selected="${view === "maps" && tab === m.id}">${esc(m.name)}${b}</button>`;
+  }).join("");
+  let mine = "";
+  if (showMine()) {
+    let r = 0; for (const m of visibleMaps()) for (const sp of mapSpots(m.id)) for (const c of CHS()) if (status(sp, c).cls === "ready") r++;
+    mine = `<button class="tab mine" role="tab" data-tab="mine" aria-selected="${view === "maps" && tab === "mine"}">Twoje mapy${r ? `<span class="badge ready" title="Na minusie">${r}</span>` : ""}</button>`;
+  }
+  const out = mine + html;
+  if (out !== renderTabs.last) { $("#tabs").innerHTML = out; renderTabs.last = out; }
+  updateHistButtons();
+  $("#wikiBtn").setAttribute("aria-pressed", view === "wiki");
+}
+function fixTab(){
+  const vis = visibleMaps().map(m => m.id);
+  if (tab === "mine" ? !showMine() : !vis.includes(tab)) tab = showMine() ? "mine" : (vis[0] || "m1");
+}
+function render(){
+  fixTab();
+  renderTabs();
+  if (editingInline()) { renderPending = true; return; } // don't wipe a field someone is typing in
+  renderPending = false;
+  if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
+  const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
+  $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
+    <div class="legend"><span>Stuknij kanał, gdy zbijesz.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Szary</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
+}
+function paneHtml(id){
+  const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id];
+  const rng = `Domyślnie: metiny ${m.metin[0]}–${m.metin[1]} min` + (m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : "");
+  return `<section class="pane">
+    <div class="maphead"><h1>${esc(m.name)}</h1><span class="ranges">${rng}</span></div>
+    <div class="spots">${ss.length ? ss.map(spotHtml).join("") :
+      `<div class="empty">Na tej mapie nie ma jeszcze respów.${sd.metin ? `<button class="btn primary" data-seed="${m.id}">Wstaw domyślne: ${sd.metin} metinów${sd.boss.length ? " + " + sd.boss.length + (sd.boss.length === 1 ? " boss" : " bossy") : ""}</button>` : " Dodaj je przyciskiem „+ Dodaj resp” poniżej i ustaw nazwę oraz czas."}</div>`}</div>
+    <div class="addrow"><button class="btn" data-add="${m.id}">+ Dodaj resp</button></div>
+  </section>`;
+}
+function spotHtml(s){
+  const cells = CHS().map((c, i) => {
+    const st = status(s, c);
+    return `<div class="cell ${st.cls}" data-cell="${s.id}|${c}">
+      <span class="ch">CH${i + 1}</span>
+      <button class="ct" data-kill="${s.id}|${c}" aria-label="${esc(s.name)} CH${i + 1}: zbity" title="${st.label}">${st.text}</button>
+      <button class="rs" data-reset="${s.id}|${c}"${st.cls === "idle" ? " disabled" : ""}>zeruj</button>
+    </div>`;
+  }).join("");
+  return `<div class="spot" data-id="${s.id}"${s.color ? ` style="--c:${esc(s.color)}"` : ""}>
+    <div class="shead">
+      <input class="nm" id="nm_${s.id}" data-f="name" data-id="${s.id}" maxlength="40" value="${esc(s.name)}" aria-label="Nazwa respu">
+      <div class="srow"><span class="tag${s.kind === "boss" ? " boss" : ""}">${s.kind === "boss" ? "Boss" : "Metin"}</span>
+        <input id="mn_${s.id}" data-f="min" data-id="${s.id}" type="number" min="1" max="600" inputmode="numeric" value="${s.min}" aria-label="Resp od (min)">–<input id="mx_${s.id}" data-f="max" data-id="${s.id}" type="number" min="1" max="600" inputmode="numeric" value="${s.max}" aria-label="Resp do (min)"> min
+        <span class="sur"><button class="mini" data-sundo="${s.id}" title="Cofnij w tym respie" aria-label="Cofnij: ${esc(s.name)}"${histIds(H.hist).has(s.id) ? "" : " disabled"}>↶</button><button class="mini" data-sredo="${s.id}" title="Ponów w tym respie" aria-label="Ponów: ${esc(s.name)}"${histIds(H.redo).has(s.id) ? "" : " disabled"}>↷</button></span>
+        <button class="more" data-edit="${s.id}" aria-label="Więcej opcji: ${esc(s.name)}">⋯</button></div>
+    </div>
+    <div class="cells" style="--n:${channels}">${cells}</div>
+  </div>`;
+}
+const wikiOpen = new Set();
+// "13 (11–25 min)" -> ["13", "11–25 min"]; anything without brackets stays whole
+const wsplit = t => { const m = /^(.*?)\s*\((.*)\)$/.exec(t || ""); return m ? [m[1], m[2]] : [t || "—", ""]; };
+function wcol(title, base, night){
+  const [n, time] = wsplit(base), [nn, nt] = wsplit(night);
+  if (n === "0") return `<div class="wcol"><h3>${title}</h3><div class="wrow"><span>Brak na tej mapie</span><span></span></div></div>`;
+  return `<div class="wcol"><h3>${title}</h3>
+    <div class="wrow"><span>Ilość na kanał</span><span>${esc(n)}</span></div>
+    ${time ? `<div class="wrow"><span>Czas respa</span><span>${esc(time)}</span></div>` : ""}
+    ${night && night !== "—" ? `<div class="wrow"><span>18:00–23:00</span><span>${esc(nn)}${nt ? ` · ${esc(nt)}` : ""}</span></div>` : ""}
+  </div>`;
+}
+function wikiHtml(){
+  const maps = MAPS.map(m => `<details class="wmap" data-wmap="${m.id}"${wikiOpen.has(m.id) ? " open" : ""}>
+      <summary>${esc(m.name)}<span class="sub">metiny ${esc(wsplit(m.wiki.metin)[1] || m.wiki.metin)}</span></summary>
+      <div class="wbody">${wcol("Metiny", m.wiki.metin, m.wiki.metinN)}${wcol("Bossy", m.wiki.boss, m.wiki.bossN)}</div>
+    </details>`).join("");
+  const rosy = ROSY.map(r => `<div class="rosa"><h3>${r.n} <span style="color:var(--muted);font-weight:500">· ${r.d}</span></h3><ol>${r.s.map(x => `<li>${x}</li>`).join("")}</ol><p>${r.f}</p></div>`).join("");
+  return `<section class="wiki">
+    <div><h2>Metiny i bossy</h2><div class="wmaps">${maps}</div>
+      <p class="wnote">Stuknij mapę, żeby ją rozwinąć. Wieczorem (18:00–23:00) pojawiają się dodatkowe spawny.</p></div>
+    <div><h2>Przepisy na rosy</h2><div class="rosy">${rosy}</div></div>
+  </section>`;
+}
+document.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.wmap) d.open ? wikiOpen.add(d.dataset.wmap) : wikiOpen.delete(d.dataset.wmap); }, true);
+function tick(){
+  if (view === "maps") document.querySelectorAll("[data-cell]").forEach(el => {
+    const [id, c] = el.dataset.cell.split("|"), s = spots[id]; if (!s) return;
+    const st = status(s, c), b = el.querySelector(".ct");
+    // write to the page only when something changed, so a tap is never competing with redraws
+    const cls = "cell " + st.cls;
+    if (el.className !== cls) { el.className = cls; b.title = st.label; el.querySelector(".rs").disabled = st.cls === "idle"; }
+    if (b.textContent !== st.text) b.textContent = st.text;
+  });
+  let changed = false;
+  for (const s of Object.values(spots)) for (const c of CHS()) {
+    const k = s.id + ":" + c, st = status(s, c);
+    if (st.phase == null || isHidden(s.map)) { delete alerted[k]; continue; }
+    const v = s.t[c], key = (typeof v === "number" ? v : v.a) + ":" + st.phase;
+    if (alerted[k] === undefined) { alerted[k] = key; continue; } // no beep for states found on load
+    if (alerted[k] !== key) { alerted[k] = key; if (st.phase >= 1) { beep(settings.sound, st.phase === 2); changed = true; } }
+  }
+  if (changed || tick.n++ % 8 === 0) renderTabs();
+}
+tick.n = 0;
+
+/* ---------- actions ---------- */
+function newSpot(kind, mapId){
+  const m = mapById[mapId], r = m[kind] || m.metin, ss = mapSpots(m.id), n = ss.length;
+  const id = uid(), o = ss.length ? Math.max(...ss.map(s => s.o || 0)) + 1 : Date.now();
+  return {[id]: {id, map:m.id, name: `${m.name} ${n + 1}`, kind, min:r[0], max:r[1], color:null, o, t:{}}};
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.tab) { tab = b.dataset.tab; view = "maps"; saveTab(); render(); window.scrollTo(0, 0); b.scrollIntoView({inline:"nearest", block:"nearest"}); return; }
+  if (b.dataset.kill) { const [id, c] = b.dataset.kill.split("|"); const s = spots[id]; if (s) commit({[`${id}/t/${c}`]: {a: now(), mn: s.min, mx: s.max}}); return; }
+  if (b.dataset.reset) { const [id, c] = b.dataset.reset.split("|"); if (spots[id] && (spots[id].t || {})[c]) commit({[`${id}/t/${c}`]: null}); return; }
+  if (b.dataset.edit) { editSheet(spots[b.dataset.edit]); return; }
+  if (b.dataset.sundo) { spotUndo(b.dataset.sundo); return; }
+  if (b.dataset.sredo) { spotRedo(b.dataset.sredo); return; }
+  if (b.dataset.add) { commit(newSpot("metin", b.dataset.add)); return; }
+  if (b.dataset.seed) { commit(seedMap(b.dataset.seed)); return; }
+});
+// inline edits: name, min, max
+document.addEventListener("change", e => {
+  const el = e.target; if (!el.matches("#main input[data-f]")) return;
+  const s = spots[el.dataset.id]; if (!s) return;
+  const f = el.dataset.f;
+  if (f === "name") { const v = el.value.trim().slice(0, 40); if (v && v !== s.name) commit({[`${s.id}/name`]: v}); else el.value = s.name; return; }
+  let v = Math.round(+el.value); if (!(v >= 1 && v <= 600)) { el.value = s[f]; return; }
+  let mn = f === "min" ? v : s.min, mx = f === "max" ? v : s.max;
+  if (mx < mn) { if (f === "min") mx = mn; else mn = mx; }
+  if (mn !== s.min || mx !== s.max) commit({[`${s.id}/min`]: mn, [`${s.id}/max`]: mx});
+});
+document.addEventListener("keydown", e => {
+  if (e.target.matches && e.target.matches("#main input[data-f]") && e.key === "Enter") { e.target.blur(); return; }
+  if (e.target.closest("input,textarea,select")) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
+});
+document.addEventListener("focusout", () => setTimeout(() => { if (renderPending && !editingInline()) render(); }, 0));
+$("#undo").onclick = undo; $("#redo").onclick = redo; $("#menuBtn").onclick = menuSheet;
+$("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
+
+/* ---------- sheets ---------- */
+function sheet(html, onMount){
+  const layer = $("#layer");
+  layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  const scrim = layer.firstElementChild, close = () => { layer.innerHTML = ""; };
+  scrim.addEventListener("click", e => { if (e.target === scrim || e.target.closest("[data-close]")) close(); });
+  onMount && onMount(scrim.querySelector(".sheet"), close);
+  const f = scrim.querySelector("input,select,textarea,button"); f && f.focus();
+}
+function editSheet(s){
+  let color = s.color;
+  const ss = mapSpots(s.map), idx = ss.findIndex(x => x.id === s.id);
+  sheet(`<h2>${esc(s.name)}</h2>
+    <div class="field"><label for="e_kind">Rodzaj</label><select id="e_kind"><option value="metin">Metin</option><option value="boss"${s.kind === "boss" ? " selected" : ""}>Boss</option></select></div>
+    <div class="field"><label>Kolor paska</label><div class="swatches"><button class="sw none" data-sw="" aria-label="Bez koloru" aria-pressed="${!s.color}"></button>${COLORS.map(c => `<button class="sw" data-sw="${c}" style="--c:${c}" aria-label="Kolor ${c}" aria-pressed="${c === s.color}"></button>`).join("")}</div></div>
+    <div class="field"><label>Kolejność</label><div class="seg"><button id="e_up"${idx <= 0 ? " disabled" : ""}>Wyżej</button><button id="e_down"${idx >= ss.length - 1 ? " disabled" : ""}>Niżej</button></div></div>
+    <div class="acts"><button class="btn danger grow" id="e_del">Usuń resp</button><button class="btn" data-close>Anuluj</button><button class="btn primary" id="e_ok">Zapisz</button></div>`,
+  (el, close) => {
+    el.querySelectorAll("[data-sw]").forEach(b => b.onclick = () => { color = b.dataset.sw || null; el.querySelectorAll("[data-sw]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
+    const swap = j => { const o = ss[j]; close(); commit({[`${s.id}/o`]: o.o, [`${o.id}/o`]: s.o === o.o ? s.o + (j < idx ? 1 : -1) : s.o}); };
+    el.querySelector("#e_up").onclick = () => swap(idx - 1);
+    el.querySelector("#e_down").onclick = () => swap(idx + 1);
+    el.querySelector("#e_del").onclick = () => { close(); commit({[s.id]: null}); toast("Usunięto resp. Możesz cofnąć."); };
+    el.querySelector("#e_ok").onclick = () => {
+      const kind = el.querySelector("#e_kind").value, ch = {};
+      if (kind !== s.kind) ch[`${s.id}/kind`] = kind;
+      if ((color || null) !== (s.color || null)) ch[`${s.id}/color`] = color;
+      close(); commit(ch);
+    };
+  });
+}
+function menuSheet(){
+  const saved = store.get("online", null) || store.get("lastRoom", {db:"", room:""});
+  sheet(`<h2>Menu</h2>
+    <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div></div>
+    <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
+      <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+    ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <h2 style="font-size:19px">Wspólny pokój</h2>
+    <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
+    <div class="field"><label for="m_room">Nazwa pokoju (działa jak hasło)</label><input id="m_room" placeholder="np. gildia-x7k2" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(saved && saved.room || "")}"></div>
+    <p id="m_err" style="color:var(--danger)" hidden></p>
+    <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Przełącz pokój" : "Połącz"}</button></div>
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">Globalny reset</button></div>
+    ${IN_APP ? "" : `<hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <h2 style="font-size:19px">Aplikacja na Androida</h2>
+    <p>Pobierz plik i otwórz go na telefonie. Android poprosi o zgodę na instalację z tego źródła.</p>
+    <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz MetinTimer.apk</a></div>`}
+    <div class="acts"><button class="btn" data-close>Zamknij</button></div>`,
+  (el, close) => {
+    el.querySelectorAll("[data-s]").forEach(b => b.onclick = () => { settings.sound = +b.dataset.s; store.set("settings", settings); el.querySelectorAll("[data-s]").forEach(x => x.setAttribute("aria-pressed", x === b)); beep(); });
+    el.querySelectorAll("[data-vis]").forEach(b => b.onclick = () => {
+      const id = b.dataset.vis, hide = !isHidden(id), had = showMine();
+      settings.hidden = hide ? [...settings.hidden, id] : settings.hidden.filter(x => x !== id);
+      store.set("settings", settings); b.setAttribute("aria-pressed", !hide);
+      if (!had && showMine()) { tab = "mine"; view = "maps"; saveTab(); }
+      render();
+    });
+    const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
+    el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
+    el.querySelector("#m_on").onclick = async ev => {
+      const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
+      const room = el.querySelector("#m_room").value;
+      try { await connect(DB_URL, room); store.set("lastRoom", {room}); close(); toast("Połączono z pokojem " + room.trim()); }
+      catch (x) { err.textContent = x.message; err.hidden = false; ev.target.disabled = false; }
+    };
+    const off = el.querySelector("#m_off"); if (off) off.onclick = () => { close(); disconnect(); };
+    el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
+    el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
+    el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
+  });
+}
+function exportSheet(){
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(Object.values(spots).map(({id, t, ...r}) => r)))));
+  sheet(`<h2>Eksportuj respy</h2><p>Skopiuj kod i wyślij znajomemu. Zawiera respy ze wszystkich map (nazwy, czasy respa, kolory), bez liczników.</p>
+    <div class="field"><textarea id="x_code" readonly>${code}</textarea></div>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="x_copy">Kopiuj</button></div>`,
+  el => { const ta = el.querySelector("#x_code");
+    el.querySelector("#x_copy").onclick = () => { ta.select();
+      Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } }); }; });
+}
+function importSheet(){
+  sheet(`<h2>Importuj respy</h2><p>Wklej kod. Obecne respy zostaną zastąpione (możesz to cofnąć).</p>
+    <div class="field"><textarea id="i_code" placeholder="Wklej kod tutaj"></textarea></div><p id="i_err" style="color:var(--danger)" hidden></p>
+    <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="i_ok">Importuj respy</button></div>`,
+  (el, close) => el.querySelector("#i_ok").onclick = () => {
+    try {
+      const arr = JSON.parse(decodeURIComponent(escape(atob(el.querySelector("#i_code").value.trim()))));
+      if (!Array.isArray(arr)) throw 0;
+      const ch = {}; for (const id of Object.keys(spots)) ch[id] = null;
+      let n = 0;
+      arr.forEach((r, i) => { if (!mapById[r.map]) return; const id = uid(); n++;
+        ch[id] = {id, map:r.map, name:String(r.name || "Resp").slice(0, 40), kind:r.kind === "boss" ? "boss" : "metin", min:+r.min || 10, max:+r.max || 20, color:COLORS.includes(r.color) ? r.color : null, o:+r.o || Date.now() + i, t:{}}; });
+      close(); commit(ch); toast("Zaimportowano " + n + " respów");
+    } catch { const er = el.querySelector("#i_err"); er.textContent = "To nie jest poprawny kod timera."; er.hidden = false; }
+  });
+}
+function resetSheet(){
+  sheet(`<h2>Globalny reset</h2><p>Wyzeruje wszystkie liczniki na wszystkich mapach${online ? " dla całego pokoju" : ""}. Respy i ich nazwy zostają. Możesz to cofnąć.</p>
+    <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn danger" id="r_ok">Zeruj wszystko</button></div>`,
+  (el, close) => el.querySelector("#r_ok").onclick = () => {
+    const ch = {}; for (const s of Object.values(spots)) if (s.t && Object.keys(s.t).length) ch[`${s.id}/t`] = null;
+    close(); commit(ch); toast("Wyzerowano liczniki");
+  });
+}
+let toastT;
+function toast(msg){
+  let el = document.querySelector(".toast"); if (!el) { el = document.createElement("div"); el.className = "toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg; clearTimeout(toastT); toastT = setTimeout(() => el.remove(), 2200);
+}
+let lock = null;
+async function wake(){
+  try {
+    if (settings.wake && !lock && navigator.wakeLock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => lock = null); }
+    if (!settings.wake && lock) { lock.release(); lock = null; }
+  } catch {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { wake(); loadConfig(); } });
+
+/* ---------- server config (admin) ---------- */
+async function loadConfig(){
+  try {
+    const r = await fetch(`${DB_URL}/config/channels.json`); if (!r.ok) return;
+    const n = await r.json();
+    if (n >= 1 && n <= 10 && n !== channels) { channels = n; store.set("channels", n); render(); }
+  } catch {}
+}
+// hidden entry: tap the "Metin Timer" title 5 times quickly
+let brandTaps = [];
+document.querySelector(".brand").addEventListener("click", () => {
+  const t = Date.now(); brandTaps = brandTaps.filter(x => t - x < 2500); brandTaps.push(t);
+  if (brandTaps.length >= 5) { brandTaps = []; adminSheet(); }
+});
+function adminSheet(){
+  const pw = store.get("adminPw", "");
+  sheet(`<h2>Panel admina</h2>
+    <div class="field"><label for="a_pw">Hasło admina</label><input id="a_pw" type="password" autocomplete="off" value="${esc(pw)}"></div>
+    <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
+      <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
+    <p id="a_err" style="color:var(--danger)" hidden></p>
+    <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>`,
+  (el, close) => el.querySelector("#a_ok").onclick = async ev => {
+    const err = el.querySelector("#a_err"), pw = el.querySelector("#a_pw").value, n = +el.querySelector("#a_ch").value;
+    err.hidden = true; ev.target.disabled = true;
+    try {
+      const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({channels:n, pw})});
+      if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
+      if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
+      store.set("adminPw", pw); channels = n; store.set("channels", n); close(); render(); toast("Ustawiono " + n + " kanałów dla wszystkich");
+    } catch (x) { err.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; err.hidden = false; ev.target.disabled = false; }
+  });
+}
+
+/* ---------- boot ---------- */
+const saved = store.get("spots", null);
+spots = saved && typeof saved === "object" ? saved : seedAll();
+for (const s of Object.values(spots)) if (!s.t || typeof s.t !== "object") s.t = {};
+if (saved && !store.get("noColorsV1", false)) { for (const s of Object.values(spots)) s.color = null; store.set("spots", spots); }
+if (!store.get("noColorsV1", false)) { settings.sound = 0; store.set("settings", settings); }
+store.set("noColorsV1", true);
+if (!saved) store.set("spots", spots);
+render(); setInterval(tick, 250); wake();
+loadConfig(); setInterval(loadConfig, 60000);
+const auto = store.get("online", null);
+if (auto && auto.room) connect(DB_URL, auto.room).catch(() => setMode("Prywatny"));
+})();
+</script>
+
+</body></html>
