@@ -48,6 +48,12 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .rpos{color:var(--muted);font-family:var(--f-num);font-size:14px}
 .rtag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;background:var(--window);color:#241a00;border-radius:4px;padding:1px 6px;margin-left:4px}
 .banlist li.rnext{border-color:var(--window)}
+.banlist li.roff{opacity:.55}
+.rwho{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+.rchk{width:20px;height:20px;accent-color:var(--ready);margin:0}
+.rname{background:none;border:0;padding:2px 4px;margin:-2px -4px;border-radius:4px;font-weight:700;font-size:16px;color:var(--fg);text-decoration:underline dotted color-mix(in srgb,var(--fg) 40%,transparent);text-underline-offset:3px}
+.rname:hover:not(:disabled){background:var(--surface-2)}
+.rname:disabled{text-decoration:none;cursor:default}
 .ract{display:flex;align-items:center;gap:6px}
 .rkills{font-family:var(--f-num);font-weight:700;min-width:26px;text-align:right;color:var(--ready)}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
@@ -370,7 +376,7 @@ function doRoom(rc){
     if (p.startsWith("spots/")) setPath(spots, p.slice(6), clone(v));
     else if (p === "redo") H.redo = {};
     else if (p.startsWith("hist/") || p.startsWith("redo/")) setPath(H, p, clone(v));
-    else if (p.startsWith("log/") || p.startsWith("order")) setPath(remoteRoot, p, clone(v));
+    else if (/^(log\/|order|off|pick)/.test(p)) setPath(remoteRoot, p, clone(v));
   }
   if (online) push(rc); else store.set("spots", spots);
   const sc = {}; for (const [p, v] of Object.entries(rc)) if (p.startsWith("spots/")) sc[p.slice(6)] = v;
@@ -745,10 +751,18 @@ function rota(){
   const counts = {}; for (const e of log) { counts[e.d] = (counts[e.d] || 0) + 1; }
   const list = people().map(p => ({...p, kills: counts[p.id] || 0}))
     .sort((a, b) => ((order[a.id] ?? 1e9) - (order[b.id] ?? 1e9)) || a.n.localeCompare(b.n, "pl"));
+  const off = remoteRoot.off || {}, pick = remoteRoot.pick || null;
+  for (const p of list) p.off = !!off[p.id];
   const last = log[log.length - 1] || null;
-  const li = last ? list.findIndex(p => p.id === last.d) : -1;
-  const next = list.length ? list[li >= 0 ? (li + 1) % list.length : 0] : null;
-  return {list, last, next, total: log.length};
+  const active = list.filter(p => !p.off);
+  let next = null;
+  if (pick && pick.k === (last ? last.k : "") && active.some(p => p.id === pick.id)) next = active.find(p => p.id === pick.id);   // chosen by hand until the next kill
+  else if (active.length) {
+    // the first active person after the last killer (skipping people switched off), in list order
+    const li = last ? list.findIndex(p => p.id === last.d) : -1;
+    for (let i = 1; i <= list.length; i++) { const p = list[((li < 0 ? -1 : li) + i) % list.length]; if (!p.off) { next = p; break; } }
+  }
+  return {list, last, next, total: log.length, picked: !!(next && pick && pick.id === next.id && pick.k === (last ? last.k : ""))};
 }
 const ago = t => { const m = Math.max(0, Math.round((now() - t) / 60000)); return m < 1 ? "przed chwilą" : m < 60 ? `${m} min temu` : `${Math.floor(m / 60)} h ${m % 60} min temu`; };
 function rotaHtml(){
@@ -762,18 +776,25 @@ function rotaHtml(){
     <button class="btn" data-rota="1">Kolejka</button></div>`;
 }
 function rotaSheet(){
-  sheet(`<h2>Kolejka zbijania</h2><p>Po każdym zbiciu kolej przechodzi na następną osobę z listy. Kolejność zmieniasz strzałkami, liczniki zerują się o 01:00.</p>
+  sheet(`<h2>Kolejka zbijania</h2><p>Po każdym zbiciu kolej przechodzi na następną zaznaczoną osobę. Odznacz tych, którzy nie zbijają. Stuknij nick, żeby ręcznie wybrać następnego. Liczniki zerują się o 01:00.</p>
     <ul class="banlist" id="r_list"></ul><div class="acts"><button class="btn" data-close>Zamknij</button></div>`, el => {
     const draw = () => {
-      const {list, last, next, total} = rota();
-      el.querySelector("#r_list").innerHTML = list.length ? list.map((p, i) => `<li class="${next && next.id === p.id ? "rnext" : ""}">
-        <span><span class="rpos">${i + 1}.</span> ${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}${next && next.id === p.id ? ' <span class="rtag">następny</span>' : ""}${last && last.d === p.id ? ' <span class="pme">ostatni</span>' : ""}</span>
+      const {list, last, next, total, picked} = rota();
+      el.querySelector("#r_list").innerHTML = list.length ? list.map((p, i) => `<li class="${next && next.id === p.id ? "rnext" : ""}${p.off ? " roff" : ""}">
+        <span class="rwho"><input type="checkbox" class="rchk" data-on="${esc(p.id)}" ${p.off ? "" : "checked"} aria-label="${esc(p.n)} w kolejce"><span class="rpos">${i + 1}.</span>
+          <button class="rname" data-pick="${esc(p.id)}"${p.off ? " disabled" : ""} title="Ustaw jako następnego">${esc(p.n)}</button>${p.me ? ' <span class="pme">(ty)</span>' : ""}${next && next.id === p.id ? ` <span class="rtag">${picked ? "wybrany" : "następny"}</span>` : ""}${last && last.d === p.id ? ' <span class="pme">ostatni</span>' : ""}${p.off ? ' <span class="pme">pomijany</span>' : ""}</span>
         <span class="ract"><span class="rkills" title="Zbite dzisiaj">${p.kills}</span><button class="btn" data-mv="${i}|-1"${i === 0 ? " disabled" : ""} aria-label="Wyżej">↑</button><button class="btn" data-mv="${i}|1"${i === list.length - 1 ? " disabled" : ""} aria-label="Niżej">↓</button></span></li>`).join("")
         + `<li class="pme">Razem dzisiaj: ${total}</li>` : '<li class="pme">Nikogo nie ma w pokoju.</li>';
     };
     draw();
     const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
+    el.addEventListener("change", e => {
+      const c = e.target.closest("[data-on]"); if (!c) return;
+      doRoom({["off/" + c.dataset.on]: c.checked ? null : true}); draw();
+    });
     el.addEventListener("click", e => {
+      const pk = e.target.closest("[data-pick]");
+      if (pk) { const last = rota().last; doRoom({pick: {id: pk.dataset.pick, k: last ? last.k : ""}}); draw(); return; }
       const b = e.target.closest("[data-mv]"); if (!b) return;
       const [i, d] = b.dataset.mv.split("|").map(Number), list = rota().list, j = i + d;
       if (j < 0 || j >= list.length) return;

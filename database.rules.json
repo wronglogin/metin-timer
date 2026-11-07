@@ -132,6 +132,23 @@
             ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.isNumber()"
           }
         },
+        "off": {
+          "$id": {
+            ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.val() === true"
+          }
+        },
+        "pick": {
+          ".validate": "newData.hasChildren(['id', 'k'])",
+          "id": {
+            ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
+          },
+          "k": {
+            ".validate": "newData.isString() && newData.val().length <= 40"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
         "$other": {
           ".validate": false
         }
