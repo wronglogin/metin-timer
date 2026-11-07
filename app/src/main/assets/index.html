@@ -82,6 +82,13 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .hbtn span{font-size:11px;color:var(--muted);font-family:var(--f-num)}
 .hbtn[aria-pressed="true"]{border-color:var(--hc);background:color-mix(in srgb,var(--hc) 18%,var(--surface-2))}
 .hdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--hc);margin-right:5px;vertical-align:middle}
+.abody{display:grid;gap:12px}.abody[hidden]{display:none}
+.gfloat.mid{width:min(400px,calc(100vw - 24px))}
+.wpick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.wbtn{display:grid;gap:1px;justify-items:center;padding:6px 4px;border:2px solid var(--rule);border-radius:8px;background:var(--surface-2);color:var(--fg);cursor:pointer}
+.wbtn b{display:block;width:100%;padding:3px 0;border-radius:5px;background:var(--wc);color:#fff;font-size:14px}
+.wbtn span{font-size:11px;color:var(--muted);font-family:var(--f-num)}
+.wbtn[aria-pressed="true"]{border-color:var(--accent)}
 .hbets{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
 .hchip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border:1px solid var(--rule);border-radius:999px;font-size:13px;background:var(--surface-2)}
 .hchip b{color:var(--hc)}.hchip .hdot{background:var(--hc);margin:0}
@@ -1365,7 +1372,9 @@ document.querySelector(".brand").addEventListener("click", () => {
 function adminSheet(){
   const pw = store.get("adminPw", "");
   sheet(`<h2>Panel admina</h2>
-    <div class="field"><label for="a_pw">Hasło admina</label><input id="a_pw" type="password" autocomplete="off" value="${esc(pw)}"></div>
+    <div class="field"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="off" value="${esc(pw)}"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
+    <p id="a_lerr" style="color:var(--danger)" hidden></p>
+    <div class="abody" id="a_body" hidden>
     <div class="field"><label for="a_site">Nowe hasło do strony (zostaw puste, żeby nie zmieniać)</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy"></div>
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
       <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
@@ -1379,7 +1388,8 @@ function adminSheet(){
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
     ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
-    <p id="a_berr" style="color:var(--danger)" hidden></p>`,
+    <p id="a_berr" style="color:var(--danger)" hidden></p>
+    </div>`,
   (el, close) => {
     const berr = el.querySelector("#a_berr");
     const adminPatch = async body => {
@@ -1418,8 +1428,25 @@ function adminSheet(){
       for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v)));
       await push(rc);
     };
-    drawPeople(); drawBans(); drawDebts();
-    const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
+    // the admin options appear only after the password has been accepted by the database
+    const login = async () => {
+      const lerr = el.querySelector("#a_lerr"), lb = el.querySelector("#a_login"); lerr.hidden = true;
+      if (!el.querySelector("#a_pw").value) { lerr.textContent = "Wpisz hasło admina."; lerr.hidden = false; return; }
+      lb.disabled = true; lb.textContent = "Sprawdzam…";
+      try {
+        await adminPatch({});
+        el.querySelector("#a_body").hidden = false; el.querySelector("#a_pw").readOnly = true; lb.hidden = true;
+        drawPeople(); drawBans(); drawDebts();
+        const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
+      } catch (x) {
+        store.set("adminPw", "");
+        lerr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; lerr.hidden = false;
+        lb.disabled = false; lb.textContent = "Zaloguj";
+      }
+    };
+    el.querySelector("#a_login").onclick = login;
+    el.querySelector("#a_pw").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+    if (el.querySelector("#a_pw").value) login(); else el.querySelector("#a_pw").focus();
     el.addEventListener("click", async e => {
       const d = e.target.closest("[data-ddel],#a_dreset"); if (!d) return;
       berr.hidden = true;
@@ -1825,8 +1852,8 @@ function showSpin(r, age){
   let el = document.getElementById("spin"); if (el) el.remove(); clearTimeout(spinTimer);
   el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox";
   const pool = poolText(r.s, players.length);
-  el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Ruletka");
-  el.innerHTML = `<div class="ghead" data-drag><h2>Ruletka</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Loteria");
+  el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
     <div class="spinnames">${players.map((p, i) => `<span class="spn" data-i="${i}">${esc(p.n)}</span>`).join("")}</div>
     <p class="spinres" aria-live="polite">Losowanie…</p>
 `;
@@ -1863,15 +1890,15 @@ function spinRoulette(ps, stake){
   const spin = {id, by: myNick().slice(0, 20), s: String(stake).slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, String(p.n).slice(0, 20)])), w: w.id, at: {".sv": "timestamp"}};
   const rc = {roulette: spin, [`rlog/${id}`]: {s: spin.s, n: ps.length, w: String(w.n).slice(0, 20), at: {".sv": "timestamp"}}};
   const old = sortedKeys(remoteRoot.rlog || {}); for (const k of old.slice(0, Math.max(0, old.length + 1 - 20))) rc[`rlog/${k}`] = null;
-  const dc = debtChanges("Ruletka", spin.p, [w.id], ps.map(p => p.id).filter(id => id !== w.id), spin.s);
+  const dc = debtChanges("Loteria", spin.p, [w.id], ps.map(p => p.id).filter(id => id !== w.id), spin.s);
   Object.assign(rc, dc); for (const [p, v] of Object.entries(dc)) setPath(remoteRoot, p, clone(svNow(v)));
   push(rc);
   const local = {...spin, at: Math.round(now())}; setPath(remoteRoot, "roulette", local); setPath(remoteRoot, `rlog/${id}`, {...rc[`rlog/${id}`], at: local.at});
   lastSpin = id; showSpin(local, 0);
 }
 function rouletteSheet(){
-  if (!online) { toast("Ruletka działa we wspólnym pokoju. Połącz się w Menu."); return; }
-  sheet(`<h2>Ruletka</h2><p>Wpisz stawkę i zaznacz, kto gra. Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
+  if (!online) { toast("Loteria działa we wspólnym pokoju. Połącz się w Menu."); return; }
+  sheet(`<h2>Loteria</h2><p>Wpisz stawkę i zaznacz, kto gra. Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
     <div class="field"><label for="rl_s">Za ile gramy (stawka od osoby)</label><input id="rl_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     <div class="field"><label>Gracze</label><ul class="banlist" id="rl_p"></ul></div>
     <p id="rl_err" style="color:var(--danger)" hidden></p>
@@ -1908,6 +1935,7 @@ const GAMES = {
   guess:  {name: "Zgadnij liczbę",         min: 2, duel: false},
   rps:    {name: "Kamień, papier, nożyce", min: 2, duel: true},
   horse:  {name: "Wyścig konny",           min: 2, duel: false},
+  wheel:  {name: "Ruletka",                min: 2, duel: false},
 };
 const DIE = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 const RPS = {k: "Kamień", p: "Papier", n: "Nożyce"};
@@ -1932,7 +1960,7 @@ function logGame(g, winnerNick, stake = g.s){
   const old = sortedKeys(remoteRoot.glog || {}); for (const x of old.slice(0, Math.max(0, old.length + 1 - 30))) rc[`glog/${x}`] = null;
   // who owes whom: losers pay their stake to the winner(s)
   let win = [], lose = [];
-  if (g.type === "horse") { const wh = +g.wh, bets = horseBets(g); win = bets.filter(b => b.h === wh).map(b => b.id); lose = win.length ? bets.filter(b => b.h !== wh).map(b => b.id) : []; }
+  if (g.type === "horse" || g.type === "wheel") { const wh = +g.wh, bets = horseBets(g); win = bets.filter(b => b.h === wh).map(b => b.id); lose = win.length ? bets.filter(b => b.h !== wh).map(b => b.id) : []; }
   else if (g.w && g.w !== "draw" && g.w !== "none") { win = [g.w]; lose = Object.keys(g.p || {}).filter(id => id !== g.w); }
   Object.assign(rc, debtChanges(GAMES[g.type].name, g.p || {}, win, lose, g.s));
   gamePatch(rc);
@@ -2018,6 +2046,7 @@ async function gameTick(){
   const g = G(); if (!online || !g || !g.id || !(amIn(g) || g.by === deviceId)) return;
   const ps = gPlayers(g), host = g.by === deviceId;
   if (g.type === "horse" && host) horseTick(g);
+  if (g.type === "wheel" && host) wheelTick(g);
   if (g.type === "dice" && g.state === "play" && host) {
     const r = +g.rd || 0, left = diceLeft(g, r), rolled = diceRoll(g, r);
     if (left.length && left.every(id => rolled[id])) {
@@ -2078,9 +2107,9 @@ function renderGame(){
   let el = document.getElementById("gamewin");
   if (!el || el.dataset.gid !== g.id) {
     closeGame();
-    el = document.createElement("div"); el.id = "gamewin"; el.className = "gfloat gamebox" + (g.type === "horse" ? " wide" : ""); el.dataset.gid = g.id;
+    el = document.createElement("div"); el.id = "gamewin"; el.className = "gfloat gamebox" + (g.type === "horse" ? " wide" : g.type === "wheel" ? " mid" : ""); el.dataset.gid = g.id;
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", GAMES[g.type].name);
-    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${amIn(g) || g.type === "horse" ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
+    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${amIn(g) || g.type === "horse" || g.type === "wheel" ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
     document.body.appendChild(el);
     floatPanel(el, g.type); hPick = null;
     el.addEventListener("click", gameClick);
@@ -2242,7 +2271,7 @@ function horseClick(g, act, b){
   if (g.by !== deviceId) return;
   if (act === "hstart") {
     if (g.state !== "bet") return;
-    if (horseBets(g).length < 2) { toast("Do wyścigu potrzeba co najmniej dwóch zakładów."); return; }
+    if (horseBets(g).length < 2) { toast(`Do ${g.type === "wheel" ? "losowania" : "wyścigu"} potrzeba co najmniej dwóch zakładów.`); return; }
     const a = new Uint32Array(1); crypto.getRandomValues(a);
     gamePatch({"game/state": "race", "game/seed": a[0] % 2147483647, "game/go": Math.round(now()) + 3500});
   }
@@ -2270,7 +2299,7 @@ ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</di
       : `<p>Nikt nie obstawił konia ${g.wh}. Każdy zabiera swoją stawkę.</p>`);
 };
 const GAME_AFTER = {};
-GAME_AFTER.horse = (g, body) => {
+GAME_AFTER.horse = (g, body, draw = drawRace) => {
   let cv = body.querySelector("canvas.htrack");
   const slot = body.querySelector(".htrack-slot");
   if (!cv && slot) { cv = document.createElement("canvas"); cv.className = "htrack"; slot.replaceWith(cv); }
@@ -2278,7 +2307,7 @@ GAME_AFTER.horse = (g, body) => {
   cv._g = g;
   if (!cv._loop) {
     cv._loop = true;
-    const frame = () => { if (!cv.isConnected) return; drawRace(cv, cv._g, body.querySelector(".hlead")); requestAnimationFrame(frame); };
+    const frame = () => { if (!cv.isConnected) return; draw(cv, cv._g, body.querySelector(".hlead")); requestAnimationFrame(frame); };
     requestAnimationFrame(frame);
   }
 };
@@ -2386,21 +2415,111 @@ function drawRace(cv, g, lead){
     if (lead.textContent !== txt) lead.textContent = txt;
   }
 }
-function horseSheet(){
+/* ---------- roulette wheel (European layout, colours only) ----------
+   Same betting as the horse race (game.b, one stake for everyone), but on a colour: 1 red, 2 black, 3 green.
+   The pocket comes from the random seed: 37 pockets, so red and black each have 18/37 and green 1/37. */
+const WCOL = [null, {n: "Czerwone", c: "#d23a32"}, {n: "Czarne", c: "#1c1c22"}, {n: "Zielone", c: "#1f9d55"}];
+const WPOCKETS = 37, WSPIN = 7.5;                                     // pocket 0 is green, then red/black alternate round the wheel
+const pocketColor = i => i === 0 ? 3 : i % 2 ? 1 : 2;
+function wheelModel(seed){
+  const rnd = mulberry(seed ^ 0x5bd1e995);
+  const pocket = seed % WPOCKETS, turns = 4 + Math.floor(rnd() * 3), bturns = 3 + Math.floor(rnd() * 2);
+  return {pocket, wh: pocketColor(pocket), turns, bturns};
+}
+function wheelTick(g){
+  if (g.state === "race" && g.seed && now() > +g.go + (WSPIN + 1) * 1000) {
+    const m = wheelModel(+g.seed), {winners, pool} = horsePayout(g, m.wh);
+    gamePatch({"game/state": "done", "game/wh": m.wh, "game/w": winners.length ? winners[0].id : "none"});
+    logGame({...G()}, `${WCOL[m.wh].n}: ${winners.length ? winners.map(w => w.n).join(", ") : "nikt"}`, g.s ? poolText(g.s, pool) : "");
+  }
+}
+GAME_VIEW.wheel = g => {
+  const bets = horseBets(g), host = g.by === deviceId, mine = g.b && g.b[deviceId];
+  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Bez stawki · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
+  const slot = `<div class="htrack-slot"></div><p class="hlead spinres"></p>`;
+  if (g.state === "cancel") return head + `<p class="spinres">Losowanie odwołane.</p>`;
+  if (g.state === "bet") {
+    const pick = hPick || (mine && +mine.h) || null, chance = {1: "18/37", 2: "18/37", 3: "1/37"};
+    return head + slot + `<div class="wpick">${[1, 2, 3].map(k => { const n = bets.filter(b => b.h === k).length;
+        return `<button class="wbtn" data-gact="hpick" data-h="${k}" aria-pressed="${pick === k}" style="--wc:${WCOL[k].c}"><b>${WCOL[k].n}</b><span>${chance[k]} · ${n ? `${n} os.` : "–"}</span></button>`; }).join("")}</div>
+      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
+      <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
+      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${b.h === 2 ? "#9aa0ad" : WCOL[b.h].c}"><i class="hdot"></i>${esc(b.n)}</span>`).join("")}</div>` : ""}
+      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Zakręć</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}`;
+  }
+  if (g.state === "race") return head + slot;
+  const {winners} = horsePayout(g, +g.wh);
+  return head + slot + `<p class="spinres done">Wypadło: <b style="color:${g.wh === 2 ? "var(--fg)" : WCOL[g.wh].c}">${WCOL[g.wh].n.toLowerCase()}</b></p>`
+    + (winners.length ? winners.map(w => `<div class="gline"><span>${esc(w.n)}${w.id === deviceId ? ' <span class="pme">(ty!)</span>' : ""}</span><b>${g.s ? `+${esc(poolText(g.s, Math.round(bets.length / winners.length * 1000) / 1000))}` : "wygrywa"}</b></div>`).join("")
+      : `<p>Nikt nie obstawił tego koloru. Każdy zabiera swoją stawkę.</p>`);
+};
+GAME_AFTER.wheel = (g, body) => GAME_AFTER.horse(g, body, drawWheel);
+function drawWheel(cv, g, lead){
+  const realW = cv.clientWidth || 300, size = Math.min(realW, 320, Math.max(200, innerHeight * 0.4)), dpr = Math.min(2, devicePixelRatio || 1);
+  const pw = Math.round(realW * dpr), ph = Math.round(size * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv.style.height = size + "px"; }
+  const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, realW, size);
+  const cx = realW / 2, cy = size / 2, R = size / 2 - 6, seg = Math.PI * 2 / WPOCKETS;
+  const m = g.seed ? wheelModel(+g.seed) : null, t = m ? (now() - +g.go) / 1000 : 0;
+  const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3), e = m ? ease(t / WSPIN) : 0;
+  // the wheel turns clockwise and stops with the winning pocket under the marker at the top (angle -90°)
+  const top = -Math.PI / 2, final = m ? top - (m.pocket + 0.5) * seg : -Math.PI / 2 - seg / 2;
+  const rot = m ? final - (1 - e) * m.turns * Math.PI * 2 : final + ((now() / 1000) * 0.25) % (Math.PI * 2);   // idle: turns slowly
+  // wooden rim
+  c.fillStyle = "#5a3417"; c.beginPath(); c.arc(cx, cy, R + 5, 0, 7); c.fill();
+  c.fillStyle = "#3a210e"; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.fill();
+  // pockets
+  const rIn = R * 0.62, rOut = R * 0.93;
+  for (let i = 0; i < WPOCKETS; i++) {
+    const a0 = rot + i * seg, a1 = a0 + seg, col = pocketColor(i);
+    c.fillStyle = col === 1 ? "#c8302a" : col === 2 ? "#16161b" : "#1f9d55";
+    c.beginPath(); c.arc(cx, cy, rOut, a0, a1); c.arc(cx, cy, rIn, a1, a0, true); c.closePath(); c.fill();
+    c.strokeStyle = "#c9a84a"; c.lineWidth = 1; c.beginPath(); c.moveTo(cx + Math.cos(a0) * rIn, cy + Math.sin(a0) * rIn); c.lineTo(cx + Math.cos(a0) * rOut, cy + Math.sin(a0) * rOut); c.stroke();
+  }
+  c.strokeStyle = "#c9a84a"; c.lineWidth = 2; c.beginPath(); c.arc(cx, cy, rOut, 0, 7); c.stroke(); c.beginPath(); c.arc(cx, cy, rIn, 0, 7); c.stroke();
+  // centre cone and spokes
+  const g2 = c.createRadialGradient(cx - rIn * 0.2, cy - rIn * 0.2, 2, cx, cy, rIn);
+  g2.addColorStop(0, "#8a5a2b"); g2.addColorStop(1, "#3d2410"); c.fillStyle = g2; c.beginPath(); c.arc(cx, cy, rIn - 2, 0, 7); c.fill();
+  c.strokeStyle = "#d8b85a"; c.lineWidth = 3; c.lineCap = "round";
+  for (let k = 0; k < 4; k++) { const a = rot * 1 + k * Math.PI / 2; c.beginPath(); c.moveTo(cx + Math.cos(a) * 6, cy + Math.sin(a) * 6); c.lineTo(cx + Math.cos(a) * rIn * 0.45, cy + Math.sin(a) * rIn * 0.45); c.stroke(); }
+  c.fillStyle = "#e6c766"; c.beginPath(); c.arc(cx, cy, 6, 0, 7); c.fill();
+  // marker at the top
+  c.fillStyle = "#f2f2f2"; c.beginPath(); c.moveTo(cx - 7, cy - R - 6); c.lineTo(cx + 7, cy - R - 6); c.lineTo(cx, cy - R + 7); c.closePath(); c.fill();
+  // ball: runs the other way on the outer track, slows down and drops into the pocket under the marker
+  if (m && t > -0.2) {
+    const be = ease(t / (WSPIN - 0.4)), ba = top + (1 - be) * m.bturns * Math.PI * 2;
+    const drop = Math.min(1, Math.max(0, (t - (WSPIN - 1.6)) / 1.2)), br = (R * 0.985) - drop * (R * 0.985 - (rIn + rOut) / 2) * 0.98;
+    const settle = t >= WSPIN - 0.4, bx = cx + Math.cos(settle ? top : ba) * br, by = cy + Math.sin(settle ? top : ba) * br;
+    c.fillStyle = "rgba(0,0,0,.35)"; c.beginPath(); c.arc(bx + 1.5, by + 1.5, 5, 0, 7); c.fill();
+    const bg = c.createRadialGradient(bx - 1.5, by - 1.5, 0.5, bx, by, 5); bg.addColorStop(0, "#fff"); bg.addColorStop(1, "#bfc3c9");
+    c.fillStyle = bg; c.beginPath(); c.arc(bx, by, 5, 0, 7); c.fill();
+  }
+  if (g.state === "race" && t < 0) {
+    c.fillStyle = "rgba(0,0,0,.45)"; c.beginPath(); c.arc(cx, cy, R + 5, 0, 7); c.fill();
+    c.fillStyle = "#fff"; c.font = "bold 46px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(Math.ceil(-t)), cx, cy);
+  }
+  if (lead) {
+    const txt = g.state === "race" ? (t < 0 ? "Zaraz kręcimy…" : t < WSPIN ? "Kulka w ruchu…" : "") : "";
+    if (lead.textContent !== txt) lead.textContent = txt;
+  }
+}
+function horseSheet(type = "horse"){
   const g = G(); const busy = g && g.id && !["done", "declined", "cancel"].includes(g.state) && now() - (+g.at || 0) < 10 * 60000;
-  sheet(`<h2>Wyścig konny</h2>
-    <p>6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Na jednego konia może postawić kilka osób – wtedy dzielą całą pulę po równo. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo.</p>
+  const wheel = type === "wheel";
+  sheet(`<h2>${GAMES[type].name}</h2>
+    <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Kto trafi, dzieli całą pulę po równo z innymi, którzy trafili. Jeśli nikt nie trafi, każdy zabiera swoją stawkę."
+      : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Na jednego konia może postawić kilka osób – wtedy dzielą całą pulę po równo. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
     <div class="field"><label for="hs_s">Stawka od osoby (opcjonalnie)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     ${busy ? `<p style="color:var(--window)">W pokoju trwa gra „${GAMES[g.type].name}”. Nowa gra ją zakończy.</p>` : ""}
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="hs_go">Otwórz zakłady</button></div>
-    <div class="field"><label>Ostatnie wyścigi</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
-    const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === "horse").sort((a, b) => b.at - a.at).slice(0, 5);
+    <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
+    const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
     el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(x.s)}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
-    el.querySelector("#hs_go").onclick = () => { const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame("horse", [], st, {state: "bet"}); };
+    el.querySelector("#hs_go").onclick = () => { const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {state: "bet"}); };
   });
 }
 /* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
-const canRematch = g => amIn(g) || (g.type === "horse" && g.by === deviceId);
+const canRematch = g => amIn(g) || ((g.type === "horse" || g.type === "wheel") && g.by === deviceId);
 function rematch(g){
   const ps = gPlayers(g), stake = g.s || "";
   if (ps.length < 2) { toast("Do rewanżu potrzeba co najmniej dwóch graczy."); return; }
@@ -2415,7 +2534,7 @@ function rematch(g){
     const res = randInt(2) ? "orzel" : "reszka";
     startGame("coin", [me, other], stake, {state: "done", side, res, w: res === side ? deviceId : other.id, ft: {".sv": "timestamp"}});
   }
-  else if (g.type === "horse") { hPick = null; startGame("horse", ps, stake, {state: "bet", b: clone(g.b || {})}); }
+  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {state: "bet", b: clone(g.b || {})}); }
 }
 async function rpsSettle(g){
   const [a, b] = rpsPair(g), rv = g.rv, c = g.c;
@@ -2430,7 +2549,7 @@ async function gameClick(e){
   const b = e.target.closest("[data-gact]"); if (!b || !g) return;
   const act = b.dataset.gact;
   if (act === "rematch") { if (canRematch(g) && g.state === "done") rematch(g); return; }
-  if (g.type === "horse") { horseClick(g, act, b); return; }
+  if (g.type === "horse" || g.type === "wheel") { horseClick(g, act, b); return; }
   if (!amIn(g)) return;
   if (act === "accept" && g.type === "coin") {
     const res = randInt(2) ? "orzel" : "reszka", w = res === g.side ? g.by : deviceId;
@@ -2468,14 +2587,14 @@ async function gameClick(e){
 function gamesMenu(){
   sheet(`<h2>Gry</h2>${online ? "<p>Gry dla osób w twoim pokoju. Grający widzą okno gry, pozostali tylko krótki dymek z wynikiem.</p>" : "<p>Gry działają we wspólnym pokoju. Połącz się w Menu → Wspólny pokój.</p>"}
     <button class="btn primary dbtn" data-game="debts">Rozliczenia – kto komu ile wisi</button>
-    <div class="gamelist"><button class="btn" data-game="roul">Ruletka</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button></div>
+    <div class="gamelist"><button class="btn" data-game="roul">Loteria</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button><button class="btn" data-game="wheel">Ruletka</button></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>`, (el, close) => {
     el.querySelectorAll("[data-game]").forEach(b => b.onclick = () => { close(); b.dataset.game === "roul" ? rouletteSheet() : b.dataset.game === "debts" ? debtsSheet() : gameSheet(b.dataset.game); });
   });
 }
 function gameSheet(type){
   if (!online) { toast("Gry działają we wspólnym pokoju. Połącz się w Menu."); return; }
-  if (type === "horse") return horseSheet();
+  if (type === "horse" || type === "wheel") return horseSheet(type);
   const def = GAMES[type];
   const g = G(); const busy = g && g.id && !["done", "declined", "cancel"].includes(g.state) && now() - (+g.at || 0) < 10 * 60000;
   sheet(`<h2>${def.name}</h2>
