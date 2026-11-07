@@ -1857,12 +1857,15 @@ function onRoulette(initial){
 function roomBusy(fromLottery = false){
   const g = G(), r = remoteRoot && remoteRoot.roulette, t = now();
   const gameOn = g && g.id && !["done", "declined", "cancel"].includes(g.state) && t - (+g.at || 0) < 10 * 60000;
-  const lotOn = r && r.id && (r.wait ? t < +r.auto + 15000 : t - (+r.at || 0) < 9000);
+  const lotOn = r && r.id && (r.wait ? t - (+r.at || 0) < 10 * 60000 : t - (+r.at || 0) < 9000);
   if (gameOn) return `W pokoju trwa już gra „${GAMES[g.type].name}”. Poczekajcie, aż się skończy.`;
   if (lotOn && !fromLottery) return "W pokoju trwa już loteria. Poczekajcie, aż się skończy.";
   return "";
 }
 /* lottery rematch: 10 s for people to leave or join, then the person who asked for it draws (or the next one if they left) */
+/* lottery lobby: people join or leave; the owner clicks "Losuj", then everyone has 10 s to confirm they are ready.
+   Whoever doesn't confirm only watches. If the owner leaves the room or does nothing for 30 s, the next player takes over. */
+function lotWrite(rc){ for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v))); push(rc); }
 function showLotteryWait(){
   clearTimeout(rwaitTimer);
   const r = remoteRoot.roulette;
@@ -1872,37 +1875,56 @@ function showLotteryWait(){
     if (el) el.remove();
     el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox"; el.dataset.wait = r.id;
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Loteria");
-    el.innerHTML = `<div class="ghead" data-drag><h2>Loteria – rewanż</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><div class="wbody"></div>`;
+    el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><div class="wbody"></div>`;
     document.body.appendChild(el); floatPanel(el, "spin");
     el.addEventListener("click", e => {
       if (e.target.closest("[data-spinclose]")) { el.remove(); return; }
       const cur = remoteRoot.roulette; if (!cur || !cur.wait) return;
       const b = e.target.closest("[data-lw]"); if (!b) return;
-      if (b.dataset.lw === "kick") { if (cur.bd !== deviceId && !isAdmin()) return; const k = "roulette/p/" + b.dataset.id; push({[k]: null}); setPath(remoteRoot, k, null); showLotteryWait(); return; }
-      const v = b.dataset.lw === "in" ? myNick().slice(0, 20) : null; if (b.dataset.lw === "in" && !v) return;
-      push({["roulette/p/" + deviceId]: v}); setPath(remoteRoot, "roulette/p/" + deviceId, v); showLotteryWait();
+      const a = b.dataset.lw, own = cur.bd === deviceId;
+      if (a === "kick") { if (!own && !isAdmin()) return; lotWrite({["roulette/p/" + b.dataset.id]: null, ["roulette/ok/" + b.dataset.id]: null}); }
+      else if (a === "start") { if (!own || cur.ready) return; const n = Object.keys(cur.p || {}).length; if (n < 2) { toast("Potrzeba co najmniej dwóch graczy."); return; }
+        lotWrite({"roulette/ready": true, "roulette/ok": {[deviceId]: true}, "roulette/okd": Math.round(now()) + 10000}); }
+      else if (a === "ok") { if (cur.ready && cur.p && cur.p[deviceId]) lotWrite({["roulette/ok/" + deviceId]: true}); }
+      else if (a === "cancel") { if (own) { lotWrite({roulette: null}); el.remove(); } return; }
+      else if (a === "in") { if (cur.ready || !myNick()) return; lotWrite({["roulette/p/" + deviceId]: myNick().slice(0, 20)}); }
+      else if (a === "out") { lotWrite({["roulette/p/" + deviceId]: null, ["roulette/ok/" + deviceId]: null}); }
+      showLotteryWait();
     });
   }
-  const hereNow = presentSet();
-  const ps = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).filter(p => hereNow.has(p.id) || p.id === deviceId).sort((a, b) => a.n.localeCompare(b.n, "pl"));
-  const left = Math.max(0, Math.ceil((+r.auto - now()) / 1000)), mine = !!(r.p && r.p[deviceId]);
-  const kickable = r.bd === deviceId || isAdmin();
-  const html = `<p>Stawka <b>${esc(r.s)}</b> · ${ps.length} graczy · pula <b>${esc(poolText(r.s, ps.length))}</b></p>
-    <p class="autoline">Losowanie za <b>${left} s</b> – możesz się wypisać albo dołączyć</p>
-    <div class="spinnames">${ps.map(p => `<span class="spn">${esc(p.n)}${p.id === deviceId ? " (ty)" : ""}${kickable && p.id !== deviceId ? `<button class="kick" data-lw="kick" data-id="${esc(p.id)}" aria-label="Usuń z gry">✕</button>` : ""}</span>`).join("")}</div>
-    <div class="acts" style="justify-content:center">${mine ? '<button class="btn" data-lw="out">Wypisz się</button>' : '<button class="btn primary" data-lw="in">Dołącz</button>'}</div>`;
-  const body = el.querySelector(".wbody"); if (body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
-  // time is up: the one who asked for the rematch draws; if they are gone, the present player with the lowest id does
-  if (now() >= +r.auto) {
-    const here = new Set(people().map(p => p.id));
-    const drawer = r.bd === deviceId || (now() > +r.auto + 3000 && !here.has(r.bd) && Object.keys(r.p || {}).filter(id => here.has(id)).sort()[0] === deviceId);
-    if (drawer && !r._going) {
-      r._going = true;
-      if (ps.length < 2) { push({roulette: null}); setPath(remoteRoot, "roulette", null); el.remove(); toast("Za mało graczy – losowanie odwołane."); return; }
-      el.remove(); spinRoulette(ps, r.s); return;
-    }
+  const hereNow = presentSet(), t = now();
+  const ps = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
+  const mine = !!(r.p && r.p[deviceId]), own = r.bd === deviceId, kickable = own || isAdmin(), ok = r.ok || {};
+  const names = ps.map(p => `<span class="spn${r.ready && ok[p.id] ? " win" : ""}">${r.ready ? (ok[p.id] ? "✓ " : "… ") : ""}${esc(p.n)}${p.id === deviceId ? " (ty)" : ""}${hereNow.has(p.id) ? "" : " – nieaktywny"}${kickable && p.id !== deviceId ? `<button class="kick" data-lw="kick" data-id="${esc(p.id)}" aria-label="Usuń z gry">✕</button>` : ""}</span>`).join("");
+  let html = `<p>Stawka <b>${esc(r.s)}</b> · ${ps.length} graczy · pula <b>${esc(poolText(r.s, ps.length))}</b> · prowadzi ${esc(r.by || "?")}</p>`;
+  if (r.ready) {
+    const left = Math.max(0, Math.ceil((+r.okd - t) / 1000));
+    html += `<p class="autoline">Potwierdźcie gotowość: <b>${left} s</b>. Kto nie potwierdzi, tylko ogląda.</p><div class="spinnames">${names}</div>`
+      + (mine && !ok[deviceId] ? `<button class="btn primary dicebtn" data-lw="ok">Gotowy!</button>` : mine ? `<p class="spinres">Czekam na pozostałych…</p>` : "");
+  } else {
+    const dl = (+r.os || +r.at || 0) + START_WAIT, left = Math.max(0, Math.ceil((dl - t) / 1000));
+    html += `<div class="spinnames">${names || '<span class="pme">Nikt jeszcze nie dołączył.</span>'}</div>
+      <div class="acts" style="justify-content:center">${mine ? '<button class="btn" data-lw="out">Wypisz się</button>' : '<button class="btn" data-lw="in">Dołącz</button>'}
+      ${own ? `<button class="btn" data-lw="cancel">Odwołaj</button><button class="btn primary" data-lw="start"${ps.length < 2 ? " disabled" : ""}>Losuj</button>` : ""}</div>`
+      + (ps.length >= 2 ? `<p class="pme">${own ? `Kliknij Losuj w ciągu ${left} s – potem losowanie przejmie ktoś inny.` : `Jeśli ${esc(r.by || "")} nie kliknie Losuj w ciągu ${left} s, przejmie to ktoś inny.`}</p>` : "");
   }
-  rwaitTimer = setTimeout(showLotteryWait, 250);
+  const body = el.querySelector(".wbody"); if (body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
+  // who runs it: the owner while in the room; otherwise (or after 30 s idle) the present player with the lowest id
+  const ownerHere = hereNow.has(r.bd), cands = ps.map(p => p.id).filter(id => hereNow.has(id) && id !== r.bd).sort();
+  if (!r.ready && cands[0] === deviceId && ps.length >= 2 && (!ownerHere || t > (+r.os || +r.at || 0) + START_WAIT) && !r._took) {
+    r._took = true; lotWrite({"roulette/bd": deviceId, "roulette/by": myNick().slice(0, 20), "roulette/os": {".sv": "timestamp"}}); toast("Przejmujesz loterię – kliknij Losuj, gdy będziecie gotowi.", 4000);
+  }
+  const runner = ownerHere ? r.bd === deviceId : cands[0] === deviceId;
+  if (r.ready && runner && !r._going && (ps.every(p => ok[p.id]) || t >= +r.okd)) {
+    r._going = true;
+    const readyPs = ps.filter(p => ok[p.id] && hereNow.has(p.id));
+    if (readyPs.length < 2) {
+      const rc = {"roulette/ready": null, "roulette/ok": null, "roulette/okd": null, "roulette/os": {".sv": "timestamp"}};
+      for (const p of ps) if (!ok[p.id]) rc["roulette/p/" + p.id] = null;
+      lotWrite(rc); toast("Za mało gotowych graczy – loteria czeka na start.");
+    } else { el.remove(); spinRoulette(readyPs, r.s); return; }
+  }
+  rwaitTimer = setTimeout(showLotteryWait, 300);
 }
 function showSpin(r, age){
   const players = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
@@ -1935,8 +1957,7 @@ function showSpin(r, age){
       el.querySelector("[data-rematch]").onclick = () => {
         if (roomBusy(true)) { toast(roomBusy(true)); return; }
         const hereNow = presentSet(), keep = r.bd && hereNow.has(r.bd);          // the lottery stays with the person who started it
-        const w = {id: hkey(), by: keep ? String(r.by).slice(0, 20) : myNick().slice(0, 20), bd: keep ? r.bd : deviceId, s: String(r.s).slice(0, 30), p: Object.fromEntries(players.filter(p => hereNow.has(p.id)).map(p => [p.id, p.n.slice(0, 20)])), wait: true, auto: Math.round(now()) + 10000, at: {".sv": "timestamp"}};
-        push({roulette: w}); setPath(remoteRoot, "roulette", {...w, at: Math.round(now())}); onRoulette(false);
+        openLottery(players.filter(p => hereNow.has(p.id)), r.s, keep ? r.bd : deviceId, keep ? r.by : myNick());
       };
     }
   };
@@ -1947,6 +1968,10 @@ function showSpin(r, age){
     spinTimer = setTimeout(() => { i++; step(); }, delays[i]);
   };
   if (age > t + 6000) { i = total; finish(); } else step();
+}
+function openLottery(ps, stake, ownerId, ownerNick){
+  const w = {id: hkey(), by: String(ownerNick).slice(0, 20), bd: ownerId, s: String(stake).slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, String(p.n).slice(0, 20)])), wait: true, at: {".sv": "timestamp"}};
+  lotWrite({roulette: w}); lastSpin = null; onRoulette(false);
 }
 function spinRoulette(ps, stake){
   const w = ps[randInt(ps.length)], id = hkey();
@@ -1985,7 +2010,7 @@ function rouletteSheet(){
       if (!stake) { err.textContent = "Wpisz stawkę."; err.hidden = false; return; }
       if (ps.length < 2) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       store.set("rlStake", stake);
-      close(); spinRoulette(ps, stake);
+      close(); openLottery(ps, stake, deviceId, myNick());
     };
   });
 }
@@ -2109,11 +2134,11 @@ const dsum = d => (+d[0] || 0) + (+d[1] || 0);
 /* work that must happen even with the game window closed: the starter settles results, players open their RPS choice */
 let settling = null;
 async function gameTick(){
-  const g = G(); if (!online || !g || !g.id || !(amIn(g) || g.by === deviceId)) return;
+  const g = G(); if (!online || !g || !g.id || !(amIn(g) || g.by === deviceId || g.state === "ready")) return;
   const ps = gPlayers(g), host = g.by === deviceId;
-  if ((g.type === "horse" || g.type === "wheel") && !host) poolHandover(g);
+  if (!host) poolHandover(g);
   dropAbsent(g);
-  if (g.state === "wait") waitTick(g);
+  readyTick(g);
   if (g.type === "horse" && host) horseTick(g);
   if (g.type === "wheel" && host) wheelTick(g);
   if (g.type === "dice" && g.state === "play" && host) {
@@ -2153,7 +2178,7 @@ function settleGuess(g){
   gamePatch({"game/t": t, "game/w": tied[randInt(tied.length)].id, "game/state": "done"});
 }
 
-let GAME_VIEW_WAIT = null;
+let GAME_VIEW_WAIT = null, GAME_VIEW_READY = null;
 let gameShown = null, gameTimer = null, reflexLocal = null;
 function onGame(initial){
   const g = G();
@@ -2187,7 +2212,7 @@ function renderGame(){
     gameShown = g.id;
   }
   const body = el.querySelector(".gbody");
-  let html = g.state === "wait" ? GAME_VIEW_WAIT(g) : GAME_VIEW[g.type](g);
+  let html = g.state === "wait" ? GAME_VIEW_WAIT(g) : g.state === "ready" ? GAME_VIEW_READY(g) : GAME_VIEW[g.type](g);
   if (g.state === "done" && canRematch(g) && !(g.type === "rps" && g.w === "draw")) html += `<div class="acts" style="justify-content:center"><button class="btn primary" data-gact="rematch">Rewanż</button></div>`;
   if (body.dataset.html !== html) {
     // someone else's move re-draws the window: keep what this person is typing
@@ -2324,38 +2349,60 @@ function poolStart(){
   const a = new Uint32Array(1); crypto.getRandomValues(a);
   gamePatch({"game/state": "race", "game/seed": a[0] % 2147483647, "game/go": Math.round(now()) + 3500, "game/auto": null});
 }
-// rematch of a pooled bet: 10 s for everyone to change or withdraw their bet, then it starts by itself
-function poolAuto(g){
-  if (g.state !== "bet" || !g.auto || now() < +g.auto) return;
-  if (horseBets(g).length >= 2) poolStart(); else gamePatch({"game/auto": null});   // too few bets left: wait for the starter
-}
 /* if the person who opened the bets does not start within 30 s (or a rematch's countdown is over and nothing
    happened), the start passes to another bettor who is in the room: the one with the lowest id, the same choice
    on every screen. That person gets the start button; 30 s later it can move on again. */
 const START_WAIT = 30000;
-const poolDeadline = g => g.auto ? +g.auto + 3000 : (+g.os || +g.at || 0) + START_WAIT;
+const isPool = g => g.type === "horse" || g.type === "wheel";
+const lobbyIds = g => isPool(g) ? horseBets(g).map(b => b.id) : Object.keys(g.p || {});
+const poolDeadline = g => (+g.os || +g.at || 0) + START_WAIT;
+// the owner left the room, or did not start for 30 s: the present player with the lowest id takes over
 function poolHandover(g){
-  if (g.state !== "bet" || horseBets(g).length < 2 || now() < poolDeadline(g)) return;
-  const here = new Set(people().map(p => p.id));
-  const next = horseBets(g).map(b => b.id).filter(id => id !== g.by && here.has(id)).sort()[0];
+  if (!(g.state === "bet" || g.state === "wait")) return;
+  const hereNow = presentSet(), ids = lobbyIds(g);
+  if (ids.length < 2 && hereNow.has(g.by)) return;
+  if (hereNow.has(g.by) && now() < poolDeadline(g)) return;
+  const next = ids.filter(id => id !== g.by && hereNow.has(id)).sort()[0];
   if (next !== deviceId) return;
-  gamePatch({"game/by": deviceId, "game/byn": myNick().slice(0, 20), "game/os": {".sv": "timestamp"}, "game/auto": null});
+  gamePatch({"game/by": deviceId, "game/byn": myNick().slice(0, 20), "game/os": {".sv": "timestamp"}});
   toast("Przejmujesz start gry – kliknij Start, gdy będziecie gotowi.", 4000);
 }
 const ownerLine = g => {
-  if (g.state !== "bet" || g.auto || horseBets(g).length < 2) return "";
+  if (!(g.state === "bet" || g.state === "wait") || lobbyIds(g).length < 2) return "";
   const left = Math.max(0, Math.ceil((poolDeadline(g) - now()) / 1000));
   clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 500);
   return g.by === deviceId ? `<p class="pme">Wystartuj w ciągu ${left} s – potem start przejmie ktoś inny.</p>` : `<p class="pme">Jeśli ${esc(g.byn || "")} nie wystartuje w ciągu ${left} s, start przejmie ktoś inny.</p>`;
 };
-const autoLine = g => {
-  if (!g.auto) return "";
-  const left = Math.max(0, Math.ceil((+g.auto - now()) / 1000));
+const autoLine = () => "";
+/* ready check: the owner clicked Start; everyone in the game has 10 s to confirm. Whoever doesn't, only watches. */
+function readyStart(g){
+  if (lobbyIds(g).length < 2) { toast("Potrzeba co najmniej dwóch graczy."); return; }
+  gamePatch({"game/state": "ready", "game/back": g.state, "game/ok": {[deviceId]: true}, "game/okd": Math.round(now()) + 10000});
+}
+function readyTick(g){
+  if (g.state !== "ready") return;
+  const hereNow = presentSet(), ids = lobbyIds(g), ok = g.ok || {};
+  const runner = hereNow.has(g.by) ? g.by === deviceId : ids.filter(id => hereNow.has(id)).sort()[0] === deviceId;
+  if (!runner || !(ids.every(id => ok[id]) || now() >= +g.okd)) return;
+  const keep = ids.filter(id => ok[id] && hereNow.has(id)), rc = {"game/ok": null, "game/okd": null, "game/back": null};
+  for (const id of ids) if (!keep.includes(id)) { rc[`game/p/${id}`] = null; if (g.b && g.b[id]) rc[`game/b/${id}`] = null; }
+  if (keep.length < 2 || (GAMES[g.type].duel && keep.length < 2)) {
+    gamePatch({...rc, "game/state": g.back === "bet" || isPool(g) ? "bet" : "wait", "game/os": {".sv": "timestamp"}});
+    toast("Za mało gotowych graczy – gra czeka na start."); return;
+  }
+  if (isPool(g)) { const a = new Uint32Array(1); crypto.getRandomValues(a); gamePatch({...rc, "game/by": deviceId, "game/state": "race", "game/seed": a[0] % 2147483647, "game/go": Math.round(now()) + 3500}); return; }
+  beginRematch({...g, p: Object.fromEntries(keep.map(id => [id, g.p[id]]))}, rc);
+}
+GAME_VIEW_READY = g => {
+  const ids = lobbyIds(g), ok = g.ok || {}, left = Math.max(0, Math.ceil((+g.okd - now()) / 1000)), mine = ids.includes(deviceId);
   clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 250);
-  return `<p class="autoline">Rewanż: start za <b>${left} s</b> – możesz zmienić albo wycofać zakład</p>`;
+  const label = id => isPool(g) && g.b && g.b[id] ? (g.type === "horse" ? hname(+g.b[id].h) : WCOL[+g.b[id].h].n.toLowerCase()) + " · " : "";
+  return (isPool(g) ? `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · ` : ""}prowadzi ${esc(g.byn || "?")}</p>` : stakeLine(g))
+    + `<p class="autoline">Potwierdźcie gotowość: <b>${left} s</b>. Kto nie potwierdzi, tylko ogląda.</p>`
+    + ids.map(id => `<div class="gline"><span>${esc((g.p && g.p[id]) || (g.b && g.b[id] && g.b[id].n) || "?")}${id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span><b>${label(id)}${ok[id] ? '<span class="pos">gotowy ✓</span>' : '<span class="pme">czeka…</span>'}</b></div>`).join("")
+    + (mine && !ok[deviceId] ? `<button class="btn primary dicebtn" data-gact="rdy">Gotowy!</button>` : mine ? `<p class="spinres">Czekam na pozostałych…</p>` : `<p class="pme">Oglądasz tę grę.</p>`);
 };
 function horseTick(g){
-  poolAuto(g);
   if (g.state === "race" && g.seed) {
     const m = raceModel(+g.seed);
     if (now() > +g.go + (m.horses[m.wh - 1].T + 1.2) * 1000) {
@@ -2383,8 +2430,7 @@ function horseClick(g, act, b){
   if (act === "hstart") {
     if (g.state !== "bet") return;
     if (horseBets(g).length < 2) { toast(`Do ${g.type === "wheel" ? "losowania" : "wyścigu"} potrzeba co najmniej dwóch zakładów.`); return; }
-    if (g.auto && now() < +g.auto) { toast("Poczekaj do końca odliczania – inni mogą jeszcze zmienić zakład."); return; }
-    poolStart();
+    readyStart(g);
   }
   if (act === "hcancel") gamePatch({"game/state": "cancel"});
 }
@@ -2401,7 +2447,7 @@ GAME_VIEW.horse = g => {
 ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
       ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b>${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
-      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 || g.auto ? " disabled" : ""}>${g.auto ? "Start po odliczaniu" : "Start wyścigu"}</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
+      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Start wyścigu</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);   // equal stakes: the winners split the pool evenly
@@ -2550,7 +2596,6 @@ function wheelModel(seed){
   return {pocket, wh: pocketColor(pocket), turns, bturns};
 }
 function wheelTick(g){
-  poolAuto(g);
   if (g.state === "race" && g.seed && now() > +g.go + (WSPIN + 1) * 1000) {
     const m = wheelModel(+g.seed), {winners, pool} = horsePayout(g, m.wh);
     gamePatch({"game/state": "done", "game/wh": m.wh, "game/w": winners.length ? winners[0].id : "none"});
@@ -2569,7 +2614,7 @@ GAME_VIEW.wheel = g => {
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
       ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === deviceId ? " me" : ""}" style="--hc:${b.h === 2 ? "#9aa0ad" : WCOL[b.h].c}"><i class="hdot"></i>${esc(b.n)}${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
-      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 || g.auto ? " disabled" : ""}>${g.auto ? "Kręci po odliczaniu" : "Zakręć"}</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
+      ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Zakręć</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);
@@ -2685,11 +2730,11 @@ function rematch(g){
   const owner = hereNow.has(g.by) && (!GAMES[g.type].duel || ps.some(p => p.id === g.by)) ? {by: g.by, byn: g.byn} : {};
   if (g.type !== "horse" && g.type !== "wheel") {
     // 10 s for everyone to leave (or, in group games, join) before the rematch starts by itself
-    const extra = {state: "wait", auto: Math.round(now()) + 10000, ...owner};
+    const extra = {state: "wait", ...owner};
     if (g.type === "coin") extra.oz = g.side === "orzel" ? g.by : ps.find(p => p.id !== g.by).id;   // who has "orzeł"
     startGame(g.type, ps, stake, extra);
   }
-  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {...owner, state: "bet", b: Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), auto: Math.round(now()) + 10000, ...(g.type === "horse" ? {lanes: shuffleLanes()} : {})}); }
+  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {...owner, state: "bet", b: Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), ...(g.type === "horse" ? {lanes: shuffleLanes()} : {})}); }
 }
 /* people who closed the page are dropped: absent players are not copied into a rematch, and while bets are open
    or a rematch is waiting, the person running the game removes anyone who is no longer in the room.
@@ -2708,10 +2753,10 @@ function dropAbsent(g){
   gamePatch(rc);
 }
 // the waiting room is over: whoever runs it (the starter, or the next player if the starter is gone) starts the game
-function beginRematch(g){
+function beginRematch(g, extra = {}){
   const ps = gPlayers(g), me = deviceId;
-  if (ps.length < 2 || (GAMES[g.type].duel && !g.p[me])) { gamePatch({"game/state": "cancel", "game/auto": null}); return; }
-  const base = {"game/auto": null, "game/by": me, "game/byn": myNick().slice(0, 20), "game/at": {".sv": "timestamp"}, "game/logged": null};
+  if (ps.length < 2 || (GAMES[g.type].duel && !g.p[me])) { gamePatch({...extra, "game/state": "cancel"}); return; }
+  const base = {...extra, "game/by": me, "game/byn": myNick().slice(0, 20), "game/at": {".sv": "timestamp"}, "game/logged": null};
   if (g.type === "dice") gamePatch({...base, "game/state": "play", "game/rd": 0});
   else if (g.type === "reflex") gamePatch({...base, "game/state": "play", "game/go": Math.round(now()) + 4000 + randInt(4000)});
   else if (g.type === "guess") { secrets[g.id] = {t: randInt(100) + 1}; store.set("gsec", secrets); gamePatch({...base, "game/state": "play"}); }
@@ -2721,23 +2766,13 @@ function beginRematch(g){
     gamePatch({...base, "game/state": "done", "game/side": side, "game/res": res, "game/w": res === side ? me : other, "game/ft": {".sv": "timestamp"}, "game/oz": null});
   }
 }
-function waitTick(g){
-  if (g.state !== "wait" || !g.auto || now() < +g.auto) return;
-  const ownerOk = here(g.by) && (!GAMES[g.type].duel || g.p[g.by]);
-  if (g.by === deviceId && ownerOk) return beginRematch(g);
-  // the owner left the room (or a duel): the present player with the lowest id takes over
-  if (ownerOk && now() < +g.auto + 3000) return;
-  const here = new Set(people().map(p => p.id));
-  const next = Object.keys(g.p || {}).filter(id => here.has(id) && id !== g.by).sort()[0];
-  if (next === deviceId) beginRematch(g);
-}
 GAME_VIEW_WAIT = g => {
-  const ps = gPlayers(g), left = Math.max(0, Math.ceil((+g.auto - now()) / 1000)), duel = GAMES[g.type].duel;
-  clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 250);
-  const btn = amIn(g) ? `<button class="btn" data-gact="wout">Wypisz się</button>` : duel ? "" : `<button class="btn primary" data-gact="win">Dołącz</button>`;
-  return stakeLine(g) + `<p class="autoline">Rewanż: start za <b>${left} s</b> – możesz się jeszcze wypisać${duel ? "" : " albo dołączyć"}</p>`
+  const ps = gPlayers(g), duel = GAMES[g.type].duel, own = g.by === deviceId;
+  const btn = (amIn(g) ? `<button class="btn" data-gact="wout">Wypisz się</button>` : duel ? "" : `<button class="btn" data-gact="win">Dołącz</button>`)
+    + (own ? `<button class="btn" data-gact="cancel">Odwołaj</button><button class="btn primary" data-gact="lstart"${ps.length < 2 ? " disabled" : ""}>Start</button>` : "");
+  return stakeLine(g) + `<p>${own ? "Gdy wszyscy będą na miejscu, kliknij Start – gracze potwierdzą gotowość." : `Grę wystartuje ${esc(g.byn || "")}, potem potwierdzisz gotowość.`}${duel ? "" : " Można dołączyć albo się wypisać."}</p>`
     + ps.map(p => `<div class="gline"><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span><b>${here(p.id) ? "gra" : '<span class="neg">nieaktywny</span>'}${kickBtn(g, p.id, "wkick")}</b></div>`).join("")
-    + (btn ? `<div class="acts" style="justify-content:center">${btn}</div>` : "");
+    + (btn ? `<div class="acts" style="justify-content:center">${btn}</div>` : "") + ownerLine(g);
 };
 async function rpsSettle(g){
   const [a, b] = rpsPair(g), rv = g.rv, c = g.c;
@@ -2754,8 +2789,14 @@ async function gameClick(e){
   const b = e.target.closest("[data-gact]"); if (!b || !g) return;
   const act = b.dataset.gact;
   if (act === "rematch") { if (canRematch(g) && g.state === "done") rematch(g); return; }
+  if (g.state === "ready") {
+    if (act === "rdy" && lobbyIds(g).includes(deviceId)) gamePatch({[`game/ok/${deviceId}`]: true});
+    return;
+  }
   if (g.type === "horse" || g.type === "wheel") { horseClick(g, act, b); return; }
   if (g.state === "wait") {
+    if (act === "lstart" && g.by === deviceId) readyStart(g);
+    if (act === "cancel" && g.by === deviceId) gamePatch({"game/state": "cancel"});
     if (act === "wout" && amIn(g)) gamePatch({[`game/p/${deviceId}`]: null});
     if (act === "wkick" && canKick(g)) gamePatch({[`game/p/${b.dataset.id}`]: null});
     if (act === "win" && !amIn(g) && !GAMES[g.type].duel && myNick()) gamePatch({[`game/p/${deviceId}`]: myNick().slice(0, 20)});
@@ -2850,9 +2891,7 @@ function gameSheet(type){
       const ps = all.filter(p => !skip.has(p.id));
       if (ps.length < def.min) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       close();
-      if (type === "dice") startGame("dice", ps, stake, {state: "play", rd: 0});
-      else if (type === "reflex") startGame("reflex", ps, stake, {state: "play", go: Math.round(now()) + 4000 + randInt(4000)});
-      else if (type === "guess") { const id = hkey(); secrets[id] = {t: randInt(100) + 1}; startGame("guess", ps, stake, {state: "play"}, id); }
+      startGame(type, ps, stake, {state: "wait"});          // lobby: the owner starts, everyone confirms they are ready
     };
   });
 }

@@ -208,6 +208,20 @@
           "bd": {
             ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
           },
+          "ready": {
+            ".validate": "newData.isBoolean()"
+          },
+          "ok": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.val() === true"
+            }
+          },
+          "okd": {
+            ".validate": "newData.isNumber()"
+          },
+          "os": {
+            ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+          },
           "$other": {
             ".validate": false
           }
@@ -258,7 +272,7 @@
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
           "state": {
-            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|bet|race|wait|done|declined|cancel)$/)"
+            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|bet|race|wait|ready|done|declined|cancel)$/)"
           },
           "w": {
             ".validate": "newData.isString() && newData.val().length <= 24"
@@ -369,6 +383,17 @@
           },
           "oz": {
             ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
+          },
+          "ok": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.val() === true"
+            }
+          },
+          "okd": {
+            ".validate": "newData.isNumber()"
+          },
+          "back": {
+            ".validate": "newData.isString() && newData.val().length <= 10"
           },
           "$other": {
             ".validate": false
