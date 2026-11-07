@@ -224,12 +224,12 @@
           }
         },
         "game": {
-          ".validate": "newData.hasChildren(['id', 'type', 'by', 'p', 'at', 'state'])",
+          ".validate": "newData.hasChildren(['id', 'type', 'by', 'at', 'state'])",
           "id": {
             ".validate": "newData.isString() && newData.val().length <= 40"
           },
           "type": {
-            ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps)$/)"
+            ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps|horse)$/)"
           },
           "by": {
             ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
@@ -249,7 +249,7 @@
             ".validate": "newData.isNumber() && newData.val() <= now + 60000"
           },
           "state": {
-            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|done|declined|cancel)$/)"
+            ".validate": "newData.isString() && newData.val().matches(/^(invite|play|bet|race|done|declined|cancel)$/)"
           },
           "w": {
             ".validate": "newData.isString() && newData.val().length <= 24"
@@ -326,6 +326,29 @@
               }
             }
           },
+          "seed": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() < 4294967296"
+          },
+          "wh": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6"
+          },
+          "b": {
+            "$id": {
+              ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['h', 'a', 'n'])",
+              "h": {
+                ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6"
+              },
+              "a": {
+                ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 100000"
+              },
+              "n": {
+                ".validate": "newData.isString() && newData.val().length <= 20"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          },
           "$other": {
             ".validate": false
           }
@@ -334,7 +357,7 @@
           "$k": {
             ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['type', 'n', 'w', 'at'])",
             "type": {
-              ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps)$/)"
+              ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps|horse)$/)"
             },
             "s": {
               ".validate": "newData.isString() && newData.val().length <= 30"
