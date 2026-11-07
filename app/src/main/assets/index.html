@@ -64,6 +64,9 @@ header{grid-template-columns:minmax(0,1fr)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
 .gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:19;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
+.gresize{position:absolute;right:0;bottom:0;width:22px;height:22px;padding:0;border:0;background:none;cursor:nwse-resize;touch-action:none;z-index:2}
+.gresize::before{content:"";position:absolute;right:4px;bottom:4px;width:10px;height:10px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);border-radius:0 0 3px 0;opacity:.8}
+.gresize:hover::before{border-color:var(--fg)}
 .gfloat.moving{opacity:.9;box-shadow:0 16px 40px rgba(0,0,0,.7)}
 .gfloat p{margin:0;color:var(--muted);font-size:15px}
 .ghead{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:8px;margin:0 -14px;padding:8px 8px 8px 14px;background:var(--surface-2);border-bottom:1px solid var(--rule);cursor:move;touch-action:none;user-select:none}
@@ -1714,7 +1717,36 @@ setInterval(() => { if (online && radioOn && ytReady) syncRadio(false); }, 5000)
    rooms/<room>/roulette = {id, by, s: stake, p: {deviceId: nick}, w: winnerId, at}. The person who spins draws the
    winner with crypto randomness; everyone in the room sees the same animation and result. rlog keeps recent results. */
 /* game and roulette windows float over the page without blocking it: drag them by the title bar, the spot is remembered */
-function floatPanel(el){
+function floatPanel(el, key){
+  // resize: drag the corner (double-click / double-tap it to go back to the default size); the size is remembered per game
+  if (key) {
+    const sizes = store.get("gsize", {}) || {}, minW = 280;
+    const apply = w => { el.style.width = w ? Math.round(Math.min(Math.max(minW, w), innerWidth - 12)) + "px" : ""; };
+    apply(sizes[key]);
+    // whenever the window changes size (the race track grows a moment later): not taller than the screen, bottom edge on screen
+    if (window.ResizeObserver) new ResizeObserver(() => {
+      if (!el.isConnected) return;
+      if (el.scrollHeight > innerHeight - 12 && el.style.width) { apply(el.getBoundingClientRect().width - 40); return; }
+      const q = el.getBoundingClientRect(); if (q.bottom > innerHeight - 6) { el.style.top = Math.max(6, innerHeight - 6 - q.height) + "px"; el.style.bottom = "auto"; }
+    }).observe(el);
+    const grip = document.createElement("button"); grip.className = "gresize"; grip.type = "button"; grip.title = "Przeciągnij, żeby powiększyć lub zmniejszyć · dwuklik: domyślny rozmiar"; grip.setAttribute("aria-label", "Zmień rozmiar okna");
+    el.appendChild(grip);
+    grip.addEventListener("pointerdown", e => {
+      e.preventDefault(); e.stopPropagation();
+      const r = el.getBoundingClientRect(); el.style.left = r.left + "px"; el.style.top = r.top + "px"; el.style.right = "auto"; el.style.bottom = "auto";
+      const x0 = e.clientX, w0 = r.width; grip.setPointerCapture(e.pointerId); el.classList.add("moving");
+      let last = w0;
+      const move = ev => {
+        apply(Math.min(w0 + ev.clientX - x0, innerWidth - r.left - 6));
+        // never taller than the screen; keep the bottom edge (and this corner) on screen
+        if (el.scrollHeight > innerHeight - 12) { apply(last); return; }
+        last = el.getBoundingClientRect().width;
+      };
+      const up = () => { grip.removeEventListener("pointermove", move); el.classList.remove("moving"); const s2 = store.get("gsize", {}) || {}; s2[key] = Math.round(el.getBoundingClientRect().width); store.set("gsize", s2); const q = el.getBoundingClientRect(); store.set("gpos", {x: Math.round(q.left), y: Math.round(q.top)}); };
+      grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up, {once: true}); grip.addEventListener("pointercancel", up, {once: true});
+    });
+    grip.addEventListener("dblclick", () => { const s2 = store.get("gsize", {}) || {}; delete s2[key]; store.set("gsize", s2); apply(0); });
+  }
   const clamp = () => {
     const r = el.getBoundingClientRect(), W = innerWidth, Hh = innerHeight;
     const x = Math.min(Math.max(6, r.left), Math.max(6, W - r.width - 6)), y = Math.min(Math.max(6, r.top), Math.max(6, Hh - Math.min(r.height, Hh - 12) - 6));
@@ -1762,7 +1794,7 @@ function showSpin(r, age){
     <p class="spinres" aria-live="polite">Losowanie…</p>
 `;
   document.body.appendChild(el);
-  floatPanel(el);
+  floatPanel(el, "spin");
   el.addEventListener("click", e => { if (e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); el.remove(); } });
   const names = el.querySelectorAll(".spn"), res = el.querySelector(".spinres");
   // the highlight walks round the names, slowing down, and stops on the winner (same steps for everyone)
@@ -2013,7 +2045,7 @@ function renderGame(){
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", GAMES[g.type].name);
     el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${amIn(g) || g.type === "horse" ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
     document.body.appendChild(el);
-    floatPanel(el); hPick = null;
+    floatPanel(el, g.type); hPick = null;
     el.addEventListener("click", gameClick);
     el.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "h_amt") el.querySelector('[data-gact="hbet"]')?.click(); if (e.key === "Enter" && e.target.id === "g_num") el.querySelector('[data-gact="guess"]')?.click(); });
     gameShown = g.id;
@@ -2255,9 +2287,11 @@ function drawHorse(c, x, y, coat, silk, phase, running){
 }
 function drawRace(cv, g, lead){
   const lane = 24, stand = 18, railH = 4, skew = 0, stripe = 7;   // start and finish are straight: every horse runs the same distance
-  const cssW = cv.clientWidth || 300, cssH = stand + railH + lane * 6 + 8, dpr = Math.min(2, devicePixelRatio || 1);
-  if (cv.width !== Math.round(cssW * dpr) || cv.height !== Math.round(cssH * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.height = cssH + "px"; }
-  const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, cssW, cssH);
+  // a wider window draws everything bigger (k), a narrower one keeps the size and shortens the track
+  const realW = cv.clientWidth || 300, k = Math.max(1, realW / 490), cssW = realW / k, cssH = stand + railH + lane * 6 + 8, dpr = Math.min(2, devicePixelRatio || 1);
+  const pw = Math.round(realW * dpr), ph = Math.round(cssH * k * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv.style.height = Math.round(cssH * k) + "px"; }
+  const c = cv.getContext("2d"); c.setTransform(dpr * k, 0, 0, dpr * k, 0, 0); c.clearRect(0, 0, cssW, cssH);
   const top = stand + railH, sx = i => 44 + (5 - i) * skew, fx = i => cssW - 48 - i * skew, laneY = i => top + i * lane;
   const m = g.seed ? raceModel(+g.seed) : null, t = m ? (now() - +g.go) / 1000 : 0;
   const tt = g.state === "done" && m ? Math.max(t, m.horses[g.wh - 1].T) : t;
