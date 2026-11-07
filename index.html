@@ -1099,6 +1099,8 @@ function menuSheet(){
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+    <div class="field"><label>Gry innych osób w pokoju</label><div class="seg"><button data-sg="1" aria-pressed="${settings.showGames !== false}">Pokazuj</button><button data-sg="0" aria-pressed="${settings.showGames === false}">Nie pokazuj</button></div>
+      <p class="pme" style="font-size:13px;margin:0">Gry, w których grasz albo które prowadzisz, zawsze się pokazują.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
@@ -1148,6 +1150,12 @@ function menuSheet(){
       store.set("settings", settings); b.setAttribute("aria-pressed", !hide);
       if (!had && showMine()) { tab = "mine"; view = "maps"; saveTab(); }
       render();
+    });
+    el.querySelectorAll("[data-sg]").forEach(b => b.onclick = () => {
+      settings.showGames = b.dataset.sg === "1"; store.set("settings", settings);
+      el.querySelectorAll("[data-sg]").forEach(x => x.setAttribute("aria-pressed", x === b));
+      if (!settings.showGames) { const g = G(); if (g && !mineGame(g)) closeGame(); const sp = document.getElementById("spin"), r = remoteRoot.roulette; if (sp && !(r && mineLot(r))) sp.remove(); }
+      else { gameShown = null; renderGame(); }
     });
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
     el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
@@ -1847,8 +1855,13 @@ function poolText(stake, n){
   return out + m[2].toLowerCase();
 }
 let rwaitTimer = null;
+// "don't show other people's games": the window only opens if this person plays, runs it, or asked to see it
+let gameForce = null, lotForce = null;
+const mineGame = g => amIn(g) || g.by === deviceId || (g.b && g.b[deviceId]);
+const mineLot = r => (r.p && r.p[deviceId]) || r.bd === deviceId;
 function onRoulette(initial){
   const r = remoteRoot.roulette;
+  if (r && settings.showGames === false && !mineLot(r) && lotForce !== r.id) { const sp = document.getElementById("spin"); if (sp) sp.remove(); if (r.wait) { clearTimeout(rwaitTimer); rwaitTimer = setTimeout(() => onRoulette(false), 1000); } else lastSpin = r.id; return; }
   if (r && r.wait) { if (!(initial && now() - (+r.at || 0) > 30000)) showLotteryWait(); return; }
   if (!r || !r.id || r.id === lastSpin) return;
   lastSpin = r.id;
@@ -1864,8 +1877,14 @@ const IDLE_FREE = 45000;
 function busyHtml(busy){
   if (!busy) return "";
   const g = G(), r = remoteRoot.roulette, mine = (g && g.by === deviceId) || (r && r.bd === deviceId) || isAdmin();
-  return `<p style="color:var(--window)">${esc(busy)}</p>${mine ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" data-endgame>Zakończ tamtą grę</button></div>' : ""}`;
+  return `<p style="color:var(--window)">${esc(busy)}</p><div class="acts" style="justify-content:flex-start"><button class="btn" data-showgame>Pokaż tę grę</button>${mine ? '<button class="btn danger" data-endgame>Zakończ tamtą grę</button>' : ""}</div>`;
 }
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-showgame]")) return;
+  const g = G(), r = remoteRoot.roulette, sc = document.querySelector("#layer [data-close]"); if (sc) sc.click();
+  if (r && r.id && (r.wait || now() - (+r.at || 0) < 9000)) { lotForce = r.id; lotClosed = null; lastSpin = null; onRoulette(false); }
+  if (g && g.id) { gameForce = g.id; gameShown = null; renderGame(); }
+});
 document.addEventListener("click", e => {
   if (!e.target.closest("[data-endgame]")) return;
   const g = G(), r = remoteRoot.roulette;
@@ -2245,6 +2264,7 @@ function gameResultText(g){
 function renderGame(){
   const g = G(); if (!g || !g.id || !online) return closeGame();
   if (gameShown === g.id + ":seen") return;
+  if (settings.showGames === false && !mineGame(g) && gameForce !== g.id) { closeGame(); return; }   // games of others are hidden
   const done = g.state === "done" || g.state === "declined" || g.state === "cancel";
   // everyone in the room sees the game; only the players get buttons
   let el = document.getElementById("gamewin");
