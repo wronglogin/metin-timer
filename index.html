@@ -31,6 +31,8 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
+.roomsel.on{border-color:var(--ready);color:var(--ready)}
+.roomsel{background:var(--surface-2);border:1px solid var(--rule);border-radius:6px;min-height:38px;padding:4px 8px;max-width:150px}
 .mode{font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--rule);border-radius:4px;color:var(--muted)}
 .mode.on{color:var(--ready);border-color:var(--ready)}
 .mode.err{color:var(--danger);border-color:var(--danger)}
@@ -158,6 +160,7 @@ main{padding-top:14px;display:grid;gap:14px}
     <div class="bar">
       <div class="brand">Metin Timer<small>respawn metinów i bossów</small></div>
       <span class="mode" id="mode">Prywatny</span>
+      <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
@@ -421,7 +424,29 @@ function disconnect(silent){
     setMode("Prywatny"); render(); toast("Rozłączono. Wróciłeś do timerów prywatnych.");
   }
 }
-function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; }
+function setMode(text, cls = ""){ const el = document.getElementById("mode"); el.textContent = text; el.className = "mode " + cls; renderRoomSel(); }
+// saved room list ("a;b;c" in Menu); one room is live at a time, the header select switches between them
+const roomList = () => { const r = store.get("rooms", null); if (Array.isArray(r)) return r; const o = store.get("online", null) || store.get("lastRoom", null); return o && o.room ? [o.room] : []; };
+const parseRooms = t => [...new Set(String(t || "").split(/[;,]/).map(x => x.trim()).filter(Boolean))];
+function renderRoomSel(){
+  const sel = document.getElementById("roomSel"), rooms = roomList();
+  sel.hidden = rooms.length < 2;
+  const chip = document.getElementById("mode");
+  // with several rooms the select shows where you are; the status chip only appears for problems
+  chip.hidden = !sel.hidden && !chip.classList.contains("err") && chip.textContent !== "Łączenie…";
+  sel.classList.toggle("on", !!online && chip.classList.contains("on"));
+  if (sel.hidden) return;
+  const cur = online ? online.room : "";
+  const html = `<option value="">Prywatny</option>` + rooms.map(r => `<option value="${esc(r)}"${r === cur ? " selected" : ""}>${esc(r)}</option>`).join("");
+  if (sel.innerHTML !== html) sel.innerHTML = html;
+  sel.value = cur;
+}
+async function switchRoom(room){
+  if (!room) { disconnect(); return; }
+  if (online && online.room === room) return;
+  try { await connect(DB_URL, room); toast("Pokój: " + room); }
+  catch (x) { toast(x.message); setMode("Prywatny"); }
+}
 
 /* ---------- timers ---------- */
 const SOON = 4 * 60000;
@@ -672,9 +697,9 @@ function menuSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
-    <div class="field"><label for="m_room">Nazwa pokoju (działa jak hasło)</label><input id="m_room" placeholder="np. gildia-x7k2" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(saved && saved.room || "")}"></div>
+    <div class="field"><label for="m_room">Nazwy pokoi (kilka oddziel średnikiem)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
-    <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Przełącz pokój" : "Połącz"}</button></div>
+    <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">Globalny reset</button></div>
     ${IN_APP ? "" : `<hr style="border:0;border-top:1px solid var(--rule);width:100%">
@@ -699,8 +724,16 @@ function menuSheet(){
     el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
     el.querySelector("#m_on").onclick = async ev => {
       const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
-      const room = el.querySelector("#m_room").value;
-      try { await connect(DB_URL, room); store.set("lastRoom", {room}); close(); toast("Połączono z pokojem " + room.trim()); }
+      const rooms = parseRooms(el.querySelector("#m_room").value);
+      try {
+        if (!rooms.length) throw new Error("Wpisz nazwę pokoju.");
+        const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
+        if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
+        const room = online && rooms.includes(online.room) ? online.room : rooms[0];
+        if (!online || online.room !== room) await connect(DB_URL, room);
+        store.set("rooms", rooms); store.set("lastRoom", {room}); renderRoomSel(); close();
+        toast(rooms.length > 1 ? `Zapisano ${rooms.length} pokoje, aktywny: ${room}. Przełączasz u góry.` : "Połączono z pokojem " + room);
+      }
       catch (x) { err.textContent = x.message; err.hidden = false; ev.target.disabled = false; }
     };
     const off = el.querySelector("#m_off"); if (off) off.onclick = () => { close(); disconnect(); };
@@ -800,6 +833,8 @@ store.set("noColorsV1", true);
 if (!saved) store.set("spots", spots);
 render(); setInterval(tick, 250); wake();
 loadConfig(); setInterval(loadConfig, 60000);
+document.getElementById("roomSel").addEventListener("change", e => switchRoom(e.target.value));
+renderRoomSel();
 const auto = store.get("online", null);
 if (auto && auto.room) connect(DB_URL, auto.room).catch(() => setMode("Prywatny"));
 })();
