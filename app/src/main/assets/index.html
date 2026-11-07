@@ -2295,9 +2295,19 @@ ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</di
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);   // equal stakes: the winners split the pool evenly
   return head + slot + `<p class="spinres done">Wygrywa <b style="color:${HORSES[g.wh - 1].c}">koń ${g.wh}</b></p>`
-    + (winners.length ? winners.map(w => `<div class="gline"><span>${esc(w.n)}${w.id === deviceId ? ' <span class="pme">(ty!)</span>' : ""}</span><b>${g.s ? `+${esc(poolText(g.s, Math.round(bets.length / winners.length * 1000) / 1000))}` : "wygrywa"}</b></div>`).join("")
-      : `<p>Nikt nie obstawił konia ${g.wh}. Każdy zabiera swoją stawkę.</p>`);
+    + poolResult(g, bets, winners, `Nikt nie obstawił konia ${g.wh}.`);
 };
+/* result of a pooled bet (horse race, roulette): there is no bank, the money only moves between the people who bet.
+   Each loser's stake is split evenly between the winners; a winner's gain is (losers / winners) × stake.
+   If everybody backed the winner, or nobody did, nobody gains or loses anything. */
+function poolResult(g, bets, winners, noneText){
+  const W = winners.length, L = bets.length - W;
+  if (!W) return `<p>${noneText} Nikt nic nie wygrywa – każdy zostaje przy swojej stawce.</p>`;
+  if (!L) return `<p>Wszyscy obstawili to samo – nikt nic nie wygrywa i nie przegrywa.</p>`;
+  const gain = g.s ? `+${esc(poolText(g.s, Math.round(L / W * 1000) / 1000))}` : "wygrywa", loss = g.s ? `−${esc(g.s)}` : "przegrywa";
+  const wid = new Set(winners.map(w => w.id));
+  return bets.slice().sort((a, b) => wid.has(b.id) - wid.has(a.id)).map(b => `<div class="gline"><span>${esc(b.n)}${b.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span><b class="${wid.has(b.id) ? "pos" : "neg"}">${wid.has(b.id) ? gain : loss}</b></div>`).join("");
+}
 const GAME_AFTER = {};
 GAME_AFTER.horse = (g, body, draw = drawRace) => {
   let cv = body.querySelector("canvas.htrack");
@@ -2450,8 +2460,7 @@ GAME_VIEW.wheel = g => {
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);
   return head + slot + `<p class="spinres done">Wypadło: <b style="color:${g.wh === 2 ? "var(--fg)" : WCOL[g.wh].c}">${WCOL[g.wh].n.toLowerCase()}</b></p>`
-    + (winners.length ? winners.map(w => `<div class="gline"><span>${esc(w.n)}${w.id === deviceId ? ' <span class="pme">(ty!)</span>' : ""}</span><b>${g.s ? `+${esc(poolText(g.s, Math.round(bets.length / winners.length * 1000) / 1000))}` : "wygrywa"}</b></div>`).join("")
-      : `<p>Nikt nie obstawił tego koloru. Każdy zabiera swoją stawkę.</p>`);
+    + poolResult(g, bets, winners, "Nikt nie obstawił tego koloru.");
 };
 GAME_AFTER.wheel = (g, body) => GAME_AFTER.horse(g, body, drawWheel);
 /* roulette sounds, made on the fly: the ball rolling round the rim (a whirr that fades as it slows),
@@ -2541,8 +2550,8 @@ function horseSheet(type = "horse"){
   const g = G(); const busy = g && g.id && !["done", "declined", "cancel"].includes(g.state) && now() - (+g.at || 0) < 10 * 60000;
   const wheel = type === "wheel";
   sheet(`<h2>${GAMES[type].name}</h2>
-    <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Kto trafi, dzieli całą pulę po równo z innymi, którzy trafili. Jeśli nikt nie trafi, każdy zabiera swoją stawkę."
-      : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Na jednego konia może postawić kilka osób – wtedy dzielą całą pulę po równo. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
+    <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią to samo albo nikt nie trafi, nikt nic nie wygrywa."
+      : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
     <div class="field"><label for="hs_s">Stawka od osoby (opcjonalnie)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     ${busy ? `<p style="color:var(--window)">W pokoju trwa gra „${GAMES[g.type].name}”. Nowa gra ją zakończy.</p>` : ""}
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="hs_go">Otwórz zakłady</button></div>
