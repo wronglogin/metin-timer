@@ -376,6 +376,37 @@
             }
           }
         },
+        "debts": {
+          "$k": {
+            ".validate": "$k.length <= 50 && newData.hasChildren(['a', 'b', 'v'])",
+            "a": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "b": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "v": {
+              ".validate": "newData.isNumber() && newData.val() > -1000000000000000 && newData.val() < 1000000000000000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "dlog": {
+          "$k": {
+            ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['s', 'at'])",
+            "s": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "at": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
         "$other": {
           ".validate": false
         }
