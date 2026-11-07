@@ -916,7 +916,8 @@ function spotHtml(s){
       <button class="rs" data-reset="${s.id}|${c}"${st.cls === "idle" ? " disabled" : ""}>zeruj</button>
     </div>`;
   }).join("");
-  return `<div class="spot${s.color ? " colored" : ""}" data-id="${s.id}" style="--cols:${channels <= 6 ? channels : Math.ceil(channels / 2)}${s.color ? `;--c:${esc(s.color)}` : ""}">
+  const col = colorOf(s);
+  return `<div class="spot${col ? " colored" : ""}" data-id="${s.id}" style="--cols:${channels <= 6 ? channels : Math.ceil(channels / 2)}${col ? `;--c:${esc(col)}` : ""}">
     <div class="shead">
       <input class="nm" id="nm_${s.id}" data-f="name" data-id="${s.id}" maxlength="40" value="${esc(s.name)}" aria-label="Nazwa respu">
       <div class="srow"><span class="tag${s.kind === "boss" ? " boss" : ""}">${s.kind === "boss" ? "Boss" : "Metin"}</span>
@@ -1028,12 +1029,22 @@ function sheet(html, onMount){
   onMount && onMount(scrim.querySelector(".sheet"), close);
   const f = scrim.querySelector("input,select,textarea,button"); f && f.focus();
 }
+/* bar colours are personal: each device keeps its own (store "colors" = {spotId: colour}).
+   The first time, colours that were set for the whole room are copied over, then the room's colours are ignored. */
+let myColors = store.get("colors", {}) || {};
+function colorOf(s){
+  if (!store.get("colorsV2", false) && Object.keys(spots).length) {
+    for (const x of Object.values(spots)) if (x.color && !(x.id in myColors)) myColors[x.id] = x.color;
+    store.set("colors", myColors); store.set("colorsV2", true);
+  }
+  return myColors[s.id] || null;
+}
 function editSheet(s){
-  let color = s.color;
+  let color = colorOf(s);
   const ss = mapSpots(s.map), idx = ss.findIndex(x => x.id === s.id);
   sheet(`<h2>${esc(s.name)}</h2>
     <div class="field"><label for="e_kind">Rodzaj</label><select id="e_kind"><option value="metin">Metin</option><option value="boss"${s.kind === "boss" ? " selected" : ""}>Boss</option></select></div>
-    <div class="field"><label>Kolor paska</label><div class="swatches"><button class="sw none" data-sw="" aria-label="Bez koloru" aria-pressed="${!s.color}"></button>${COLORS.map(c => `<button class="sw" data-sw="${c}" style="--c:${c}" aria-label="Kolor ${c}" aria-pressed="${c === s.color}"></button>`).join("")}</div></div>
+    <div class="field"><label>Kolor paska (tylko u ciebie)</label><div class="swatches"><button class="sw none" data-sw="" aria-label="Bez koloru" aria-pressed="${!color}"></button>${COLORS.map(c => `<button class="sw" data-sw="${c}" style="--c:${c}" aria-label="Kolor ${c}" aria-pressed="${c === s.color}"></button>`).join("")}</div></div>
     <div class="field"><label>Kolejność</label><div class="seg"><button id="e_up"${idx <= 0 ? " disabled" : ""}>Wyżej</button><button id="e_down"${idx >= ss.length - 1 ? " disabled" : ""}>Niżej</button></div></div>
     <div class="acts"><button class="btn danger grow" id="e_del">Usuń resp</button><button class="btn" data-close>Anuluj</button><button class="btn primary" id="e_ok">Zapisz</button></div>`,
   (el, close) => {
@@ -1045,8 +1056,8 @@ function editSheet(s){
     el.querySelector("#e_ok").onclick = () => {
       const kind = el.querySelector("#e_kind").value, ch = {};
       if (kind !== s.kind) ch[`${s.id}/kind`] = kind;
-      if ((color || null) !== (s.color || null)) ch[`${s.id}/color`] = color;
-      close(); commit(ch);
+      if ((color || null) !== colorOf(s)) { if (color) myColors[s.id] = color; else delete myColors[s.id]; store.set("colors", myColors); }
+      close(); if (Object.keys(ch).length) commit(ch); else render();
     };
   });
 }
@@ -1897,7 +1908,7 @@ function debtChanges(gameName, pmap, winIds, loseIds, stake){
 }
 function debtsSheet(){
   if (!online) { toast("Rozliczenia działają we wspólnym pokoju. Połącz się w Menu."); return; }
-  sheet(`<h2>Rozliczenia</h2><p>Kto komu ile wisi z gier na stawki (liczą się stawki w k, kk, kkk). Wygrane i przegrane między dwiema osobami się znoszą.</p>
+  sheet(`<h2>Rozliczenia</h2><p>Kto komu ile wisi z gier na stawki (liczą się stawki w k, kk, kkk). Wygrane i przegrane między dwiema osobami się znoszą. Spłatę zaznacza osoba, której dług się należy.</p>
     <div class="dme" id="dl_me"></div>
     <div class="field"><label>Długi (kto → komu)</label><ul class="banlist" id="dl_list"></ul></div>
     <div class="field"><label>Ostatnie wpisy</label><ul class="banlist dlog" id="dl_log"></ul></div>
@@ -1908,7 +1919,7 @@ function debtsSheet(){
       const me = nkey(myNick()); let bal = 0;
       for (const r of rows) { if (nkey(r.to) === me) bal += r.v; if (nkey(r.from) === me) bal -= r.v; }
       el.querySelector("#dl_me").innerHTML = myNick() ? `Twój bilans: <b class="${bal > 0 ? "pos" : bal < 0 ? "neg" : ""}">${bal > 0 ? "+" : ""}${fmtYang(bal)}</b>${bal > 0 ? " (inni wiszą tobie)" : bal < 0 ? " (wisisz innym)" : ""}` : "";
-      el.querySelector("#dl_list").innerHTML = rows.length ? rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <b class="neg">${fmtYang(r.v)}</b></span><button class="btn" data-paid="${esc(r.k)}">Spłacone</button></li>`).join("") : '<li class="pme">Nikt nikomu nic nie wisi.</li>';
+      el.querySelector("#dl_list").innerHTML = rows.length ? rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <b class="neg">${fmtYang(r.v)}</b></span>${nkey(r.to) === me ? `<button class="btn" data-paid="${esc(r.k)}">Spłacone</button>` : ""}</li>`).join("") : '<li class="pme">Nikt nikomu nic nie wisi.</li>';
       const log = Object.values(remoteRoot.dlog || {}).sort((a, b) => b.at - a.at).slice(0, 15);
       el.querySelector("#dl_log").innerHTML = log.length ? log.map(x => `<li><span>${esc(x.s)}</span><span class="pme">${new Date(x.at).toLocaleString("pl-PL", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Brak wpisów.</li>';
     };
@@ -1917,8 +1928,9 @@ function debtsSheet(){
       const b = e.target.closest("[data-paid]"); if (!b) return;
       const k = b.dataset.paid, d = (remoteRoot.debts || {})[k]; if (!d) return;
       const from = d.v > 0 ? d.a : d.b, to = d.v > 0 ? d.b : d.a, v = Math.abs(+d.v || 0);
+      if (nkey(to) !== nkey(myNick())) { toast("Spłatę może zaznaczyć tylko osoba, której należą się pieniądze."); return; }
       if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Na pewno?"; b.classList.add("danger"); setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Spłacone"; b.classList.remove("danger"); } }, 3000); return; }
-      const hk = hkey(), rc = {["debts/" + k]: null, ["dlog/" + hk]: {s: `Spłacone: ${from} → ${to} ${fmtYang(v)} (zaznaczył(a) ${myNick() || "?"})`.slice(0, 200), at: {".sv": "timestamp"}}};
+      const hk = hkey(), rc = {["debts/" + k]: null, ["dlog/" + hk]: {s: `Spłacone: ${from} → ${to} ${fmtYang(v)}`.slice(0, 200), at: {".sv": "timestamp"}}};
       for (const [p, val] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(val)));
       push(rc); draw(); toast("Zapisano spłatę");
     });
