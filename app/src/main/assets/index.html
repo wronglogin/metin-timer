@@ -171,17 +171,15 @@ main{padding-top:14px;display:grid;gap:14px}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 14px;z-index:30;font-size:15px;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.cell.window .ct{animation:pulse 1.6s ease-in-out infinite}}
 @keyframes pulse{50%{opacity:.75}}
-/* landscape tablet / desktop: resp cards in several columns instead of one narrow column */
-@media (min-width:1000px){
-  .wrap{max-width:1700px}
-  .spots{grid-template-columns:repeat(auto-fill,minmax(430px,1fr));align-items:start}
-  .spots .spot{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:10px}
-  .compact .spots{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
-  .compact .spots .spot{gap:5px}
-  .compact .spots .shead{flex-wrap:nowrap}
-  .compact .spots .shead .nm{flex-basis:auto}
-  .wiki{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
-}
+/* tablet view (Menu → Widok → Tabletowy): resp cards in several columns, using the full width */
+.tablet .wrap{max-width:1700px}
+.tablet .spots{grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr));align-items:start}
+.tablet .spots .spot{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:10px}
+.tablet.compact .spots{grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr))}
+.tablet.compact .spots .spot{gap:5px}
+.tablet.compact .spots .shead{flex-wrap:nowrap}
+.tablet.compact .spots .shead .nm{flex-basis:auto}
+@media (min-width:900px){.tablet .wiki{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}}
 </style>
 
 <div class="wrap">
@@ -250,10 +248,10 @@ let view = store.get("view", "maps");           // "maps" | "wiki"
 let tab = store.get("tab", "m1");               // map id or "mine"
 const showMine = () => settings.hidden.length > 0 && visibleMaps().length >= 2;
 const saveTab = () => { store.set("tab", tab); store.set("view", view); };
-let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1, volume:0.8, compact:false, voice:false}, store.get("settings", {}));
+let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1, volume:0.8, compact:false, tablet:false, voice:false}, store.get("settings", {}));
 if (!(settings.volume >= 0 && settings.volume <= 1)) settings.volume = 0.8;
 if (!(settings.zoom >= 0.6 && settings.zoom <= 1.5)) settings.zoom = 1;
-const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); };
+const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); document.documentElement.classList.toggle("tablet", !!settings.tablet); };
 applyZoom();
 // channel count is set by the admin for everyone (database: config/channels); last known value is cached here
 let channels = store.get("channels", 5);
@@ -810,8 +808,8 @@ function editSheet(s){
 function menuSheet(){
   const saved = store.get("online", null) || store.get("lastRoom", {db:"", room:""});
   sheet(`<h2>Menu</h2>
-    <div class="field"><label>Widok (tylko na tym urządzeniu)</label><div class="seg"><button id="compact" aria-pressed="${!!settings.compact}">Kompaktowy</button></div>
-      <p style="font-size:13px">Zostawia tylko nazwę respu, ↶ ↷ i kanały z licznikami. Dobre do małego okna obok gry.</p></div>
+    <div class="field"><label>Widok (tylko na tym urządzeniu)</label><div class="seg"><button id="compact" aria-pressed="${!!settings.compact}">Kompaktowy</button><button id="tablet" aria-pressed="${!!settings.tablet}">Tabletowy</button></div>
+      <p style="font-size:13px">Kompaktowy zostawia tylko nazwę respu, ↶ ↷ i kanały z licznikami – dobre do małego okna obok gry. Tabletowy układa respy w kilku kolumnach na szerokim ekranie. Możesz włączyć oba.</p></div>
     <div class="field"><label for="zoom">Rozmiar respów (tylko na tym urządzeniu)</label>
       <div class="zoomrow"><input id="zoom" type="range" min="60" max="150" step="5" value="${Math.round(settings.zoom * 100)}"><output id="zoomv">${Math.round(settings.zoom * 100)}%</output><button class="btn" id="zoom0">100%</button></div></div>
     <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3","Trąbka","Własny dźwięk"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div>
@@ -849,6 +847,7 @@ function menuSheet(){
     vr.onchange = () => beep(settings.sound || 1);              // play a sample when the slider is released
     el.querySelector("#voice").onclick = ev => { settings.voice = !settings.voice; ev.target.setAttribute("aria-pressed", settings.voice); store.set("settings", settings); if (settings.voice) speak("Komunikaty głosowe włączone"); };
     el.querySelector("#voicetest").onclick = () => { if (!speak("Czerwony Las 2, kanał 3, stoi")) toast("To urządzenie nie ma syntezatora mowy."); };
+    el.querySelector("#tablet").onclick = ev => { settings.tablet = !settings.tablet; ev.target.setAttribute("aria-pressed", settings.tablet); store.set("settings", settings); applyZoom(); };
     el.querySelector("#compact").onclick = ev => { settings.compact = !settings.compact; ev.target.setAttribute("aria-pressed", settings.compact); store.set("settings", settings); applyZoom(); };
     const zr = el.querySelector("#zoom"), zv = el.querySelector("#zoomv");
     const setZoom = v => { settings.zoom = v / 100; zr.value = v; zv.textContent = v + "%"; applyZoom(); store.set("settings", settings); };
