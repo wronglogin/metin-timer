@@ -110,6 +110,9 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .reflexbtn{width:100%;min-height:180px;border-radius:10px;border:0;font-size:24px;font-weight:700;cursor:pointer}
 .reflexbtn.wait{background:var(--danger);color:#fff}
 .reflexbtn.go{background:var(--ready);color:#06210f}
+.dbtn{width:100%}
+.dme{font-size:16px}.pos{color:var(--ready)}.neg{color:var(--danger)}
+.dlog li{font-size:14px;align-items:flex-start}
 .gamelist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .dicebtn{width:100%;min-height:56px;font-size:19px}
 .rpsbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
@@ -619,7 +622,7 @@ async function connect(db, room){
       if (kind === "put") setPath(remoteRoot, path, data);
       else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
       presence = remoteRoot.presence || {};
-      const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog") || k.startsWith("game") || k.startsWith("glog");
+      const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog") || k.startsWith("game") || k.startsWith("glog") || k.startsWith("debts") || k.startsWith("dlog");
       onRoulette(path === "/" && kind === "put"); onGame(path === "/" && kind === "put");
       const onlySide = side(path.slice(1)) || (path === "/" && kind === "patch" && Object.keys(data || {}).every(side));
       renderPresence();
@@ -1780,6 +1783,8 @@ function spinRoulette(ps, stake){
   const spin = {id, by: myNick().slice(0, 20), s: String(stake).slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, String(p.n).slice(0, 20)])), w: w.id, at: {".sv": "timestamp"}};
   const rc = {roulette: spin, [`rlog/${id}`]: {s: spin.s, n: ps.length, w: String(w.n).slice(0, 20), at: {".sv": "timestamp"}}};
   const old = sortedKeys(remoteRoot.rlog || {}); for (const k of old.slice(0, Math.max(0, old.length + 1 - 20))) rc[`rlog/${k}`] = null;
+  const dc = debtChanges("Ruletka", spin.p, [w.id], ps.map(p => p.id).filter(id => id !== w.id), spin.s);
+  Object.assign(rc, dc); for (const [p, v] of Object.entries(dc)) setPath(remoteRoot, p, clone(svNow(v)));
   push(rc);
   const local = {...spin, at: Math.round(now())}; setPath(remoteRoot, "roulette", local); setPath(remoteRoot, `rlog/${id}`, {...rc[`rlog/${id}`], at: local.at});
   lastSpin = id; showSpin(local, 0);
@@ -1845,6 +1850,11 @@ function logGame(g, winnerNick, stake = g.s){
   const k = hkey(), n = Object.keys(g.p || {}).length;
   const rc = {"game/logged": true, [`glog/${k}`]: {type: g.type, s: (stake || "").slice(0, 30), n, w: String(winnerNick).slice(0, 20), at: {".sv": "timestamp"}}};
   const old = sortedKeys(remoteRoot.glog || {}); for (const x of old.slice(0, Math.max(0, old.length + 1 - 30))) rc[`glog/${x}`] = null;
+  // who owes whom: losers pay their stake to the winner(s)
+  let win = [], lose = [];
+  if (g.type === "horse") { const wh = +g.wh, bets = horseBets(g); win = bets.filter(b => b.h === wh).map(b => b.id); lose = win.length ? bets.filter(b => b.h !== wh).map(b => b.id) : []; }
+  else if (g.w && g.w !== "draw" && g.w !== "none") { win = [g.w]; lose = Object.keys(g.p || {}).filter(id => id !== g.w); }
+  Object.assign(rc, debtChanges(GAMES[g.type].name, g.p || {}, win, lose, g.s));
   gamePatch(rc);
 }
 function startGame(type, players, stake, extra = {}, id = hkey()){
@@ -1852,6 +1862,67 @@ function startGame(type, players, stake, extra = {}, id = hkey()){
   store.set("gsec", secrets);
   const g = {id, type, by: deviceId, byn: myNick().slice(0, 20), s: (stake || "").slice(0, 30), p: Object.fromEntries(players.map(p => [p.id, p.n.slice(0, 20)])), at: {".sv": "timestamp"}, ...extra};
   gamePatch({game: g});
+}
+
+/* ---------- debts: who owes whom ----------
+   rooms/<room>/debts/<nickA|nickB> = {a, b, v}: v > 0 means a owes b that much yang, v < 0 means b owes a.
+   Every game with a stake in k / kk / kkk adds the losers' stakes to what they owe the winner(s);
+   "Spłacone" sets a pair back to zero. People are identified by nick (the same nick on two devices is one person).
+   dlog keeps the last entries for the history list. */
+const nkey = n => String(n).trim().toLowerCase().replace(/[.#$\[\]\/|]/g, "_").slice(0, 20) || "_";
+function parseStake(s){
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*(k*)\s*$/i.exec(String(s || ""));
+  if (!m) return 0;
+  return parseFloat(m[1].replace(",", ".")) * Math.pow(1000, m[2].length);
+}
+function fmtYang(v){
+  const a = Math.abs(v), f = (x, u) => (Math.round(x * 100) / 100).toString().replace(".", ",") + u;
+  return a >= 1e9 ? f(v / 1e9, "kkk") : a >= 1e6 ? f(v / 1e6, "kk") : a >= 1e3 ? f(v / 1e3, "k") : f(v, "");
+}
+function debtChanges(gameName, pmap, winIds, loseIds, stake){
+  const x = parseStake(stake); if (!x || !winIds.length || !loseIds.length) return {};
+  const debts = clone(remoteRoot.debts || {}) || {}, out = {}, share = x / winIds.length;
+  for (const l of loseIds) for (const w of winIds) {
+    const ln = String(pmap[l] || "?"), wn = String(pmap[w] || "?"), kl = nkey(ln), kw = nkey(wn); if (kl === kw) continue;
+    const [ka, kb] = [kl, kw].sort(), key = ka + "|" + kb;
+    const d = debts[key] || {a: ka === kl ? ln : wn, b: kb === kl ? ln : wn, v: 0};
+    d.v = Math.round(((+d.v || 0) + (ka === kl ? share : -share)) * 100) / 100;
+    d[ka === kl ? "a" : "b"] = ln.slice(0, 20); d[ka === kw ? "a" : "b"] = wn.slice(0, 20);   // keep the latest spelling of the nick
+    debts[key] = d; out["debts/" + key] = d;
+  }
+  const wn = winIds.map(w => pmap[w]).join(", "), ln = loseIds.map(l => pmap[l]).join(", ");
+  const k = hkey(); out["dlog/" + k] = {s: `${gameName}: ${wn} ${winIds.length > 1 ? "wygrywają" : "wygrywa"} ${fmtYang(x * loseIds.length)} od ${ln}`.slice(0, 200), at: {".sv": "timestamp"}};
+  const old = sortedKeys(remoteRoot.dlog || {}); for (const o of old.slice(0, Math.max(0, old.length + 1 - 40))) out["dlog/" + o] = null;
+  return out;
+}
+function debtsSheet(){
+  if (!online) { toast("Rozliczenia działają we wspólnym pokoju. Połącz się w Menu."); return; }
+  sheet(`<h2>Rozliczenia</h2><p>Kto komu ile wisi z gier na stawki (liczą się stawki w k, kk, kkk). Wygrane i przegrane między dwiema osobami się znoszą.</p>
+    <div class="dme" id="dl_me"></div>
+    <div class="field"><label>Długi (kto → komu)</label><ul class="banlist" id="dl_list"></ul></div>
+    <div class="field"><label>Ostatnie wpisy</label><ul class="banlist dlog" id="dl_log"></ul></div>
+    <div class="acts"><button class="btn" data-close>Zamknij</button></div>`, el => {
+    const draw = () => {
+      const pairs = Object.entries(remoteRoot.debts || {}).map(([k, d]) => ({k, ...d, v: +d.v || 0})).filter(d => Math.abs(d.v) >= 0.005);
+      const rows = pairs.map(d => d.v > 0 ? {k: d.k, from: d.a, to: d.b, v: d.v} : {k: d.k, from: d.b, to: d.a, v: -d.v}).sort((a, b) => b.v - a.v);
+      const me = nkey(myNick()); let bal = 0;
+      for (const r of rows) { if (nkey(r.to) === me) bal += r.v; if (nkey(r.from) === me) bal -= r.v; }
+      el.querySelector("#dl_me").innerHTML = myNick() ? `Twój bilans: <b class="${bal > 0 ? "pos" : bal < 0 ? "neg" : ""}">${bal > 0 ? "+" : ""}${fmtYang(bal)}</b>${bal > 0 ? " (inni wiszą tobie)" : bal < 0 ? " (wisisz innym)" : ""}` : "";
+      el.querySelector("#dl_list").innerHTML = rows.length ? rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <b class="neg">${fmtYang(r.v)}</b></span><button class="btn" data-paid="${esc(r.k)}">Spłacone</button></li>`).join("") : '<li class="pme">Nikt nikomu nic nie wisi.</li>';
+      const log = Object.values(remoteRoot.dlog || {}).sort((a, b) => b.at - a.at).slice(0, 15);
+      el.querySelector("#dl_log").innerHTML = log.length ? log.map(x => `<li><span>${esc(x.s)}</span><span class="pme">${new Date(x.at).toLocaleString("pl-PL", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Brak wpisów.</li>';
+    };
+    draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
+    el.addEventListener("click", e => {
+      const b = e.target.closest("[data-paid]"); if (!b) return;
+      const k = b.dataset.paid, d = (remoteRoot.debts || {})[k]; if (!d) return;
+      const from = d.v > 0 ? d.a : d.b, to = d.v > 0 ? d.b : d.a, v = Math.abs(+d.v || 0);
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Na pewno?"; b.classList.add("danger"); setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Spłacone"; b.classList.remove("danger"); } }, 3000); return; }
+      const hk = hkey(), rc = {["debts/" + k]: null, ["dlog/" + hk]: {s: `Spłacone: ${from} → ${to} ${fmtYang(v)} (zaznaczył(a) ${myNick() || "?"})`.slice(0, 200), at: {".sv": "timestamp"}}};
+      for (const [p, val] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(val)));
+      push(rc); draw(); toast("Zapisano spłatę");
+    });
+  });
 }
 
 /* dice: every player rolls their own two dice (game/rolls/<round>/<id> = [a, b]); round 0 is everyone,
@@ -2248,9 +2319,10 @@ async function gameClick(e){
 
 function gamesMenu(){
   sheet(`<h2>Gry</h2>${online ? "<p>Gry dla osób w twoim pokoju. Grający widzą okno gry, pozostali tylko krótki dymek z wynikiem.</p>" : "<p>Gry działają we wspólnym pokoju. Połącz się w Menu → Wspólny pokój.</p>"}
+    <button class="btn primary dbtn" data-game="debts">Rozliczenia – kto komu ile wisi</button>
     <div class="gamelist"><button class="btn" data-game="roul">Ruletka</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>`, (el, close) => {
-    el.querySelectorAll("[data-game]").forEach(b => b.onclick = () => { close(); b.dataset.game === "roul" ? rouletteSheet() : gameSheet(b.dataset.game); });
+    el.querySelectorAll("[data-game]").forEach(b => b.onclick = () => { close(); b.dataset.game === "roul" ? rouletteSheet() : b.dataset.game === "debts" ? debtsSheet() : gameSheet(b.dataset.game); });
   });
 }
 function gameSheet(type){
