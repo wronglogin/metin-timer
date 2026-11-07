@@ -386,7 +386,7 @@ function apply(changes){ for (const [p, v] of Object.entries(changes)) setPath(s
    Entry: {at, p: JSON string of {spotId: {b: {path: before}, a: {path: after}}}}. Stored as a string so
    paths with "/" and null values survive the database. Keys sort by time. */
 let H = {hist:{}, redo:{}};
-const HMAX = 120;
+const HMAX = 30;                                  // kept short: the whole room is downloaded on every join
 const parsed = new Map();
 const parts = e => { if (!e || typeof e.p !== "string") return {}; let v = parsed.get(e.p); if (!v) { try { v = JSON.parse(e.p) || {}; } catch { v = {}; } parsed.set(e.p, v); } return v; };
 // undo/redo only covers timer marks (kill / reset); renames, times, adding or removing respawns are not undoable
@@ -567,8 +567,8 @@ function disconnect(silent){
   }
 }
 /* ---------- who is in the room ----------
-   Each viewer writes rooms/<room>/presence/<deviceId> = {n: nick, t: server time} every 30 s.
-   Entries newer than 75 s count as online; old ones are cleaned up when someone joins. */
+   Each viewer writes rooms/<room>/presence/<deviceId> = {n: nick, t: server time} every 90 s (saves transfer).
+   Entries newer than 200 s count as online; old ones are cleaned up when someone joins. */
 let presence = {}, presenceTimer = null;
 const deviceId = store.get("cid", null) || (() => { const id = uid(); store.set("cid", id); return id; })();
 const myNick = () => String(store.get("nick", "") || "").trim();
@@ -579,7 +579,7 @@ function heartbeat(){
 }
 function startPresence(){
   stopPresence(true);
-  heartbeat(); presenceTimer = setInterval(heartbeat, 30000);
+  heartbeat(); presenceTimer = setInterval(heartbeat, 90000);
   // tidy entries left behind by closed apps (older than 10 minutes)
   setTimeout(() => { const ch = {}; for (const [id, v] of Object.entries(presence)) if (!v || now() - (+v.t || 0) > 600000) ch["presence/" + id] = null;
     if (Object.keys(ch).length && online) fetch(roomUrl(), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(ch)}).catch(() => {}); }, 4000);
@@ -592,7 +592,7 @@ function stopPresence(keepEntry){
 window.addEventListener("pagehide", () => { if (online) fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {}); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) heartbeat(); });
 function people(){
-  return Object.entries(presence || {}).filter(([, v]) => v && v.n && now() - (+v.t || 0) < 75000)
+  return Object.entries(presence || {}).filter(([, v]) => v && v.n && now() - (+v.t || 0) < 200000)
     .map(([id, v]) => ({id, n: String(v.n).slice(0, 20), me: id === deviceId})).sort((a, b) => (b.me - a.me) || a.n.localeCompare(b.n, "pl"));
 }
 function renderPresence(){
