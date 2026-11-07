@@ -60,6 +60,16 @@ header{grid-template-columns:minmax(0,1fr)}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people .pme{color:var(--muted);font-weight:500}
+.spin{z-index:40}
+.spinbox{text-align:center}
+.spinnames{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:6px 0}
+.spn{padding:8px 14px;border:1px solid var(--rule);border-radius:999px;font-weight:700;font-size:17px;background:var(--bg);transition:background .08s,color .08s}
+.spn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.spn.win{background:var(--ready);color:#06210f;border-color:var(--ready);transform:scale(1.12)}
+.spinres{font-size:18px;color:var(--fg)!important;min-height:28px}
+.spinres.done b{color:var(--ready)}
+.rlp{display:flex;align-items:center;gap:8px;width:100%;cursor:pointer}
+.rlp input{width:18px;height:18px;accent-color:var(--ready)}
 .banlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .banlist li{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-weight:600}
 .banlist .btn{min-height:32px;padding:4px 10px}
@@ -503,7 +513,8 @@ async function connect(db, room){
       if (kind === "put") setPath(remoteRoot, path, data);
       else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
       presence = remoteRoot.presence || {};
-      const side = k => k.startsWith("presence") || k.startsWith("radio");
+      const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog");
+      onRoulette(path === "/" && kind === "put");
       const onlySide = side(path.slice(1)) || (path === "/" && kind === "patch" && Object.keys(data || {}).every(side));
       renderPresence();
       if (path === "/" || path.startsWith("/radio") || (kind === "patch" && Object.keys(data || {}).some(k => k.startsWith("radio")))) syncRadio(false);
@@ -952,6 +963,9 @@ function menuSheet(){
       <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <h2 style="font-size:19px">Rozrywka</h2>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_roul">Ruletka</button>${online ? "" : '<span class="pme" style="font-size:13px;align-self:center">działa we wspólnym pokoju</span>'}</div>
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
     <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}"></div>
@@ -1022,6 +1036,7 @@ function menuSheet(){
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
+    el.querySelector("#m_roul").onclick = () => { close(); rouletteSheet(); };
   });
 }
 /* ---------- export / import (own format + squadtimer.netlify.app) ----------
@@ -1569,6 +1584,92 @@ document.getElementById("radio").addEventListener("click", e => {
   else if (a === "queue") radioSheet();
 });
 setInterval(() => { if (online && radioOn && ytReady) syncRadio(false); }, 5000);
+
+/* ---------- roulette (Menu → Rozrywka) ----------
+   rooms/<room>/roulette = {id, by, s: stake, p: {deviceId: nick}, w: winnerId, at}. The person who spins draws the
+   winner with crypto randomness; everyone in the room sees the same animation and result. rlog keeps recent results. */
+let lastSpin = null, spinTimer = null;
+const randInt = n => { const a = new Uint32Array(1); let x; const lim = Math.floor(0x100000000 / n) * n; do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim); return x % n; };
+function poolText(stake, n){
+  const m = /^\s*(\d+(?:[.,]\d+)?)\s*(k*)\s*(.*)$/i.exec(String(stake));
+  if (!m || m[3]) return `${stake} × ${n}`;
+  const v = parseFloat(m[1].replace(",", ".")) * n;
+  const out = (Math.round(v * 100) / 100).toString().replace(".", ",");
+  return out + m[2].toLowerCase();
+}
+function onRoulette(initial){
+  const r = remoteRoot.roulette; if (!r || !r.id || r.id === lastSpin) return;
+  lastSpin = r.id;
+  const age = now() - (+r.at || now());
+  if (initial && age > 8000) return;                     // joined later: don't replay old spins
+  if (age < 30000) showSpin(r, Math.max(0, age));
+}
+function showSpin(r, age){
+  const players = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
+  const wi = Math.max(0, players.findIndex(p => p.id === r.w)); if (!players.length) return;
+  let el = document.getElementById("spin"); if (el) el.remove(); clearTimeout(spinTimer);
+  el = document.createElement("div"); el.id = "spin"; el.className = "scrim spin";
+  const pool = poolText(r.s, players.length);
+  el.innerHTML = `<div class="sheet spinbox" role="dialog" aria-modal="true" aria-label="Ruletka">
+    <h2>Ruletka</h2><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
+    <div class="spinnames">${players.map((p, i) => `<span class="spn" data-i="${i}">${esc(p.n)}</span>`).join("")}</div>
+    <p class="spinres" aria-live="polite">Losowanie…</p>
+    <div class="acts"><button class="btn" data-spinclose>Zamknij</button></div></div>`;
+  document.body.appendChild(el);
+  el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); el.remove(); } });
+  const names = el.querySelectorAll(".spn"), res = el.querySelector(".spinres");
+  // the highlight walks round the names, slowing down, and stops on the winner (same steps for everyone)
+  const laps = 3, total = laps * players.length + wi, delays = [];
+  for (let i = 0; i <= total; i++) { const x = i / total; delays.push(50 + 380 * x * x * x); }
+  let t = 0, i = 0;
+  while (i < total && t + delays[i] < age) { t += delays[i]; i++; }        // late joiners catch up
+  const finish = () => {
+    names.forEach((n, k) => { n.classList.toggle("on", k === wi); n.classList.toggle("win", k === wi); });
+    const w = players[wi];
+    res.innerHTML = `Wygrywa <b>${esc(w.n)}</b>${w.id === deviceId ? " (ty!)" : ""} – zgarnia pulę <b>${esc(pool)}</b>`;
+    res.classList.add("done"); if (settings.sound) beep(settings.sound, false);
+  };
+  const step = () => {
+    if (!el.isConnected) return;
+    names.forEach((n, k) => n.classList.toggle("on", k === i % players.length));
+    if (i >= total) return finish();
+    spinTimer = setTimeout(() => { i++; step(); }, delays[i]);
+  };
+  if (age > t + 6000) { i = total; finish(); } else step();
+}
+function rouletteSheet(){
+  if (!online) { toast("Ruletka działa we wspólnym pokoju. Połącz się w Menu."); return; }
+  sheet(`<h2>Ruletka</h2><p>Wpisz stawkę i zaznacz, kto gra. Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
+    <div class="field"><label for="rl_s">Za ile gramy (stawka od osoby)</label><input id="rl_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
+    <div class="field"><label>Gracze</label><ul class="banlist" id="rl_p"></ul></div>
+    <p id="rl_err" style="color:var(--danger)" hidden></p>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="rl_go">Zakręć</button></div>
+    <div class="field"><label>Ostatnie losowania</label><ul class="banlist" id="rl_h"></ul></div>`, (el, close) => {
+    const skip = new Set();
+    const draw = () => {
+      const ps = people();
+      el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"}> ${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</label></li>`).join("") : '<li class="pme">Nikogo nie ma w pokoju.</li>';
+      const h = Object.values(remoteRoot.rlog || {}).sort((a, b) => b.at - a.at).slice(0, 5);
+      el.querySelector("#rl_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b> <span class="pme">· pula ${esc(poolText(x.s, x.n))} · ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
+    };
+    draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); if (!el.contains(document.activeElement) || document.activeElement.id !== "rl_s") draw(); }, 3000);
+    el.addEventListener("change", e => { const c = e.target.closest("[data-rp]"); if (c) c.checked ? skip.delete(c.dataset.rp) : skip.add(c.dataset.rp); });
+    el.querySelector("#rl_go").onclick = () => {
+      const err = el.querySelector("#rl_err"), stake = el.querySelector("#rl_s").value.trim(); err.hidden = true;
+      const ps = people().filter(p => !skip.has(p.id));
+      if (!stake) { err.textContent = "Wpisz stawkę."; err.hidden = false; return; }
+      if (ps.length < 2) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
+      store.set("rlStake", stake);
+      const w = ps[randInt(ps.length)], id = hkey();
+      const spin = {id, by: myNick().slice(0, 20), s: stake.slice(0, 30), p: Object.fromEntries(ps.map(p => [p.id, p.n.slice(0, 20)])), w: w.id, at: {".sv": "timestamp"}};
+      const rc = {roulette: spin, [`rlog/${id}`]: {s: spin.s, n: ps.length, w: w.n.slice(0, 20), at: {".sv": "timestamp"}}};
+      const old = sortedKeys(remoteRoot.rlog || {}); for (const k of old.slice(0, Math.max(0, old.length + 1 - 20))) rc[`rlog/${k}`] = null;
+      push(rc);
+      const local = {...spin, at: Math.round(now())}; setPath(remoteRoot, "roulette", local); setPath(remoteRoot, `rlog/${id}`, {...rc[`rlog/${id}`], at: local.at});
+      lastSpin = id; close(); showSpin(local, 0);
+    };
+  });
+}
 
 /* ---------- boot ---------- */
 const saved = store.get("spots", null);
