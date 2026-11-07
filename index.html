@@ -83,6 +83,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .reflexbtn.wait{background:var(--danger);color:#fff}
 .reflexbtn.go{background:var(--ready);color:#06210f}
 .gamelist{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.dicebtn{width:100%;min-height:56px;font-size:19px}
 .rpsbtns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .rpsbtns .btn{flex:1;min-width:90px}
 .bignum{font-size:26px;color:var(--ready)}
@@ -1684,11 +1685,7 @@ function onRoulette(initial){
   lastSpin = r.id;
   const age = now() - (+r.at || now());
   if (initial && age > 8000) return;                     // joined later: don't replay old spins
-  if (age >= 30000) return;
-  if (r.p && r.p[deviceId]) { showSpin(r, Math.max(0, age)); return; }
-  // not playing: just a short note with the result once the wheel has stopped for the players
-  const w = (r.p && r.p[r.w]) || "?";
-  setTimeout(() => toast(`Ruletka: wygrywa ${w} – pula ${poolText(r.s, Object.keys(r.p || {}).length)}`, 6000), Math.max(0, 6500 - age));
+  if (age < 30000) showSpin(r, Math.max(0, age));       // everyone in the room watches the wheel
 }
 function showSpin(r, age){
   const players = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
@@ -1798,24 +1795,26 @@ function startGame(type, players, stake, extra = {}, id = hkey()){
   gamePatch({game: g});
 }
 
-/* game logic run by the starter right away (dice) or by whoever acts */
-function diceRounds(ids){
-  const rounds = []; let left = ids;
-  for (let guard = 0; guard < 8 && left.length; guard++) {
-    const r = {}; let best = 0;
-    for (const id of left) { const a = randInt(6) + 1, b = randInt(6) + 1; r[id] = [a, b]; best = Math.max(best, a + b); }
-    rounds.push(r);
-    left = left.filter(id => r[id][0] + r[id][1] === best);
-    if (left.length === 1) return {rounds, w: left[0]};
-  }
-  return {rounds, w: left[randInt(left.length)]};
-}
+/* dice: every player rolls their own two dice (game/rolls/<round>/<id> = [a, b]); round 0 is everyone,
+   a tie sends the tied players to the next round (game/lv/<round>), up to 8 rounds */
+const diceLeft = (g, r) => r === 0 && !(g.lv && g.lv[0]) ? Object.keys(g.p || {}) : Object.keys((g.lv && g.lv[r]) || {});
+const diceRoll = (g, r) => (g.rolls && g.rolls[r]) || {};
+const dsum = d => (+d[0] || 0) + (+d[1] || 0);
 
 /* work that must happen even with the game window closed: the starter settles results, players open their RPS choice */
 let settling = null;
 async function gameTick(){
   const g = G(); if (!online || !g || !g.id || !amIn(g)) return;
   const ps = gPlayers(g), host = g.by === deviceId;
+  if (g.type === "dice" && g.state === "play" && host) {
+    const r = +g.rd || 0, left = diceLeft(g, r), rolled = diceRoll(g, r);
+    if (left.length && left.every(id => rolled[id])) {
+      const best = Math.max(...left.map(id => dsum(rolled[id]))), tied = left.filter(id => dsum(rolled[id]) === best);
+      if (tied.length === 1) gamePatch({"game/w": tied[0], "game/state": "done"});
+      else if (r >= 7) gamePatch({"game/w": tied[randInt(tied.length)], "game/state": "done"});
+      else gamePatch({"game/rd": r + 1, [`game/lv/${r + 1}`]: Object.fromEntries(tied.map(id => [id, true]))});
+    }
+  }
   if (g.type === "reflex" && g.state === "play" && host) {
     const r = g.r || {}, all = ps.every(p => r[p.id] !== undefined);
     if (all || now() > (+g.go || 0) + 5000) {
@@ -1887,12 +1886,20 @@ const resLine = g => `<p class="spinres done">${g.type === "rps" && g.w === "dra
 
 const GAME_VIEW = {
   dice(g){
-    const ps = gPlayers(g), rounds = Object.values(g.rolls || {});
-    const age = now() - (+g.at || now()), shown = Math.min(rounds.length, Math.floor(age / 1600) + 1);
-    if (shown < rounds.length || age < 1600 * rounds.length) { clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 400); }
-    const rows = rounds.slice(0, shown).map((r, i) => `<div class="grow2">${rounds.length > 1 ? `<span class="pme">${i ? "dogrywka" : "rzut"} ${i + 1}</span>` : ""}
-      ${ps.filter(p => r[p.id]).map(p => { const d = Object.values(r[p.id]); return `<div class="gline"><span>${esc(p.n)}</span><span class="dice">${DIE[d[0]]}${DIE[d[1]]}</span><b>${d[0] + d[1]}</b></div>`; }).join("")}</div>`).join("");
-    return stakeLine(g) + rows + (shown >= rounds.length && age >= 1600 * rounds.length - 400 ? resLine(g) : `<p class="spinres">Rzucanie…</p>`);
+    const ps = gPlayers(g), cur = +g.rd || 0, done = g.state === "done";
+    const rows = [];
+    for (let r = 0; r <= cur; r++) {
+      const left = diceLeft(g, r), rolled = diceRoll(g, r);
+      rows.push(`<div class="grow2">${cur > 0 ? `<span class="pme">${r ? `dogrywka ${r}` : "rzut"}</span>` : ""}
+        ${ps.filter(p => left.includes(p.id)).map(p => { const d = rolled[p.id];
+          return `<div class="gline"><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span>${d ? `<span class="dice">${DIE[+d[0]]}${DIE[+d[1]]}</span><b>${dsum(d)}</b>` : `<span class="pme">${done ? "nie rzucił" : "czeka na rzut…"}</span>`}</div>`; }).join("")}</div>`);
+    }
+    if (done) return stakeLine(g) + rows.join("") + resLine(g);
+    const myTurn = diceLeft(g, cur).includes(deviceId) && !diceRoll(g, cur)[deviceId];
+    const host = g.by === deviceId, someone = Object.keys(diceRoll(g, cur)).length;
+    return stakeLine(g) + (cur > 0 ? `<p class="spinres">Remis! Dogrywka dla remisujących.</p>` : "") + rows.join("")
+      + (myTurn ? `<button class="btn primary dicebtn" data-gact="roll">🎲 Rzuć kośćmi</button>` : `<p class="spinres">Czekam na rzuty pozostałych…</p>`)
+      + (host && someone ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="dskip">Zakończ bez tych, co nie rzucili</button></div>` : "");
   },
   coin(g){
     const [a, b] = [g.by, Object.keys(g.p).find(id => id !== g.by)];
@@ -1968,6 +1975,14 @@ async function gameClick(e){
   } else if (act === "accept") gamePatch({"game/state": "play"});
   else if (act === "decline") gamePatch({"game/state": "declined"});
   else if (act === "cancel") gamePatch({"game/state": "cancel"});
+  else if (act === "roll") {
+    const r = +g.rd || 0;
+    if (!diceLeft(g, r).includes(deviceId) || diceRoll(g, r)[deviceId]) return;
+    gamePatch({[`game/rolls/${r}/${deviceId}`]: [randInt(6) + 1, randInt(6) + 1]});
+  } else if (act === "dskip") {
+    const r = +g.rd || 0, rolled = diceRoll(g, r);
+    gamePatch({[`game/lv/${r}`]: Object.fromEntries(Object.keys(rolled).map(id => [id, true]))});
+  }
   else if (act === "tap") {
     if (g.r && g.r[deviceId] !== undefined) return;
     const go = +g.go || 0, early = now() < go || !reflexLocal || reflexLocal.id !== g.id;
@@ -1999,7 +2014,7 @@ function gameSheet(type){
   const def = GAMES[type];
   const g = G(); const busy = g && g.id && !["done", "declined", "cancel"].includes(g.state) && now() - (+g.at || 0) < 10 * 60000;
   sheet(`<h2>${def.name}</h2>
-    <p>${{dice: "Każdy rzuca dwiema kośćmi, najwyższa suma wygrywa całą pulę. Przy remisie jest dogrywka.",
+    <p>${{dice: "Każdy gracz sam klika swój rzut dwiema kośćmi. Najwyższa suma wygrywa całą pulę, przy remisie jest dogrywka.",
           coin: "Wyzwij jedną osobę. Wybierasz orła albo reszkę, przeciwnik dostaje drugą stronę.",
           reflex: "Ekran wszystkich graczy w tej samej chwili zrobi się zielony. Wygrywa najszybsze stuknięcie.",
           guess: "Losuje się liczba od 1 do 100. Każdy typuje, wygrywa najbliższy.",
@@ -2039,7 +2054,7 @@ function gameSheet(type){
       const ps = all.filter(p => !skip.has(p.id));
       if (ps.length < def.min) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       close();
-      if (type === "dice") { const {rounds, w} = diceRounds(ps.map(p => p.id)); startGame("dice", ps, stake, {state: "done", rolls: rounds, w}); }
+      if (type === "dice") startGame("dice", ps, stake, {state: "play", rd: 0});
       else if (type === "reflex") startGame("reflex", ps, stake, {state: "play", go: Math.round(now()) + 4000 + randInt(4000)});
       else if (type === "guess") { const id = hkey(); secrets[id] = {t: randInt(100) + 1}; startGame("guess", ps, stake, {state: "play"}, id); }
     };
