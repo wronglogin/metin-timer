@@ -73,6 +73,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .ghead h2{flex:1;margin:0;font-size:17px;text-align:left}
 .ghead .pme{font-size:13px}
 .ghead .gx{background:none;border:1px solid var(--rule);border-radius:6px;color:var(--muted);min-width:32px;min-height:30px;font-size:15px;cursor:pointer}
+.ghead .gx:disabled{opacity:.35;cursor:not-allowed}
 .ghead .gx:hover{color:var(--fg);border-color:var(--muted)}
 .gfloat.wide{width:min(520px,calc(100vw - 24px))}
 canvas.htrack{width:100%;display:block;border-radius:8px}
@@ -1906,7 +1907,8 @@ function showLotteryWait(){
     el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><div class="wbody"></div>`;
     document.body.appendChild(el); floatPanel(el, "spin");
     el.addEventListener("click", e => {
-      if (e.target.closest("[data-spinclose]")) { const cur = remoteRoot.roulette; if (cur && cur.wait && cur.bd === deviceId && !cur.oc) lotWrite({"roulette/oc": true}, false); lotClosed = el.dataset.wait; lotWatch(el.dataset.wait, false); el.remove(); return; }
+      const cx = e.target.closest("[data-spinclose]"); if (cx && cx.disabled) { toast("Okienko zamkniesz po losowaniu."); return; }
+      if (cx) { const cur = remoteRoot.roulette; if (cur && cur.wait && cur.bd === deviceId && !cur.oc) lotWrite({"roulette/oc": true}, false); lotClosed = el.dataset.wait; lotWatch(el.dataset.wait, false); el.remove(); return; }
       const cur = remoteRoot.roulette; if (!cur || !cur.wait) return;
       const b = e.target.closest("[data-lw]"); if (!b) return;
       const a = b.dataset.lw, own = cur.bd === deviceId;
@@ -1937,6 +1939,7 @@ function showLotteryWait(){
       + (ps.length >= 2 ? `<p class="pme">${own ? `Kliknij Losuj w ciągu ${left} s – potem losowanie przejmie ktoś inny.` : `Jeśli ${esc(r.by || "")} nie kliknie Losuj w ciągu ${left} s, przejmie to ktoś inny.`}</p>` : "");
   }
   const body = !hidden && el && el.querySelector(".wbody"); if (body && body.dataset.html !== html) { body.innerHTML = html; body.dataset.html = html; }
+  const lx = el && el.querySelector("[data-spinclose]"); if (lx) lx.disabled = !!(r.ready && mine);
   // who runs it: the owner while in the room; otherwise (or after 30 s idle) the present player with the lowest id
   const ownerHere = hereNow.has(r.bd), cands = ps.map(p => p.id).filter(id => hereNow.has(id) && id !== r.bd).sort();
   if (!r.ready && cands[0] === deviceId && ps.length >= 2 && (!ownerHere || t > (+r.os || +r.at || 0) + START_WAIT) && !r._took) {
@@ -1967,7 +1970,8 @@ function showSpin(r, age){
 `;
   document.body.appendChild(el);
   floatPanel(el, "spin");
-  el.addEventListener("click", e => { if (e.target.closest("[data-spinclose]")) { clearTimeout(spinTimer); lotWatch(r.id, false); el.remove(); } });
+  const xbtn = el.querySelector("[data-spinclose]"); if (r.p && r.p[deviceId] && age < 30000) { xbtn.disabled = true; xbtn.title = "Okienko zamkniesz po losowaniu"; }
+  el.addEventListener("click", e => { const x = e.target.closest("[data-spinclose]"); if (!x) return; if (x.disabled) { toast("Okienko zamkniesz po losowaniu."); return; } clearTimeout(spinTimer); lotWatch(r.id, false); el.remove(); });
   const names = el.querySelectorAll(".spn"), res = el.querySelector(".spinres");
   // the highlight walks round the names, slowing down, and stops on the winner (same steps for everyone)
   const laps = 3, total = laps * players.length + wi, delays = [];
@@ -1979,6 +1983,7 @@ function showSpin(r, age){
     const w = players[wi];
     res.innerHTML = `Wygrywa <b>${esc(w.n)}</b>${w.id === deviceId ? " (ty!)" : ""} – zgarnia pulę <b>${esc(pool)}</b>`;
     res.classList.add("done"); if (settings.sound) beep(settings.sound, false);
+    const xb = el.querySelector("[data-spinclose]"); if (xb) { xb.disabled = false; xb.title = "Zamknij"; }
     // rematch: same players, same stake
     if (r.p && r.p[deviceId] && !el.querySelector("[data-rematch]")) {
       res.insertAdjacentHTML("afterend", `<div class="acts" style="justify-content:center"><button class="btn primary" data-rematch>Rewanż</button></div>`);
@@ -2089,6 +2094,7 @@ function logGame(g, winnerNick, stake = g.s, force = false){
   Object.assign(rc, debtChanges(GAMES[g.type].name, g.p || {}, win, lose, g.s));
   gamePatch(rc);
 }
+const gameLocked = g => !!g && ["invite", "ready", "play", "race"].includes(g.state) && (amIn(g) || g.by === deviceId);
 /* the owner closed the window of a game that was still going: the room is free for the next game. A race or a
    roulette spin already has its result (it follows from the seed), so it is written to the results and debts first. */
 function finishPrevious(){
@@ -2265,6 +2271,9 @@ function renderGame(){
     if (focus) { const f = body.querySelector("#" + focus); if (f) f.focus(); }
     const slot = body.querySelector(".htrack-slot"); if (slot && canvas) slot.replaceWith(canvas);
   }
+  // players and the owner can't close the window while the game is being played, only before it starts or after it ends
+  const xb = el.querySelector("[data-gclose]"), lockd = gameLocked(g);
+  if (xb && xb.disabled !== lockd) { xb.disabled = lockd; xb.title = lockd ? "Okienko zamkniesz po zakończeniu gry" : "Zamknij"; }
   if (GAME_AFTER[g.type]) GAME_AFTER[g.type](g, body);
   if (g.type === "dice" && GAME_AFTER_DICE) GAME_AFTER_DICE(g, body);
   if (g.type === "coin" && GAME_AFTER_COIN) GAME_AFTER_COIN(g);
@@ -2924,6 +2933,7 @@ async function gameClick(e){
   const g = G(), el = document.getElementById("gamewin");
   const sb = e.target.closest("[data-gsnd]");
   if (sb) { gameSnd = !gameSnd; store.set("gameSnd", gameSnd); sb.textContent = gameSnd ? "🔊" : "🔇"; if (gameSnd) audio(); return; }
+  if (e.target.closest("[data-gclose]") && gameLocked(g)) { toast("Okienko zamkniesz po zakończeniu gry."); return; }
   if (e.target.closest("[data-gclose]")) {
     // the owner closing an unfinished game frees the room for the next one
     if (g && g.by === deviceId && !["done", "declined", "cancel"].includes(g.state) && !g.oc) gamePatch({"game/oc": true}, false);
