@@ -215,6 +215,11 @@ main{padding-top:14px;display:grid;gap:14px}
 .compact .cell .ch{font-size:10px}
 .compact .mineview .pane+.pane{padding-top:8px}
 @container pane (min-width:520px){.compact .spot{grid-template-columns:max(var(--namew,150px),66px) minmax(0,1fr);align-items:center;gap:8px}.compact .shead{flex-wrap:wrap;gap:2px 6px}.compact .shead .nm{flex-basis:100%}}
+/* resp cards are only as wide as their timers and sit in the middle of the page */
+.spot{width:100%;justify-self:center;--cw:calc(var(--cols,5) * 64px + (var(--cols,5) - 1) * 6px);max-width:calc(max(var(--cw), 330px) + 30px)}
+@container pane (min-width:700px){.spot{max-width:calc(250px + 14px + var(--cw) + 30px)}}
+.compact .spot{--cw:calc(var(--cols,5) * 56px + (var(--cols,5) - 1) * 6px);max-width:calc(max(var(--cw), 300px) + 22px)}
+@container pane (min-width:520px){.compact .spot{max-width:calc(max(var(--namew,150px),66px) + 8px + var(--cw) + 22px)}}
 /* site password screen */
 .gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-left,0px))}
 .gatebox{display:grid;gap:10px;width:min(340px,100%);text-align:center}
@@ -272,6 +277,7 @@ main{padding-top:14px;display:grid;gap:14px}
 @keyframes pulse{50%{opacity:.75}}
 /* tablet view (Menu → Widok → Tabletowy): resp cards in several columns, using the full width */
 .tablet .wrap{max-width:1700px}
+.tablet .spots .spot{max-width:none}
 .tablet .spots{grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr));align-items:start}
 .tablet .spots .spot{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:10px}
 .tablet.compact .spots{grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr))}
@@ -850,7 +856,7 @@ function spotHtml(s){
       <button class="rs" data-reset="${s.id}|${c}"${st.cls === "idle" ? " disabled" : ""}>zeruj</button>
     </div>`;
   }).join("");
-  return `<div class="spot${s.color ? " colored" : ""}" data-id="${s.id}"${s.color ? ` style="--c:${esc(s.color)}"` : ""}>
+  return `<div class="spot${s.color ? " colored" : ""}" data-id="${s.id}" style="--cols:${channels <= 6 ? channels : Math.ceil(channels / 2)}${s.color ? `;--c:${esc(s.color)}` : ""}">
     <div class="shead">
       <input class="nm" id="nm_${s.id}" data-f="name" data-id="${s.id}" maxlength="40" value="${esc(s.name)}" aria-label="Nazwa respu">
       <div class="srow"><span class="tag${s.kind === "boss" ? " boss" : ""}">${s.kind === "boss" ? "Boss" : "Metin"}</span>
@@ -858,7 +864,7 @@ function spotHtml(s){
         <span class="sur"><button class="mini" data-sundo="${s.id}" title="Cofnij w tym respie" aria-label="Cofnij: ${esc(s.name)}"${histIds(H.hist).has(s.id) ? "" : " disabled"}>↶</button><button class="mini" data-sredo="${s.id}" title="Ponów w tym respie" aria-label="Ponów: ${esc(s.name)}"${histIds(H.redo).has(s.id) ? "" : " disabled"}>↷</button></span>
         <button class="more" data-edit="${s.id}" aria-label="Więcej opcji: ${esc(s.name)}">⋯</button></div>
     </div>
-    <div class="cells" style="--cols:${channels <= 6 ? channels : Math.ceil(channels / 2)}">${cells}</div>
+    <div class="cells">${cells}</div>
   </div>`;
 }
 const wikiOpen = new Set();
