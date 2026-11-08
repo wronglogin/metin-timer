@@ -625,8 +625,11 @@ const DB_URL = "https://timermetin-default-rtdb.europe-west1.firebasedatabase.ap
    if so, gives a Firebase sign-in ticket. The page trades it for a Firebase ID token and adds it to every database
    request (?auth=…); the database rules then let in only signed-in people whose Discord check is under 7 days old.
    The nick is the name from the Discord server, so nick passwords are not needed. */
-const DISCORD = {worker: "", apiKey: ""};
-const dOn = () => !!(DISCORD.worker && DISCORD.apiKey);
+const DISCORD = {worker: "https://metin-timer-auth.bartekwol97.workers.dev", apiKey: "AIzaSyCAhnxUAj98gRSPmtgWA3h8kubwwl12z70"};
+// test phase: only devices that opened the page with ?discord=1 use it (?discord=0 turns it off); LIVE = everyone
+const DISCORD_LIVE = false;
+{ const q = /[?&]discord=([01])/.exec(location.search); if (q) { store.set("dtest", q[1] === "1"); history.replaceState(null, "", location.pathname + location.hash); } }
+const dOn = () => !!(DISCORD.worker && DISCORD.apiKey) && (DISCORD_LIVE || !!store.get("dtest", false));
 const DSESS_DAYS = 7;
 let dTok = null, dExp = 0, dBusy = null;
 const dSess = () => { const s = store.get("dsess", null); return s && s.rt && Date.now() - (+s.at || 0) < (DSESS_DAYS * 86400 - 3600) * 1000 ? s : null; };
