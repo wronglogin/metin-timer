@@ -347,6 +347,8 @@ body.sizing{cursor:ew-resize;user-select:none}
 .field{display:grid;gap:4px}
 .field[hidden]{display:none}
 .btn[hidden]{display:none}
+@media (max-width:520px){#adminBtn .abtx{display:none}#adminBtn{padding:0 10px}}
+@media (max-width:440px){.ctrls>#adminBtn{padding:3px 5px;flex-shrink:0}}
 .stakein{display:flex;align-items:center;gap:8px}.stakein input{flex:1;min-width:0}.stakein span{color:var(--muted);font-weight:600;white-space:nowrap}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
@@ -397,6 +399,7 @@ body.sizing{cursor:ew-resize;user-select:none}
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
       <button class="btn" id="gamesBtn">Gry</button>
       <button class="btn" id="menuBtn">Menu</button>
+      <button class="btn" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina">⚙<span class="abtx"> Admin</span></button>
       </div>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -728,9 +731,10 @@ async function dSignIn(ct){
   const b = jwtBody(j.idToken), n = String(b.dn || "").trim().slice(0, 20) || "Discord";
   dTok = j.idToken; dExp = Date.now() + (+j.expiresIn || 3600) * 1000;
   store.set("dsess", {rt: j.refreshToken, n, uid: b.user_id || b.sub, at: Date.now()});
+  setTimeout(refreshAdminBtn, 300);
   store.set("nick", n); store.set("nickLock", n); store.set("nickLockAt", Date.now());
 }
-function dLogout(){ store.set("dsess", null); dTok = null; dExp = 0; if (typeof disconnect === "function" && online) disconnect(); gate(); }
+function dLogout(){ store.set("dsess", null); dTok = null; dExp = 0; refreshAdminBtn(); if (typeof disconnect === "function" && online) disconnect(); gate(); }
 // every request to our database gets the token; requests elsewhere are untouched
 const isDb = u => typeof u === "string" && /^https:\/\/[\w.-]+\.(firebasedatabase\.app|firebaseio\.com)\//.test(u) && !/\/authpending\//.test(u);
 {
@@ -1580,7 +1584,7 @@ function menuSheet(){
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_admin"${amAdminAcct ? "" : " hidden"}>Panel admina</button><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
@@ -1630,8 +1634,7 @@ function menuSheet(){
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
     bindRoomBlock(el, close);
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
-    const ab = el.querySelector("#m_admin"); ab.onclick = () => { close(); adminSheet(); };
-    checkAdminAcct().then(ok => { if (ab.isConnected) ab.hidden = !ok; });
+    refreshAdminBtn();
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
   });
@@ -1924,6 +1927,11 @@ async function checkAdminAcct(){
   const [o, a] = await Promise.all([get("adminuids"), get("subadmins")]);
   adminRole = o === true ? "owner" : a ? "admin" : null; amAdminAcct = !!adminRole; return amAdminAcct;
 }
+// the "Admin" button next to Menu: only for the owner and the admins, checked after login and when the page comes back
+async function refreshAdminBtn(){ const ok = await checkAdminAcct(); const b = document.getElementById("adminBtn"); if (b) b.hidden = !ok; }
+document.getElementById("adminBtn").onclick = () => adminSheet();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refreshAdminBtn(); });
+setTimeout(refreshAdminBtn, 800);
 const openAdminFromHash = () => { if (location.hash === "#admin") { history.replaceState(null, "", location.pathname + location.search); adminSheet(); } };
 window.addEventListener("hashchange", openAdminFromHash);
 setTimeout(openAdminFromHash, 600);
