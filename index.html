@@ -731,7 +731,7 @@ async function dSignIn(ct){
   const b = jwtBody(j.idToken), n = String(b.dn || "").trim().slice(0, 20) || "Discord";
   dTok = j.idToken; dExp = Date.now() + (+j.expiresIn || 3600) * 1000;
   store.set("dsess", {rt: j.refreshToken, n, uid: b.user_id || b.sub, at: Date.now()});
-  setTimeout(refreshAdminBtn, 300);
+  setTimeout(refreshAdminBtn, 300); setTimeout(seenUser, 500);
   store.set("nick", n); store.set("nickLock", n); store.set("nickLockAt", Date.now());
 }
 function dLogout(){ store.set("dsess", null); dTok = null; dExp = 0; refreshAdminBtn(); if (typeof disconnect === "function" && online) disconnect(); gate(); }
@@ -1892,7 +1892,19 @@ function gate(){
    config/bans/<deviceId> = {n: nick, at}. Checked by the banned device itself, so it stops casual
    trouble-makers; clearing app data gets around it (for real trouble: new room name + site password). */
 let banned = store.get("banned", false);
+// every signed-in Discord account leaves its name and last visit (users/<uid>), at most every few hours
+function seenUser(){
+  const s = dOn() ? dSess() : null; if (!s || !s.uid) return;
+  if (Date.now() - (+store.get("seenAt", 0) || 0) < 3 * 3600e3 && store.get("seenN", "") === s.n) return;
+  fetch(`${DB_URL}/users/${encodeURIComponent(s.uid)}.json`, {method: "PUT", body: JSON.stringify({n: s.n.slice(0, 20), at: {".sv": "timestamp"}})})
+    .then(r => { if (r.ok) { store.set("seenAt", Date.now()); store.set("seenN", s.n); } }).catch(() => {});
+}
 async function checkBan(){
+  seenUser();
+  if (dOn() && dSess()) {
+    const ub = await fetch(`${DB_URL}/config/ubans/${encodeURIComponent(dSess().uid)}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (ub) { banned = true; if (online) disconnect(); toast("Admin zablokował ci dostęp.", 6000); return true; }
+  }
   try {
     const r = await fetch(`${DB_URL}/config/bans/${deviceId}.json`); if (!r.ok) return banned;
     const b = await r.json(); banned = !!b; store.set("banned", banned);
@@ -1976,6 +1988,10 @@ function adminSheet(){
       <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Zbanowani</h2>
     <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul>
+    <details class="alogd" id="a_usersd"${dOn() ? "" : " hidden"}><summary>Wszyscy, którzy kiedykolwiek się logowali</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Każde konto Discord, które weszło na stronę, z ostatnią wizytą. Ban działa na konto – na każdym urządzeniu, także gdy tej osoby teraz nie ma.</p>
+      <input id="a_usearch" placeholder="szukaj nicku albo identyfikatora" autocomplete="off" style="width:100%;margin-bottom:6px">
+      <ul class="banlist" id="a_users"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
     ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
@@ -2001,15 +2017,16 @@ function adminSheet(){
     const drawPeople = () => {
       const ul = el.querySelector("#a_people"); if (!online || !ul) return;
       const list = people().filter(p => !p.me);
-      ul.innerHTML = list.length ? list.map(p => `<li><span>${esc(p.n)}</span><button class="btn danger" data-ban="${esc(p.id)}" data-nick="${esc(p.n)}">Zbanuj</button></li>`).join("")
+      ul.innerHTML = list.length ? list.map(p => `<li><span>${esc(p.n)}</span><button class="btn danger" data-ban="${esc(p.id)}" data-u="${esc((presence[p.id] || {}).u || "")}" data-nick="${esc(p.n)}">Zbanuj</button></li>`).join("")
         : '<li class="pme">Poza tobą nikogo nie ma.</li>';
     };
     const drawBans = async () => {
       const ul = el.querySelector("#a_bans");
       try {
-        const r = await fetch(`${DB_URL}/config/bans.json`); const bans = r.ok ? (await r.json()) || {} : {};
-        const rows = Object.entries(bans).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
-        ul.innerHTML = rows.length ? rows.map(([id, b]) => `<li><span>${esc(b.n || "?")} <span class="pme">${b.at ? fmtDate(b.at) : ""}</span></span><button class="btn" data-unban="${esc(id)}">Odbanuj</button></li>`).join("")
+        const [bans, ubans] = await Promise.all(["bans", "ubans"].map(k => fetch(`${DB_URL}/config/${k}.json`).then(r => r.ok ? r.json() : null).catch(() => null).then(x => x || {})));
+        const rows = [...Object.entries(ubans).map(([id, b]) => ({...b, id, acct: true})), ...Object.entries(bans).map(([id, b]) => ({...b, id}))].sort((a, b) => (b.at || 0) - (a.at || 0));
+        ul.innerHTML = rows.length ? rows.map(b => `<li><span>${esc(b.n || "?")} <span class="pme">${b.acct ? "konto Discord · " : "urządzenie · "}${b.at ? fmtDate(b.at) : ""}</span></span>${b.acct
+          ? `<button class="btn" data-unuban="${esc(b.id)}" data-nick="${esc(b.n || "")}">Odbanuj</button>` : `<button class="btn" data-unban="${esc(b.id)}">Odbanuj</button>`}</li>`).join("")
           : '<li class="pme">Nikt nie jest zbanowany.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
@@ -2051,12 +2068,29 @@ function adminSheet(){
           const byNick = new Map();
           for (const [id, v] of Object.entries(pr)) if (v && v.n && now() - (+v.t || 0) < 360000) { const k = pkey(v.n); if (!byNick.has(k)) byNick.set(k, {id, n: v.n, u: v.u}); else if (v.u && !byNick.get(k).u) byNick.get(k).u = v.u; }
           const ppl = [...byNick.values()].sort((a, b) => a.n.localeCompare(b.n));
-          return ppl.length ? `<li class="pme" style="font-weight:600">Pokój ${esc(room)} (${ppl.length})</li>` + ppl.map(p => `<li><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span>${p.id === deviceId ? "" : `<span style="display:flex;gap:6px">${adminRole === "owner" && p.u ? `<button class="btn" data-mkadmin="${esc(p.u)}" data-nick="${esc(p.n)}">Daj admina</button>` : ""}<button class="btn danger" data-ban="${esc(p.id)}" data-nick="${esc(p.n)}">Zbanuj</button></span>`}</li>`).join("") : "";
+          return ppl.length ? `<li class="pme" style="font-weight:600">Pokój ${esc(room)} (${ppl.length})</li>` + ppl.map(p => `<li><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span>${p.id === deviceId ? "" : `<span style="display:flex;gap:6px">${adminRole === "owner" && p.u ? `<button class="btn" data-mkadmin="${esc(p.u)}" data-nick="${esc(p.n)}">Daj admina</button>` : ""}<button class="btn danger" data-ban="${esc(p.id)}" data-u="${esc(p.u || "")}" data-nick="${esc(p.n)}">Zbanuj</button></span>`}</li>`).join("") : "";
         }).join("");
         ul.innerHTML = html || '<li class="pme">Nikogo nie ma teraz w żadnym pokoju.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
     el.querySelector("#a_alld").addEventListener("toggle", e => { if (e.target.open) drawAll(); });
+    // every Discord account that ever signed in (users/<uid> = {n, at}), newest first, with a ban button
+    let usersCache = null;
+    const drawUsers = async (reload = true) => {
+      const ul = el.querySelector("#a_users");
+      if (reload || !usersCache) {
+        const [u, ub] = await Promise.all([`${DB_URL}/users.json`, `${DB_URL}/config/ubans.json`].map(x => fetch(x).then(r => r.ok ? r.json() : null).catch(() => null).then(v => v || {})));
+        usersCache = {u, ub};
+      }
+      const q = el.querySelector("#a_usearch").value.trim().toLowerCase(), me = (dSess() || {}).uid;
+      const rows = Object.entries(usersCache.u).map(([id, v]) => ({id, n: String(v.n || "?"), at: +v.at || 0}))
+        .filter(r => !q || r.n.toLowerCase().includes(q) || r.id.includes(q)).sort((a, b) => b.at - a.at);
+      ul.innerHTML = rows.length ? rows.slice(0, 200).map(r => `<li><span>${esc(r.n)} <span class="pme">${r.at ? fmtDate(r.at) : ""} · ${esc(r.id)}${r.id === me ? " · ty" : ""}</span></span>${r.id === me ? "" : usersCache.ub[r.id]
+        ? `<button class="btn" data-unuban="${esc(r.id)}" data-nick="${esc(r.n)}">Odbanuj</button>` : `<button class="btn danger" data-uban="${esc(r.id)}" data-nick="${esc(r.n)}">Zbanuj</button>`}</li>`).join("")
+        : `<li class="pme">${Object.keys(usersCache.u).length ? "Nikt nie pasuje do wyszukiwania." : "Lista zapełni się, gdy ludzie będą wchodzić na stronę."}</li>`;
+    };
+    el.querySelector("#a_usersd").addEventListener("toggle", e => { if (e.target.open) drawUsers(); });
+    el.querySelector("#a_usearch").addEventListener("input", () => drawUsers(false));
     // owner: add / remove admins (subadmins/<uid>); nobody can touch the owner, who is set in the Firebase console
     const drawAdmins = async () => {
       const ul = el.querySelector("#a_admins");
@@ -2209,11 +2243,23 @@ function adminSheet(){
       } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; d.disabled = false; d.dataset.sure = ""; }
     });
     el.addEventListener("click", async e => {
+      const ub = e.target.closest("[data-uban],[data-unuban]");
+      if (ub) {
+        berr.hidden = true; ub.disabled = true;
+        try {
+          if (ub.dataset.uban) { await adminPatch({["ubans/" + ub.dataset.uban]: {n: (ub.dataset.nick || "?").slice(0, 20), at: {".sv": "timestamp"}}}, "Zbanowano: " + ub.dataset.nick); toast(`Zbanowano: ${ub.dataset.nick}`); }
+          else { await adminPatch({["ubans/" + ub.dataset.unuban]: null}, "Odbanowano: " + (ub.dataset.nick || ub.dataset.unuban)); toast("Odbanowano"); }
+          drawBans(); if (el.querySelector("#a_usersd").open) drawUsers();
+        } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; ub.disabled = false; }
+        return;
+      }
       const b = e.target.closest("[data-ban],[data-unban]"); if (!b) return;
       berr.hidden = true; b.disabled = true;
       try {
         if (b.dataset.ban) {
-          await adminPatch({["bans/" + b.dataset.ban]: {n: b.dataset.nick.slice(0, 20), at: {".sv": "timestamp"}}}, "Zbanowano: " + b.dataset.nick);
+          // with Discord sign-in the ban is on the account too (works on every device, enforced by the database)
+          const u = /^d[0-9]{5,25}$/.test(b.dataset.u || "") ? b.dataset.u : null, ban = {n: b.dataset.nick.slice(0, 20), at: {".sv": "timestamp"}};
+          await adminPatch({["bans/" + b.dataset.ban]: ban, ...(u ? {["ubans/" + u]: ban} : {})}, "Zbanowano: " + b.dataset.nick);
           if (online) fetch(presUrl(b.dataset.ban), {method:"DELETE"}).catch(() => {});   // drop them from the list right away
           toast(`Zbanowano: ${b.dataset.nick}`);
         } else {
