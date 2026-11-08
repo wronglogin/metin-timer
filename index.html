@@ -57,6 +57,8 @@ header{grid-template-columns:minmax(0,1fr)}
 .rq li.rnow{border-color:var(--accent)}
 .rqplay{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rq .btn{min-height:28px;padding:0 9px;flex:0 0 auto}
+.rq .btn.rqmv{padding:0 7px;font-size:11px;margin-right:-2px}
+.rq .btn.rqmv:disabled{opacity:.3}
 @media (max-width:520px){.radio{flex:1 1 100%;max-width:none}}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
@@ -620,7 +622,8 @@ async function push(changes){
   try {
     const r = await fetch(roomUrl(), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(changes)});
     if (!r.ok) throw new Error(r.status);
-  } catch (e) { setMode("Błąd zapisu", "err"); }
+    return true;
+  } catch (e) { setMode("Błąd zapisu", "err"); return false; }
 }
 async function syncClock(db){
   try {
@@ -645,9 +648,11 @@ async function connect(db, room){
   await syncClock(db);
   store.set("online", {db, room});
   remoteRoot = {}; H = {hist:{}, redo:{}};
-  const es = new EventSource(roomUrl());
-  online.es = es;
+  // the live stream sometimes dies silently (phone sleep, network switch); a watchdog reopens it,
+  // and a fresh stream starts with the full room, so everything is back in step
+  let lastEv = Date.now(), lastKa = 0, kaGap = 0;
   const handle = kind => ev => {
+    lastEv = Date.now();
     try {
       const {path, data} = JSON.parse(ev.data);
       if (kind === "put") setPath(remoteRoot, path, data);
@@ -666,13 +671,27 @@ async function connect(db, room){
       scheduleRender();
     } catch {}
   };
-  es.addEventListener("put", handle("put"));
-  es.addEventListener("patch", handle("patch"));
-  es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err");
-    if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); } });
-  es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
-  es.onerror = () => setMode("Wznawianie…", "err");
-  es.onopen = () => setMode(room, "on");
+  const openStream = () => {
+    if (online.es) try { online.es.close(); } catch {}
+    const es = new EventSource(roomUrl());
+    online.es = es; lastEv = Date.now();
+    es.addEventListener("put", handle("put"));
+    es.addEventListener("patch", handle("patch"));
+    es.addEventListener("keep-alive", () => { const t = Date.now(); if (lastKa) kaGap = t - lastKa; lastKa = t; lastEv = t; });
+    es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err");
+      if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); } });
+    es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
+    es.onerror = () => setMode("Wznawianie…", "err");
+    es.onopen = () => setMode(room, "on");
+  };
+  openStream();
+  const me = online;
+  online.check = () => {
+    if (online !== me || document.visibilityState !== "visible") return;
+    const limit = kaGap ? Math.max(60000, kaGap * 2.5) : 300000;          // a few missed keep-alives = dead stream
+    if (me.es.readyState === 2 || Date.now() - lastEv > limit) openStream();
+  };
+  online.wd = setInterval(online.check, 20000);
   startPresence();
 }
 async function roomBanned(db, room){
@@ -681,6 +700,7 @@ async function roomBanned(db, room){
 function disconnect(silent){
   stopPresence();
   try { ytPlayer && ytPlayer.stopVideo(); } catch {}
+  if (online && online.wd) clearInterval(online.wd);
   if (online && online.es) online.es.close();
   const was = !!online;
   online = null; clockOffset = 0; renderPresence();
@@ -720,7 +740,7 @@ function stopPresence(keepEntry){
 window.addEventListener("pagehide", () => { if (!online) return; fetch(presUrl(deviceId), {method:"DELETE", keepalive:true}).catch(() => {});
   const g = remoteRoot.game, r = remoteRoot.roulette, ch = {};
   if (Object.keys(ch).length) fetch(roomUrl(), {method:"PATCH", keepalive:true, headers:{"Content-Type":"application/json"}, body: JSON.stringify(ch)}).catch(() => {}); });
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) heartbeat(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) { heartbeat(); if (online.check) online.check(); } });
 // people who switched games off are listed under the players, so others know why they can't add them
 const noGamersLi = () => { const n = people().filter(p => p.ng && !p.me); return n.length ? `<li class="pme">Nie grają (wyłączyli gry): ${n.map(p => esc(p.n)).join(", ")}</li>` : ""; };
 /* one nick = one person in games: a phone and a PC logged in with the same nick share one player id (made from
@@ -1877,7 +1897,16 @@ const RADIO_ENABLED = !IN_APP;                       // the radio is a website f
 let radioOn = store.get("radioOn", false), radioMuted = store.get("radioMuted", false);
 let radioVol = store.get("radioVol", 60); if (!(radioVol >= 0 && radioVol <= 100)) radioVol = 60;   // own volume, separate from alarms
 const RADIO = () => (remoteRoot && remoteRoot.radio) || {};
-const rqKeys = () => sortedKeys(RADIO().queue || {});
+// queue order: "o" when someone moved the song, otherwise the time it was added (the start of its key)
+const qOrd = (k, it) => it && typeof it.o === "number" ? it.o : +String(k).slice(0, 14);
+const rqKeys = () => { const q = RADIO().queue || {}; return Object.keys(q).sort((a, b) => qOrd(a, q[a]) - qOrd(b, q[b]) || (a < b ? -1 : 1)); };
+function moveRq(k, d){
+  const q = RADIO().queue || {}, ks = rqKeys(), i = ks.indexOf(k), j = i + d;
+  if (i < 0 || j < 0 || j >= ks.length) return;
+  let a = qOrd(k, q[k]), b = qOrd(ks[j], q[ks[j]]);
+  if (a === b) b = a + d;                                     // equal places: nudge so the swap shows
+  radioPatch({[`queue/${k}/o`]: b, [`queue/${ks[j]}/o`]: a});
+}
 const curItem = () => { const r = RADIO(); return r.cur && r.queue ? r.queue[r.cur] : null; };
 function ytIdFrom(u){
   u = String(u).trim();
@@ -1961,7 +1990,16 @@ function syncRadio(force){
     }
   } catch {}
 }
-function radioPatch(rc){ const out = {}; for (const [p, v] of Object.entries(rc)) { out["radio/" + p] = v; setPath(remoteRoot, "radio/" + p, clone(v)); } if (online) push(out); syncRadio(true); }
+function radioPatch(rc){
+  const out = {}; for (const [p, v] of Object.entries(rc)) { out["radio/" + p] = v; setPath(remoteRoot, "radio/" + p, clone(v)); }
+  if (online) push(out).then(ok => { if (!ok) resyncRadio(); });
+  syncRadio(true);
+}
+// a rejected write would leave this device with a queue nobody else has: take the database's version back
+async function resyncRadio(){
+  if (!online) return;
+  try { const r = await fetch(roomUrl("/radio")); if (!r.ok) return; setPath(remoteRoot, "radio", await r.json()); syncRadio(true); } catch {}
+}
 function playKey(k){ radioPatch({cur: k || null, start: {".sv": "timestamp"}}); setPath(remoteRoot, "radio/start", Math.round(now())); syncRadio(true); }
 function stepRadio(d){
   const ks = rqKeys(), i = ks.indexOf(RADIO().cur);
@@ -2087,6 +2125,7 @@ function radioSheet(){
       const before = showAll ? 0 : ci, after = showAll ? 0 : Math.max(0, ks.length - ci - SHOW);
       const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}">
         <button class="rqplay" data-rq="${k}" title="${esc(t)}">${k === r.cur ? "▶ " : ""}${esc(t)}</button>
+        <button class="btn rqmv" data-rqmv="-1" data-k="${k}" aria-label="W górę" title="W górę"${ks.indexOf(k) === 0 ? " disabled" : ""}>▲</button><button class="btn rqmv" data-rqmv="1" data-k="${k}" aria-label="W dół" title="W dół"${ks.indexOf(k) === ks.length - 1 ? " disabled" : ""}>▼</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
       el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
       el.querySelector("#ra_list").innerHTML = !ks.length ? '<li class="pme">Kolejka jest pusta.</li>'
@@ -2111,6 +2150,7 @@ function radioSheet(){
     };
     el.addEventListener("click", e => {
       if (e.target.closest("[data-rqall]")) { showAll = !showAll; draw(); return; }
+      const mv = e.target.closest("[data-rqmv]"); if (mv) { moveRq(mv.dataset.k, +mv.dataset.rqmv); draw(); return; }
       const pl = e.target.closest("[data-rq]"); if (pl) { playKey(pl.dataset.rq); if (!radioOn) setRadioOn(true); draw(); return; }
       const del = e.target.closest("[data-rqdel]"); if (!del) return;
       const k = del.dataset.rqdel;
