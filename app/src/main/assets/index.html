@@ -3721,6 +3721,21 @@ function thump(a, when, vol){
   s.buffer = noiseBuf(a); f.type = "lowpass"; f.frequency.value = 900; n.gain.setValueAtTime(vol * 0.5, when); n.gain.exponentialRampToValueAtTime(0.0001, when + 0.05);
   s.connect(f).connect(n).connect(master); s.start(when, Math.random() * 0.5); s.stop(when + 0.06);
 }
+// starting pistol: a sharp crack (bright noise burst), a low boom and a short echo off the stands
+function gunShot(a, when){
+  const crack = a.createBufferSource(), hp = a.createBiquadFilter(), cg = a.createGain();
+  crack.buffer = noiseBuf(a); hp.type = "highpass"; hp.frequency.value = 900;
+  cg.gain.setValueAtTime(0.0001, when); cg.gain.exponentialRampToValueAtTime(0.55, when + 0.002); cg.gain.exponentialRampToValueAtTime(0.0001, when + 0.09);
+  crack.connect(hp).connect(cg).connect(master); crack.start(when, Math.random() * 0.5, 0.12);
+  const boom = a.createOscillator(), bg = a.createGain();
+  boom.type = "sine"; boom.frequency.setValueAtTime(140, when); boom.frequency.exponentialRampToValueAtTime(40, when + 0.25);
+  bg.gain.setValueAtTime(0.0001, when); bg.gain.exponentialRampToValueAtTime(0.4, when + 0.004); bg.gain.exponentialRampToValueAtTime(0.0001, when + 0.3);
+  boom.connect(bg).connect(master); boom.start(when); boom.stop(when + 0.32);
+  const tail = a.createBufferSource(), lp = a.createBiquadFilter(), tg = a.createGain();
+  tail.buffer = noiseBuf(a); lp.type = "lowpass"; lp.frequency.setValueAtTime(2500, when); lp.frequency.exponentialRampToValueAtTime(300, when + 0.9);
+  tg.gain.setValueAtTime(0.0001, when); tg.gain.exponentialRampToValueAtTime(0.18, when + 0.03); tg.gain.exponentialRampToValueAtTime(0.0001, when + 0.9);
+  tail.connect(lp).connect(tg).connect(master); tail.start(when, Math.random() * 0.3, 1);
+}
 function horseSound(cv, g, t, best, m){
   const st = cv._hs || (cv._hs = {});
   const a = gameSnd ? audio() : null;
@@ -3745,6 +3760,8 @@ function horseSound(cv, g, t, best, m){
   } else if (g.state === "done") vol = st.roarUntil && now_ < st.roarUntil ? 0.2 : 0;
   if (st.roarUntil && now_ < st.roarUntil) { vol = 0.2; freq = 1500; }
   if (st.roared && st.roared !== g.seed) { st.roared = null; st.roarUntil = 0; }
+  // the starter's pistol: one shot when the countdown reaches zero (only if we see that moment, not when joining late)
+  if (g.state === "race" && t >= 0 && t < 0.6 && st.shot !== g.seed) { st.shot = g.seed; gunShot(a, now_); }
   st.cg.gain.setTargetAtTime(vol, now_, 0.25); st.cf.frequency.setTargetAtTime(freq + Math.sin(now_ * 1.7) * 120, now_, 0.3);
   // hooves: a gallop is three beats and a pause; several horses blur into a rumble
   const running = g.state === "race" && t > 0 && m && m.horses.some(h => t < h.T + 0.6);
