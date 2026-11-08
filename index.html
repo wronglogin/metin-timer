@@ -62,6 +62,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);right:0;z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
+.people .nogame{color:var(--danger);font-weight:500;font-size:.85em}
 .people .pme{color:var(--muted);font-weight:500}
 .gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:19;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
 .gresize{position:absolute;right:0;bottom:0;width:22px;height:22px;padding:0;border:0;background:none;cursor:nwse-resize;touch-action:none;z-index:2}
@@ -699,6 +700,8 @@ window.addEventListener("pagehide", () => { if (!online) return; fetch(presUrl(d
   const g = remoteRoot.game, r = remoteRoot.roulette, ch = {};
   if (Object.keys(ch).length) fetch(roomUrl(), {method:"PATCH", keepalive:true, headers:{"Content-Type":"application/json"}, body: JSON.stringify(ch)}).catch(() => {}); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online) heartbeat(); });
+// people who switched games off are listed under the players, so others know why they can't add them
+const noGamersLi = () => { const n = people().filter(p => p.ng && !p.me); return n.length ? `<li class="pme">Nie grają (wyłączyli gry): ${n.map(p => esc(p.n)).join(", ")}</li>` : ""; };
 // people who can be put into a game (not the ones who switched games off)
 const gamers = () => people().filter(p => !p.ng);
 function people(){
@@ -713,7 +716,7 @@ function renderPresence(){
   el.querySelector(".pc").textContent = list.length;
   el.setAttribute("aria-label", `Osoby w pokoju: ${list.length}`);
   el.querySelector(".plist").innerHTML = list.length
-    ? list.map(p => `<li>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</li>`).join("")
+    ? list.map(p => `<li>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}${p.ng ? ' <span class="nogame">nie gra</span>' : ""}</li>`).join("")
     : `<li class="pme">Nikogo nie widać</li>`;
 }
 setInterval(renderPresence, 15000);              // let people drop off the list when their heartbeat stops
@@ -2062,7 +2065,7 @@ function rouletteSheet(){
     const skip = new Set();
     const draw = () => {
       const ps = gamers();
-      el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("") : '<li class="pme">Nikogo nie ma w pokoju.</li>';
+      el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("") + noGamersLi() : '<li class="pme">Nikogo nie ma w pokoju.</li>' + noGamersLi();
       const h = Object.values(remoteRoot.rlog || {}).sort((a, b) => b.at - a.at).slice(0, 5);
       el.querySelector("#rl_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b> <span class="pme">· pula ${esc(poolText(x.s, x.n))} · ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
     };
@@ -3063,6 +3066,7 @@ function gameSheet(type){
         ? `<li><label class="rlp"><span>${esc(p.n)}</span><input type="radio" name="gm_opp" data-op="${esc(p.id)}" ${opp === p.id ? "checked" : ""} aria-label="${esc(p.n)}"></label></li>`
         : `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("")
         || `<li class="pme">${def.duel ? "Nie ma nikogo do wyzwania." : "Nikogo nie ma w pokoju."}</li>`;
+      el.querySelector("#gm_p").insertAdjacentHTML("beforeend", noGamersLi());
       const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
       el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(poolText(x.s, x.n))}</span>` : ""} <span class="pme">· ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
     };
