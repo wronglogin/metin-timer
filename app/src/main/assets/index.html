@@ -2006,8 +2006,9 @@ function adminSheet(){
       <p class="pme" style="font-size:13px;margin:6px 0">Każde konto Discord, które weszło na stronę, z ostatnią wizytą. Ban działa na konto – na każdym urządzeniu, także gdy tej osoby teraz nie ma.</p>
       <input id="a_usearch" placeholder="szukaj nicku albo identyfikatora" autocomplete="off" style="width:100%;margin-bottom:6px">
       <ul class="banlist" id="a_users"><li class="pme">Wczytywanie…</li></ul></details>
-    <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
-    <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
+    <details class="alogd" id="a_debtsd"><summary>Długi we wszystkich pokojach</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Kto komu ile wisi, w każdym pokoju (także tam, gdzie cię nie ma). Pojedynczy dług usuniesz tutaj, wszystkie w pokoju – w Zarządzaniu pokojami → Więcej.</p>
+      <ul class="banlist" id="a_debts"><li class="pme">Wczytywanie…</li></ul></details>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="field"><label>Wszyscy użytkownicy</label><div class="acts" style="justify-content:flex-start"><button class="btn" id="a_reload">Odśwież stronę u wszystkich</button><button class="btn danger" id="a_logout">Wyloguj wszystkich</button></div>
       <p class="pme" style="font-size:13px;margin:0">„Wyloguj wszystkich” – każdy (ty też) musi się zalogować ponownie przez Discord; otwarte strony same się przeładują.</p></div>
@@ -2044,13 +2045,25 @@ function adminSheet(){
           : '<li class="pme">Nikt nie jest zbanowany.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
-    const drawDebts = () => {
-      const ul = el.querySelector("#a_debts"); if (!online || !ul) return;
-      const rows = Object.entries(remoteRoot.debts || {}).map(([k, d]) => ({k, v: +d.v || 0, a: d.a, b: d.b})).filter(d => Math.abs(d.v) >= 0.005)
-        .map(d => d.v > 0 ? {k: d.k, from: d.a, to: d.b, v: d.v} : {k: d.k, from: d.b, to: d.a, v: -d.v}).sort((x, y) => y.v - x.v);
-      ul.innerHTML = rows.length ? rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <span class="pme">${fmtYang(r.v)}</span></span><button class="btn danger" data-ddel="${esc(r.k)}">Usuń</button></li>`).join("")
-        : '<li class="pme">Nikt nikomu nic nie wisi.</li>';
+    // debts of every room (rooms from the room list, the current one first); loaded when the section is opened
+    let debtCache = {};
+    const drawDebts = async () => {
+      const ul = el.querySelector("#a_debts"); if (!ul || !el.querySelector("#a_debtsd").open) return;
+      const rl = await fetch(`${DB_URL}/roomlist.json`).then(r => r.ok ? r.json() : null).catch(() => null) || {};
+      const rooms = [...new Set([...(online ? [online.room] : []), ...Object.keys(rl).sort((a, b) => (+rl[b] || 0) - (+rl[a] || 0))])];
+      const all = await Promise.all(rooms.map(room => fetch(`${DB_URL}/rooms/${encodeURIComponent(room)}/debts.json`).then(r => r.ok ? r.json() : null).catch(() => null).then(d => [room, d || {}])));
+      debtCache = Object.fromEntries(all);
+      const html = all.map(([room, debts]) => {
+        const rows = Object.entries(debts).map(([k, d]) => ({k, v: +d.v || 0, a: d.a, b: d.b})).filter(d => Math.abs(d.v) >= 0.005)
+          .map(d => d.v > 0 ? {k: d.k, from: d.a, to: d.b, v: d.v} : {k: d.k, from: d.b, to: d.a, v: -d.v}).sort((x, y) => y.v - x.v);
+        if (!rows.length) return "";
+        const sum = rows.reduce((t, r) => t + r.v, 0);
+        return `<li class="pme" style="font-weight:700;background:none;border:0;padding:6px 0 0">Pokój ${esc(room)} · ${rows.length} ${rows.length === 1 ? "dług" : "długi"} · razem ${fmtYang(sum)} yang</li>`
+          + rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <span class="pme">${fmtYang(r.v)} yang</span></span><button class="btn danger" data-ddel="${esc(r.k)}" data-droom="${esc(room)}">Usuń</button></li>`).join("");
+      }).join("");
+      ul.innerHTML = html || '<li class="pme">W żadnym pokoju nikt nikomu nic nie wisi.</li>';
     };
+    el.querySelector("#a_debtsd").addEventListener("toggle", e => { if (e.target.open) drawDebts(); });
     // debts live in the room; the admin password is checked first (a harmless write to config), then the room is changed
     const adminRoom = async (rc, msg) => {
       await adminPatch({}, msg);
@@ -2237,8 +2250,7 @@ function adminSheet(){
         if (fresh) { store.set("adminPw", el.querySelector("#a_pw").value); store.set("adminPwAt", Date.now()); }
         if (dOn() && dSess()) adminPatch({["admins/" + dSess().uid]: true}).catch(() => {});      // the admin can open every room
         el.querySelector("#a_body").hidden = false; el.querySelector("#a_pwf").hidden = true; store.set("adminOk", true); renderGame();
-        drawPeople(); drawBans(); drawDebts(); drawReqs();
-        const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
+        drawPeople(); drawBans(); drawReqs();
       } catch (x) {
         store.set("adminOk", false); store.set("adminPw", ""); store.set("adminPwAt", 0);
         lerr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; lerr.hidden = false;
@@ -2259,9 +2271,11 @@ function adminSheet(){
           await adminRoom(rc, "Admin zresetował wszystkie długi");
           toast("Wyzerowano wszystkie długi");
         } else {
-          const k = d.dataset.ddel, x = (remoteRoot.debts || {})[k]; if (!x) return;
-          const from = x.v > 0 ? x.a : x.b, to = x.v > 0 ? x.b : x.a;
-          await adminRoom({["debts/" + k]: null}, `Admin usunął dług: ${from} → ${to} ${fmtYang(Math.abs(+x.v || 0))}`);
+          const room = d.dataset.droom, k = d.dataset.ddel, x = ((debtCache[room] || {})[k]); if (!x) return;
+          const from = x.v > 0 ? x.a : x.b, to = x.v > 0 ? x.b : x.a, msg = `Admin usunął dług: ${from} → ${to} ${fmtYang(Math.abs(+x.v || 0))}`;
+          await adminPatch({}, msg + " (pokój " + room + ")");
+          const r = await fetch(`${DB_URL}/rooms/${encodeURIComponent(room)}.json`, {method: "PATCH", body: JSON.stringify({["debts/" + k]: null, ["dlog/" + hkey()]: {s: msg.slice(0, 200), at: {".sv": "timestamp"}}})});
+          if (!r.ok) throw new Error("Baza nie pozwoliła usunąć długu (" + r.status + ").");
           toast("Usunięto dług");
         }
         drawDebts();
