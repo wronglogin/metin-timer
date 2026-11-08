@@ -3344,16 +3344,28 @@ function h3Dist(x, z){
   if (z <= 0 && z >= -S) return Math.min(Math.abs(x), Math.abs(x + 2 * R));
   return Math.abs(Math.hypot(x + R, z < -S ? z + S : z) - R);
 }
+// running styles: extra time (+) or time saved (−) in each twentieth of the course; each adds up to about zero
+const H3HURDLE_SEG = [1, 8, 11, 18];
+const H3STYLES = [
+  i => i < 12 ? -0.06 : 0.09,                                   // front-runner: goes off fast, tires in the straight
+  i => i < 12 ? 0.06 : -0.09,                                   // closer: waits, then kicks from 600 m
+  i => i < 15 ? 0.05 : -0.15,                                   // late charge: last for ages, flies over the final 250 m
+  i => i >= 8 && i <= 12 ? -0.12 : 0.04,                        // mid-race move: surges down the back straight
+  i => i >= 6 && i <= 11 ? 0.1 : -0.043,                        // second wind: a bad patch in the middle, strong at both ends
+  (i, r) => (r() * 2 - 1) * 0.14,                               // erratic: spurts and stumbles
+  i => H3HURDLE_SEG.includes(i) ? -0.12 : 0.03,                 // good jumper: gains at every hurdle
+  i => H3HURDLE_SEG.includes(i) ? 0.12 : -0.03,                 // poor jumper: loses ground at the hurdles, fast on the flat
+  () => 0,                                                      // steady: the same pace all the way
+];
 function raceModel3d(seed){
   const key = "3d:" + seed;
   if (raceCache.has(key)) return raceCache.get(key);
   const rnd = mulberry(seed ^ 0x3d3d3d), SEG = 20;
   const horses = Array.from({length: 6}, () => {
-    // finish times within about 1 s of each other, so the finish is close; every horse has a running style:
-    // st > 0 = a closer (holds back for the first 60 %, then kicks), st < 0 = a front-runner who tires at the end.
-    // The style is random and independent of the finishing time, so whoever leads at halfway often does not win.
-    const T = 50 + rnd() * 1.2, st = rnd() * 2 - 1;
-    const w = Array.from({length: SEG}, (_, i) => 1 + (i < 12 ? st * 0.06 : -st * 0.09) + (rnd() * 2 - 1) * 0.04);
+    // finish times within about 1 s of each other, so the finish is close. How a horse gets there is its running
+    // style, drawn at random and independent of the finishing time, so the leader at halfway often does not win.
+    const T = 50 + rnd() * 1.2, style = H3STYLES[Math.floor(rnd() * H3STYLES.length)], amp = 0.8 + rnd() * 0.5;
+    const w = Array.from({length: SEG}, (_, i) => 1 + style(i, rnd) * amp + (rnd() * 2 - 1) * 0.035);
     const sum = w.reduce((x, y) => x + y, 0), cum = [0];
     for (const x of w) cum.push(cum[cum.length - 1] + x / sum * T);
     return {T, cum};
