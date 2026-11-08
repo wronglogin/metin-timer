@@ -670,12 +670,13 @@ function disconnect(silent){
   try { ytPlayer && ytPlayer.stopVideo(); } catch {}
   if (online && online.es) online.es.close();
   const was = !!online;
-  online = null; clockOffset = 0;
+  online = null; clockOffset = 0; renderPresence();
   if (was && !silent) {
     store.set("online", null);
     spots = store.get("spots", null) || seedAll();
     H = {hist:{}, redo:{}};
-    setMode("Prywatny"); render(); toast("Rozłączono. Wróciłeś do timerów prywatnych.");
+    setMode("Prywatny"); render(); toast("Wylogowano z pokoi – działasz offline na prywatnym timerze.");
+    if (typeof closeGame === "function") closeGame(); const sp = document.getElementById("spin"); if (sp) sp.remove();
   }
 }
 /* ---------- who is in the room ----------
@@ -1203,7 +1204,7 @@ function menuSheet(){
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
-    <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
+    <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo. Po wylogowaniu wracasz do prywatnego timera tylko na tym urządzeniu.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
     ${loggedNick() ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(loggedNick())}</b></span><button class="linkbtn" id="m_chnick">poproś o zmianę nicku</button></div>` : ""}
     <div id="m_nickf"${loggedNick() ? " hidden" : ""}>
     <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}">
@@ -1214,7 +1215,7 @@ function menuSheet(){
     </div>
     <div class="field"><label for="m_room">Nazwy pokoi (możesz być w kilku pokojach naraz – każdy pokój oddziel ;)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
-    <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
+    <div class="acts">${online ? `<button class="btn danger" id="m_off">Wyloguj z pokoi (tryb offline)</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">Globalny reset</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
