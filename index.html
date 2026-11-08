@@ -722,7 +722,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794160104";
+const BUILD = "1794160358";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -842,7 +842,22 @@ async function push(changes){
     const r = await fetch(roomUrl(), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(changes)});
     if (!r.ok) throw new Error(r.status);
     return true;
-  } catch (e) { setMode("Błąd zapisu", "err"); return false; }
+  } catch (e) { setMode("Błąd zapisu", "err"); pushFailed(); return false; }
+}
+/* a change that didn't reach the database must not stay on this screen only (everyone else wouldn't see it):
+   go back to the room as the database last sent it, say so clearly, and reload the room over a fresh stream */
+let pushFailAt = 0;
+async function pushFailed(){
+  if (!online) return;
+  spots = clone(remoteRoot.spots || {}) || {};
+  for (const s of Object.values(spots)) if (!s.t || typeof s.t !== "object") s.t = {};
+  H = {hist: clone(remoteRoot.hist || {}) || {}, redo: clone(remoteRoot.redo || {}) || {}};
+  scheduleRender();
+  if (Date.now() - pushFailAt > 4000) toast("Nie zapisano – sprawdź internet, odśwież stronę i kliknij jeszcze raz.", 7000);
+  pushFailAt = Date.now();
+  const me = online;
+  if (dOn()) await dToken(true);
+  if (online === me && me.reopen) me.reopen();
 }
 // the clock difference is measured again every 30 minutes and whenever the page comes back to the front,
 // so a computer clock changed (or corrected by Windows) while the page is open does not shift the timers
@@ -957,6 +972,7 @@ async function connect(db, room){
   };
   openStream();
   const me = online;
+  online.reopen = openStream;
   online.check = () => {
     if (online !== me || document.visibilityState !== "visible") return;
     const limit = kaGap ? Math.max(60000, kaGap * 2.5) : 300000;          // a few missed keep-alives = dead stream
