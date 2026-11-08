@@ -1014,7 +1014,11 @@ function lastReset(ts){
   return day - tzOffset(day - tzOffset(day));                  // back to a real timestamp (handles DST)
 }
 let resetAt = 0;
-const updateReset = () => { resetAt = lastReset(now()); };
+// the game server's clock may differ from ours by a few seconds: the admin sets that difference (config/gameoff, s)
+// and it moves the clock by the title and the daily 01:00 reset; timers count from the click, so they need no shift
+let gameOff = (+store.get("gameoff", 0) || 0) * 1000;
+const gnow = () => now() + gameOff;
+const updateReset = () => { resetAt = lastReset(gnow()) - gameOff; };
 function status(s, c){
   // a kill stores the respawn time valid at that moment: {a: timestamp, mn, mx}; editing the row only affects the next kill
   const v = s.t && s.t[c];
@@ -1233,7 +1237,7 @@ function wikiHtml(){
 }
 document.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.wmap) d.open ? wikiOpen.add(d.dataset.wmap) : wikiOpen.delete(d.dataset.wmap); }, true);
 // the clock next to the title: local time zone, corrected to the server's time while in a room
-function drawClock(){ const el = document.getElementById("clock"); if (!el) return; const d = new Date(now()), p = n => String(n).padStart(2, "0"); const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; if (el.textContent !== t) el.textContent = t; }
+function drawClock(){ const el = document.getElementById("clock"); if (!el) return; const d = new Date(gnow()), p = n => String(n).padStart(2, "0"); const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; if (el.textContent !== t) el.textContent = t; }
 setInterval(drawClock, 250); drawClock();
 function tick(){
   if (tick.n % 4 === 0) updateReset();
@@ -1803,6 +1807,11 @@ async function loadConfig(){
     const n = await r.json();
     if (n >= 1 && n <= 10 && n !== channels) { channels = n; store.set("channels", n); render(); }
   } catch {}
+  try {
+    const r = await fetch(`${DB_URL}/config/gameoff.json`); if (!r.ok) return;
+    const v = await r.json(), o = typeof v === "number" && Math.abs(v) <= 3600 ? v : 0;
+    if (o * 1000 !== gameOff) { gameOff = o * 1000; store.set("gameoff", o); updateReset(); render(); }
+  } catch {}
 }
 // hidden entry: tap the "Metin Timer" title 5 times quickly
 let brandTaps = [];
@@ -1826,6 +1835,11 @@ function adminSheet(){
       <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
+    <div class="field"><label for="a_goff">Przesunięcie zegara względem gry (sekundy)</label>
+      <div class="stakein"><input id="a_goff" inputmode="numeric" maxlength="6" value="${gameOff / 1000}" placeholder="np. 25 albo -60"><span>s</span></div>
+      <p class="pme" style="font-size:13px;margin:0">Porównaj zegar w grze z zegarem obok tytułu: jeśli gra pokazuje o 25 s więcej, wpisz 25, jeśli o minutę mniej – -60. Przesuwa zegar przy tytule i codzienne zerowanie o 01:00 u wszystkich. Timery liczą czas od kliknięcia, więc same nie potrzebują przesunięcia.</p>
+      <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_goffok">Zapisz przesunięcie</button></div>
+      <p id="a_gerr" style="color:var(--danger);margin:0" hidden></p></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="field"><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
     <div class="field"><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
@@ -2085,6 +2099,18 @@ function adminSheet(){
       catch (x) { berr.textContent = x.message; berr.hidden = false; }
     };
     const dbErr = x => x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message;
+    el.querySelector("#a_goffok").onclick = async ev => {
+      const err = el.querySelector("#a_gerr"), t = el.querySelector("#a_goff").value.trim().replace(/[−–]/g, "-").replace(",", ".");
+      err.hidden = true;
+      const v = t === "" ? 0 : Math.round(+t);
+      if (!/^[+-]?\d+(\.\d+)?$/.test(t || "0") || Math.abs(v) > 3600) { err.textContent = "Wpisz liczbę sekund od -3600 do 3600 (np. 25 albo -60)."; err.hidden = false; return; }
+      ev.target.disabled = true;
+      try {
+        await adminPatch({gameoff: v}, `Ustawiono przesunięcie zegara względem gry: ${v > 0 ? "+" : ""}${v} s`);
+        gameOff = v * 1000; store.set("gameoff", v); updateReset(); render(); toast(`Zegar przesunięty o ${v > 0 ? "+" : ""}${v} s względem serwera`);
+      } catch (x) { err.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; err.hidden = false; }
+      ev.target.disabled = false;
+    };
     el.querySelector("#a_sitego").onclick = async ev => {
       const err = el.querySelector("#a_serr"), inp = el.querySelector("#a_site"), site = inp.value.trim();
       err.hidden = true;

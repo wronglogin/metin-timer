@@ -661,6 +661,10 @@
       "authepoch": {
         ".read": true,
         ".validate": "newData.isNumber()"
+      },
+      "gameoff": {
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".validate": "newData.isNumber() && newData.val() >= -3600 && newData.val() <= 3600"
       }
     },
     "authpending": {

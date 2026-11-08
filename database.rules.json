@@ -661,6 +661,10 @@
       "authepoch": {
         ".read": true,
         ".validate": "newData.isNumber()"
+      },
+      "gameoff": {
+        ".read": true,
+        ".validate": "newData.isNumber() && newData.val() >= -3600 && newData.val() <= 3600"
       }
     }
   }
