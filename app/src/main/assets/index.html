@@ -2985,6 +2985,15 @@ function horseClick(g, act, b){
   if (act === "hstart") {
     if (g.state !== "bet") return;
     if (horseBets(g).length < 2) { toast(`Do ${g.type === "wheel" ? "losowania" : "wyścigu"} potrzeba co najmniej dwóch zakładów.`); return; }
+    if (isHorse(g)) {
+      // a bet already says "I'm in": no ready check, the race starts at once; bets of people who left the room are dropped
+      const hereNow = presentSet(), rc = {}, gone = horseBets(g).filter(x => !hereNow.has(x.id));
+      for (const x of gone) { rc[`game/b/${x.id}`] = null; rc[`game/p/${x.id}`] = null; }
+      if (horseBets(g).length - gone.length < 2) { if (gone.length) gamePatch(rc); toast("Do wyścigu potrzeba co najmniej dwóch zakładów osób, które są w pokoju."); return; }
+      const r = new Uint32Array(1); crypto.getRandomValues(r);
+      gamePatch({...rc, "game/state": "race", "game/seed": r[0] % 2147483647, "game/go": Math.round(now()) + 3500});
+      return;
+    }
     readyStart(g);
   }
   if (act === "hcancel") gamePatch({"game/state": "cancel"});
