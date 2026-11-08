@@ -1449,7 +1449,8 @@ function accountHtml(){
   const ln = loggedNick();
   if (dOn()) return `<div id="m_acct" class="acct"><h3>Twoje konto</h3>
     <div class="field loggedas"><span>Zalogowany przez Discord jako <b>${esc(ln || "?")}</b></span><button class="linkbtn" id="m_dout">wyloguj</button></div>
-    <p class="pme" style="font-size:13px;margin:0">Nick to Twoja nazwa z naszego serwera Discord. Zmienisz ją na Discordzie, a tutaj po ponownym zalogowaniu.</p></div>`;
+    <p class="pme" style="font-size:13px;margin:0">Nick to Twoja nazwa z naszego serwera Discord. Zmienisz ją na Discordzie, a tutaj po ponownym zalogowaniu.</p>
+    <p class="pme" style="font-size:12px;margin:0">Twój identyfikator: <code style="user-select:all">${esc((dSess() || {}).uid || "?")}</code></p></div>`;
   return `<div id="m_acct" class="acct">
     <h3>Twoje konto</h3>
     ${ln ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(ln)}</b></span><button class="linkbtn" id="m_chnick">poproś o zmianę nicku</button></div>` : ""}
