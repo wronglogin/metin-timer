@@ -3349,8 +3349,11 @@ function raceModel3d(seed){
   if (raceCache.has(key)) return raceCache.get(key);
   const rnd = mulberry(seed ^ 0x3d3d3d), SEG = 20;
   const horses = Array.from({length: 6}, () => {
-    const T = 49.5 + rnd() * 3;                                    // finish time in seconds (about 50 s); the field stays close
-    const w = Array.from({length: SEG}, () => 0.9 + rnd() * 0.2);   // how long each twentieth takes: the order keeps changing
+    // finish times within about 1 s of each other, so the finish is close; every horse has a running style:
+    // st > 0 = a closer (holds back for the first 60 %, then kicks), st < 0 = a front-runner who tires at the end.
+    // The style is random and independent of the finishing time, so whoever leads at halfway often does not win.
+    const T = 50 + rnd() * 1.2, st = rnd() * 2 - 1;
+    const w = Array.from({length: SEG}, (_, i) => 1 + (i < 12 ? st * 0.06 : -st * 0.09) + (rnd() * 2 - 1) * 0.04);
     const sum = w.reduce((x, y) => x + y, 0), cum = [0];
     for (const x of w) cum.push(cum[cum.length - 1] + x / sum * T);
     return {T, cum};
