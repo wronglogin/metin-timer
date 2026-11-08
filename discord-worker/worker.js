@@ -1,4 +1,4 @@
-/* Metin Timer – Discord login (Cloudflare Worker)
+/* Unity Timer – Discord login (Cloudflare Worker)
 
    /login?state=…[&app=1]  → sends you to Discord to approve the login
    /callback               → Discord sends you back here; the Worker checks that you are a member of our
@@ -24,7 +24,7 @@ export default {
     try {
       if (url.pathname === "/login") return login(url, env);
       if (url.pathname === "/callback") return await callback(url, env);
-      return page("Metin Timer", "To jest serwer logowania Metin Timera.", env);
+      return page("Unity Timer", "To jest serwer logowania Unity Timera.", env);
     } catch (e) {
       return page("Błąd logowania", "Coś poszło nie tak: " + esc(e.message || String(e)), env, 500);
     }
@@ -63,7 +63,7 @@ async function callback(url, env) {
   if (mode === "a") {
     const r = await fetch(`${env.DB_URL}/authpending/${st}.json`, {method: "PUT", body: JSON.stringify({ct, at: {".sv": "timestamp"}})});
     if (!r.ok) return page("Błąd logowania", "Nie udało się przekazać logowania do aplikacji (" + r.status + ").", env, 500);
-    return page("Zalogowano", `Cześć <b>${esc(name)}</b>! Możesz zamknąć tę kartę i wrócić do aplikacji Metin Timer.`, env);
+    return page("Zalogowano", `Cześć <b>${esc(name)}</b>! Możesz zamknąć tę kartę i wrócić do aplikacji Unity Timer.`, env);
   }
   return Response.redirect(`${env.SITE_URL}#dct=${encodeURIComponent(ct)}&dst=${st}`, 302);
 }
@@ -90,7 +90,7 @@ function b64url(bytes) {
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 function page(title, text, env, status = 200) {
-  const back = env && env.SITE_URL ? `<p><a href="${esc(env.SITE_URL)}">Wróć do Metin Timera</a></p>` : "";
+  const back = env && env.SITE_URL ? `<p><a href="${esc(env.SITE_URL)}">Wróć do Unity Timera</a></p>` : "";
   return new Response(`<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><style>body{font:16px system-ui,sans-serif;background:#0f1417;color:#e8ecef;display:grid;place-items:center;min-height:100vh;margin:0;padding:16px}
 main{max-width:420px;background:#182026;border:1px solid #2a343c;border-radius:12px;padding:20px 22px}h1{font-size:20px;margin:0 0 10px}a{color:#e0a96d}</style></head>

@@ -684,7 +684,7 @@ function appInfoHtml(rel){
   if (rel && verNum(rel.v) > verNum(APP_VER)) return `<p>Twoja wersja: <b>${esc(APP_VER)}</b>. ${latest}</p><p>Pobierz nową i zainstaluj ją na obecną. Respy i ustawienia zostaną.</p>`;
   return `<p>Twoja wersja: <b>${esc(APP_VER)}</b>${rel && rel.v ? ` – to najnowsza${when}` : ""}.</p>`;
 }
-const APK_URL = "https://github.com/wronglogin/metin-timer/releases/latest/download/MetinTimer.apk";
+const APK_URL = "https://github.com/wronglogin/metin-timer/releases/latest/download/UnityTimer.apk";
 const DB_URL = "https://timermetin-default-rtdb.europe-west1.firebasedatabase.app";
 /* ---------- Discord login (switched on when both values are filled in) ----------
    "Zaloguj przez Discord" goes to our small Cloudflare Worker, which asks Discord whether you are on our server and,
@@ -722,7 +722,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794160358";
+const BUILD = "1794160982";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1670,7 +1670,7 @@ function menuSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
-    <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz MetinTimer.apk</a></div>
+    <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz UnityTimer.apk</a></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>`,
   (el, close) => {
     el.classList.add("menusheet");

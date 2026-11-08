@@ -1,4 +1,4 @@
-# Metin Timer – instrukcja
+# Unity Timer – instrukcja
 
 Paczka zawiera:
 - `app/src/main/assets/index.html` – cała strona (ten sam plik możesz wrzucić na Netlify),
@@ -39,7 +39,7 @@ Darmowy plan Firebase obsługuje do 100 połączeń naraz (jedno otwarte okno/ap
 Wszystko buduje się samo po każdej zmianie w tym repozytorium:
 
 - **Strona:** https://wronglogin.github.io/metin-timer/
-- **Aplikacja (.apk):** https://github.com/wronglogin/metin-timer/releases/latest/download/MetinTimer.apk
+- **Aplikacja (.apk):** https://github.com/wronglogin/metin-timer/releases/latest/download/UnityTimer.apk
 
 Aplikacja wczytuje stronę z internetu, więc zmiany na stronie widać w aplikacji od razu,
 bez instalowania nowej wersji. Bez internetu przy starcie otwiera kopię zapisaną w aplikacji.

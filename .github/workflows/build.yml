@@ -36,15 +36,19 @@ jobs:
         run: gradle assembleRelease -Pvc=${{ github.run_number }} --no-daemon
 
       - name: Nazwa pliku
-        run: cp app/build/outputs/apk/release/app-release.apk MetinTimer.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk UnityTimer.apk
+          cp UnityTimer.apk MetinTimer.apk
 
       - name: Wydanie do pobrania
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.${{ github.run_number }}
-          name: Metin Timer 1.${{ github.run_number }}
-          body: "Pobierz MetinTimer.apk poniżej i zainstaluj na telefonie z Androidem."
-          files: MetinTimer.apk
+          name: Unity Timer 1.${{ github.run_number }}
+          body: "Pobierz UnityTimer.apk poniżej i zainstaluj na telefonie z Androidem."
+          files: |
+            UnityTimer.apk
+            MetinTimer.apk
           make_latest: "true"
 
       - name: Strona (GitHub Pages)

@@ -8,7 +8,7 @@
         </intent>
     </queries>
     <application
-        android:label="Metin Timer"
+        android:label="Unity Timer"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="false">
