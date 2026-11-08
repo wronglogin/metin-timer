@@ -1591,8 +1591,6 @@ function adminSheet(){
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
-      <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
     <div class="field"><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
     <div class="field"><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
       <p class="pme" style="font-size:13px;margin:0">Ta osoba będzie mogła raz zmienić nick w Menu.</p></div>
@@ -1606,6 +1604,9 @@ function adminSheet(){
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
     ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
+      <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
     <p id="a_berr" style="color:var(--danger)" hidden></p>
     </div>`,
   (el, close) => {
