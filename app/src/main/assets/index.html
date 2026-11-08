@@ -751,7 +751,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794173574";
+const BUILD = "1794173713";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2499,7 +2499,7 @@ function adminSheet(){
 
 /* ---------- room radio (YouTube) ----------
    Shared state in rooms/<room>/radio: queue {key: {v: videoId, t: title, by: nick, w: true = Watch2Gether,
-   s: source when not YouTube – "tw" Twitch, "vm" Vimeo, "dm" Dailymotion, "sc" SoundCloud, "f" a direct file link}},
+   s: source when not YouTube – "tw" Twitch, "vm" Vimeo, "sc" SoundCloud, "tt" TikTok}},
    cur: key, start: server ms.
    A Watch2Gether video plays in a big window under the timers (same moment for everyone); each person can hide it.
    Everyone computes the position from "start" and follows it. Each person turns the radio on/off and mutes
@@ -2709,7 +2709,7 @@ async function addToRadio(text, w2g){
   fillTitles();
   return ids.length;
 }
-/* ---------- other sources in the radio: Twitch, Vimeo, Dailymotion, SoundCloud, direct files ----------
+/* ---------- other sources in the radio: Twitch, Vimeo, SoundCloud, TikTok ----------
    Each gets its own small "driver" in the same dock: load at the room's position, report the time, seek, play,
    volume, and call radioEnded() when it finishes. Live Twitch streams have no position to sync (they are live). */
 function srcFrom(u){
@@ -2723,13 +2723,12 @@ function srcFrom(u){
     return null;
   }
   if (h === "vimeo.com" && (m = /\/(\d{5,12})(?:\/|$)/.exec(path))) return {s: "vm", v: m[1]};
-  if ((h === "dailymotion.com" && (m = /^\/(?:embed\/)?video\/([a-z0-9]{5,12})/i.exec(path))) || (h === "dai.ly" && (m = /^\/([a-z0-9]{5,12})/i.exec(path)))) return {s: "dm", v: m[1]};
   if (h === "soundcloud.com" && /^\/[^/]+\/[^/]+/.test(path)) return {s: "sc", v: ("https://soundcloud.com" + path).replace(/\/$/, "").slice(0, 300)};
   if (h === "on.soundcloud.com" && path.length > 2) return {s: "sc", v: url.origin + path};
-  if (/\.(mp4|webm|ogv|ogg|mp3|m4a|wav|flac|opus)$/i.test(path) && url.href.length <= 300) return {s: "f", v: url.href};
+  if (h === "tiktok.com" && (m = /\/(?:video|photo|player\/v1|embed\/v2|embed)\/(\d{15,22})/.exec(path))) return {s: "tt", v: m[1]};
   return null;
 }
-const SRCNAME = {tw: "Twitch", vm: "Vimeo", dm: "Dailymotion", sc: "SoundCloud", f: "Plik"};
+const SRCNAME = {tw: "Twitch", vm: "Vimeo", sc: "SoundCloud", tt: "TikTok"};
 async function srcTitle(it){
   if (!it.s) return ytTitle(it.v);
   if (titleCache[it.v]) return titleCache[it.v];
@@ -2737,9 +2736,8 @@ async function srcTitle(it){
   const j = async u => { try { const r = await fetch(u); return r.ok ? await r.json() : null; } catch { return null; } };
   if (it.s === "vm") t = ((await j(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent("https://vimeo.com/" + it.v)}`)) || {}).title;
   else if (it.s === "sc") t = ((await j(`https://soundcloud.com/oembed?format=json&url=${encodeURIComponent(it.v)}`)) || {}).title;
-  else if (it.s === "dm") t = ((await j(`https://api.dailymotion.com/video/${it.v}?fields=title`)) || {}).title;
+  else if (it.s === "tt") { const o = await j(`https://www.tiktok.com/oembed?url=${encodeURIComponent("https://www.tiktok.com/@/video/" + it.v)}`) || {}; t = o.title ? (o.author_name ? o.author_name + ": " : "") + o.title : `TikTok ${it.v}`; }
   else if (it.s === "tw") t = it.v[0] === "c" ? `Twitch: ${it.v.slice(1)} (na żywo)` : `Twitch: nagranie ${it.v.slice(1)}`;
-  else if (it.s === "f") { try { t = decodeURIComponent(new URL(it.v).pathname.split("/").pop()); } catch { t = "Plik"; } }
   return t ? (titleCache[it.v] = String(t).slice(0, 120)) : null;
 }
 const scriptCache = {};
@@ -2777,15 +2775,6 @@ async function makeAlt(it, key){
   const ready = () => { if (alt !== me) return; me.ready = true; applyMute(); syncAlt(it, true); };
   const off = radioOffset();
   try {
-    if (it.s === "f") {
-      const v = document.createElement("video"); v.src = it.v; v.autoplay = true; v.playsInline = true; v.controls = true; v.preload = "auto";
-      el.replaceWith(v);
-      Object.assign(me, {time: () => v.currentTime, seek: t => { v.currentTime = t; }, play: () => { if (v.paused && !v.ended) v.play().catch(() => {}); },
-        vol: n => { v.volume = n / 100; v.muted = n === 0; }});
-      v.addEventListener("loadedmetadata", () => { v.currentTime = Math.min(off, Math.max(0, (v.duration || off + 1) - 1)); ready(); }, {once: true});
-      v.addEventListener("ended", ended); v.addEventListener("error", () => fail("nie da się odtworzyć tego pliku"));
-      return;
-    }
     if (it.s === "vm") {
       const V = await loadScript("https://player.vimeo.com/api/player.js", "Vimeo"); if (alt !== me) return; if (!V) return fail("nie udało się wczytać odtwarzacza");
       const p = new V.Player(el, {id: +it.v, autoplay: true, width: 200, playsinline: true});
@@ -2815,16 +2804,28 @@ async function makeAlt(it, key){
       w.bind(SC.Widget.Events.FINISH, ended);
       return;
     }
-    if (it.s === "dm") {
-      // Dailymotion's scriptable player needs a partner account, so: the plain player started at the room's position,
-      // and the end is worked out from the video's length (no re-sync or volume from here – use the player's own controls)
+    if (it.s === "tt") {
+      // TikTok's embed player is driven with postMessage: play/pause/seekTo/mute/unMute; it reports state and time back
       const f = document.createElement("iframe"); f.allow = "autoplay; fullscreen"; f.allowFullscreen = true;
-      f.src = `https://www.dailymotion.com/embed/video/${it.v}?autoplay=1&start=${Math.floor(off)}`;
-      el.replaceWith(f); me.ready = true;
-      try { const r = await fetch(`https://api.dailymotion.com/video/${it.v}?fields=duration`); const d = r.ok ? (await r.json()).duration : 0;
-        if (alt === me && d > 0) me.endT = setTimeout(ended, Math.max(1000, (d - radioOffset() + 2) * 1000)); } catch {}
+      f.src = `https://www.tiktok.com/player/v1/${it.v}?autoplay=1&loop=0&rel=0&description=1&music_info=1`;
+      el.replaceWith(f);
+      let cur = null, st = -1;
+      const send = (type, value) => { try { f.contentWindow.postMessage({type, value, "x-tiktok-player": true}, "*"); } catch {} };
+      const onMsg = e => {
+        if (e.source !== f.contentWindow) return;
+        let d = e.data; if (typeof d === "string") { try { d = JSON.parse(d); } catch { return; } }
+        if (!d || !d["x-tiktok-player"]) return;
+        if (d.type === "onPlayerReady") { send("seekTo", radioOffset()); send("play"); ready(); }
+        else if (d.type === "onCurrentTime" && d.value) cur = +d.value.currentTime;
+        else if (d.type === "onStateChange") { st = +d.value; if (st === 0) ended(); }
+        else if (d.type === "onPlayerError") fail(d.value && d.value.errorCode === 3002 ? "przeglądarka zablokowała odtwarzanie – kliknij w film" : "nie da się odtworzyć tego filmu");
+      };
+      addEventListener("message", onMsg);
+      Object.assign(me, {time: () => cur, seek: t => send("seekTo", t), play: () => { if (st === 2 || st === -1) send("play"); },
+        vol: n => send(n === 0 ? "mute" : "unMute"), destroy: () => removeEventListener("message", onMsg)});
       return;
     }
+    fail("tego rodzaju linku timer już nie obsługuje");                  // e.g. an old queue item from a removed source
   } catch (e) { fail("coś poszło nie tak"); }
 }
 function setRadioOn(on){
@@ -2941,8 +2942,8 @@ const ICON = {
 };
 function radioSheet(){
   sheet(`<h2>Radio pokoju</h2>
-    <p>Wklej link z YouTube (filmik albo playlista), Twitcha, Vimeo, Dailymotion, SoundCloud albo bezpośredni link do pliku (.mp4, .mp3…). Wszyscy w pokoju słyszą to samo.</p>
-    <div class="raadd"><input id="ra_url" aria-label="Link z YouTube" autocomplete="off" spellcheck="false" placeholder="Link (YouTube, Twitch, Vimeo, SoundCloud…)"><button class="btn primary" id="ra_add">Dodaj</button></div>
+    <p>Wklej link z YouTube (filmik albo playlista), Twitcha, Vimeo, SoundCloud albo TikToka. Wszyscy w pokoju słyszą to samo.</p>
+    <div class="raadd"><input id="ra_url" aria-label="Link z YouTube" autocomplete="off" spellcheck="false" placeholder="Link (YouTube, Twitch, Vimeo, SoundCloud, TikTok)"><button class="btn primary" id="ra_add">Dodaj</button></div>
     <label class="w2gopt"><input type="checkbox" id="ra_w2g"><span><b>Watch2Gether</b> (opcjonalnie) – zamiast muzyki w tle film na dużym ekranie pod timerami, wszyscy oglądają ten sam moment. Kto nie chce, chowa go u siebie.</span></label>
     <p id="ra_err" style="color:var(--danger)" hidden></p>
     <ol class="banlist rq" id="ra_list"></ol>
@@ -2999,7 +3000,7 @@ function radioSheet(){
       const btn = el.querySelector("#ra_add"); btn.disabled = true; btn.textContent = "Dodawanie…";
       const wb = el.querySelector("#ra_w2g"), n = await addToRadio(inp.value, wb.checked);
       btn.disabled = false; btn.textContent = "Dodaj";
-      if (!n) { err.textContent = "Nie rozpoznaję linku. Obsługiwane: YouTube, Twitch, Vimeo, Dailymotion, SoundCloud i bezpośrednie linki do plików .mp4/.webm/.mp3."; err.hidden = false; return; }
+      if (!n) { err.textContent = /vm\.tiktok\.com|vt\.tiktok\.com|tiktok\.com\/t\//i.test(inp.value) ? "To skrócony link TikToka. Otwórz go w przeglądarce i skopiuj pełny adres (…tiktok.com/@nick/video/…)." : "Nie rozpoznaję linku. Obsługiwane: YouTube, Twitch, Vimeo, SoundCloud i TikTok."; err.hidden = false; return; }
       inp.value = ""; toast((n === 1 ? "Dodano do kolejki" : `Dodano ${n} utworów`) + (wb.checked ? " jako Watch2Gether" : "")); wb.checked = false; if (!radioOn) setRadioOn(true); draw();
     };
     el.querySelector("#ra_add").onclick = add;

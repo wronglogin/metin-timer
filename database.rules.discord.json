@@ -163,7 +163,7 @@
                 ".validate": "newData.isString() && newData.val().length <= 300 && (newData.parent().child('s').exists() || newData.val().matches(/^[A-Za-z0-9_-]{11}$/))"
               },
               "s": {
-                ".validate": "newData.isString() && newData.val().matches(/^(tw|vm|dm|sc|f)$/)"
+                ".validate": "newData.isString() && newData.val().matches(/^(tw|vm|sc|tt)$/)"
               },
               "t": {
                 ".validate": "newData.isString() && newData.val().length <= 120"
