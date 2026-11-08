@@ -58,7 +58,11 @@ header{grid-template-columns:minmax(0,1fr)}
 .w2gbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:10px;padding:8px 10px 8px 12px;min-width:0}
 .w2gbar .w2gt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .w2gbar .w2gt b{color:var(--accent);margin-right:6px}
-.w2gbox{width:100%;aspect-ratio:16/9;max-height:78vh;border-radius:10px;background:#000}
+.w2gbox{width:100%;aspect-ratio:16/9;max-height:88vh;border-radius:10px;background:#000}
+.w2gsize{display:none;position:absolute;right:0;bottom:0;width:26px;height:26px;padding:0;border:0;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 50%,var(--accent) 50%);opacity:.8;border-bottom-right-radius:10px}
+.ytdock.big .w2gsize{display:block}
+.ytdock.sizing iframe{pointer-events:none}
+.ytdock:fullscreen{border-radius:0;border:0}.ytdock:fullscreen iframe{width:100%;height:100%}.ytdock:fullscreen .w2gsize{display:none}
 .w2gopt{display:flex;align-items:flex-start;gap:8px;font-size:14px;color:var(--muted);cursor:pointer}
 .w2gopt input{margin-top:3px;accent-color:var(--accent)}
 .rqw{min-width:38px;padding:6px 8px;opacity:.45}.rqw[aria-pressed="true"]{opacity:1;border-color:var(--accent);color:var(--accent)}
@@ -442,7 +446,7 @@ body.sizing{cursor:ew-resize;user-select:none}
   <section id="w2g" class="w2g" hidden><div class="w2gbar" id="w2gbar"></div><div class="w2gbox" id="w2gbox" hidden></div></section>
 </div>
 <div id="layer"></div>
-<div id="ytdock" class="ytdock" hidden><div id="ytplayer"></div></div>
+<div id="ytdock" class="ytdock" hidden><div id="ytplayer"></div><button class="w2gsize" id="w2gsize" type="button" title="Przeciągnij, żeby powiększyć lub zmniejszyć · dwuklik: domyślny rozmiar" aria-label="Zmień rozmiar filmu"></button></div>
 
 <script>
 (() => {
@@ -739,7 +743,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794171958";
+const BUILD = "1794172178";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2723,11 +2727,16 @@ function renderW2g(){
   if (on) {
     const t = it.t || titleCache[it.v] || "Wczytywanie tytułu…";
     const html = `<span class="w2gt" title="${esc(t)}"><b>Watch2Gether</b>${esc(t)}${it.by ? ` <span class="pme">· dodał(a) ${esc(it.by)}</span>` : ""}</span>
+      ${watching ? '<button class="btn" data-w2g="full" title="Pełny ekran (Esc – wyjście)">Pełny ekran</button>' : ""}
       <button class="btn" data-w2g="next" title="Następny w kolejce">Następny</button>
       <button class="btn${watching ? "" : " primary"}" data-w2g="${watching ? "hide" : "show"}">${watching ? "Nie oglądam" : "Oglądaj"}</button>`;
     if (bar.dataset.html !== html) { bar.innerHTML = html; bar.dataset.html = html; }
   }
   box.hidden = !watching;
+  // own size (dragged with the corner of the film): wider or narrower than the timers, kept centred
+  const ww = +store.get("w2gW", 0), max = innerWidth - 16;
+  if (ww && watching) { const w = Math.max(280, Math.min(ww, max)); box.style.width = w + "px"; box.style.marginLeft = `calc(50% - ${w / 2}px)`; }
+  else if (box.style.width) box.removeAttribute("style");
   dock.classList.toggle("big", watching);
   if (watching) {
     const b = box.getBoundingClientRect();
@@ -2740,8 +2749,22 @@ document.getElementById("w2gbar").addEventListener("click", e => {
   if (a === "hide") w2gHidden = RADIO().cur;
   if (a === "show") { w2gHidden = null; if (!radioOn) setRadioOn(true); }
   if (a === "next") stepRadio(1);
+  if (a === "full") { const d = document.getElementById("ytdock"); try { (d.requestFullscreen || d.webkitRequestFullscreen).call(d); } catch {} }
   renderRadio();
 });
+// resize the film: drag its bottom-right corner (the height follows 16:9); double-click = default size
+{
+  const g = document.getElementById("w2gsize"), dock = document.getElementById("ytdock");
+  g.addEventListener("pointerdown", e => {
+    e.preventDefault(); g.setPointerCapture(e.pointerId); dock.classList.add("sizing");
+    const x0 = e.clientX, w0 = document.getElementById("w2gbox").getBoundingClientRect().width;
+    // the film grows to both sides from the middle, so the corner moves half as fast as the width
+    const move = ev => { store.set("w2gW", Math.round(Math.max(280, Math.min(w0 + (ev.clientX - x0) * 2, innerWidth - 16)))); renderW2g(); };
+    const up = () => { g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up); dock.classList.remove("sizing"); };
+    g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
+  });
+  g.addEventListener("dblclick", () => { store.set("w2gW", 0); renderW2g(); });
+}
 // keep the big player on its box when the timers above change height or the window is resized
 addEventListener("resize", renderW2g);
 if (window.ResizeObserver) new ResizeObserver(renderW2g).observe(document.getElementById("main"));
