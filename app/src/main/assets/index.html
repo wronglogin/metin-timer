@@ -387,6 +387,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .tab.addtab{color:var(--accent);opacity:.85}.tab.addtab:hover{opacity:1}
 .seg button{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 12px;min-height:38px}
 .seg button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.newver{position:fixed;left:50%;top:calc(8px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--accent);border-radius:10px;padding:8px 10px 8px 14px;font-weight:600;max-width:calc(100vw - 24px);box-shadow:0 6px 24px rgba(0,0,0,.4)}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 14px;z-index:30;font-size:15px;max-width:90vw}
 @media (prefers-reduced-motion:no-preference){.cell.window .ct{animation:pulse 1.6s ease-in-out infinite}}
 @keyframes pulse{50%{opacity:.75}}
@@ -716,6 +717,54 @@ async function pruneDeletedRooms(){
   if (typeof renderRoomSel === "function") renderRoomSel();
   toast(`Admin usunął pokój: ${gone.join(", ")}`);
 }
+/* new version check: build.sh stamps BUILD into the page and writes version.txt next to it. Every few minutes
+   (and when the page comes back to the front) we read version.txt; if the site has a newer build, the page
+   reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
+   otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
+   old version that could save timers differently from everyone else. */
+const BUILD = "1794160104";
+let newBuild = null;
+let lastKey = 0;
+document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
+const reloadSafe = () => {
+  if (document.visibilityState !== "visible") return true;
+  const a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && Date.now() - lastKey < 30e3) return false;
+  if (document.querySelector("#layer > *, #gamewin, #spin")) return false;
+  try { const g = G(); if (gameLocked(g)) return false; } catch {}
+  return true;
+};
+function goNewBuild(){
+  if (!newBuild) return;
+  store.set("buildTry", {v: newBuild, at: Date.now()});
+  const u = new URL(location.href); u.searchParams.set("v", newBuild);
+  location.replace(u.toString());
+}
+function showNewBuildBar(){
+  if (document.getElementById("newver")) return;
+  const el = document.createElement("div"); el.id = "newver"; el.className = "newver";
+  el.innerHTML = `<span>Jest nowa wersja timera.</span><button class="btn primary">Odśwież teraz</button>`;
+  el.querySelector("button").onclick = goNewBuild;
+  document.body.appendChild(el);
+}
+async function checkBuild(){
+  if (!/^\d+$/.test(BUILD) || !/^https?:$/.test(location.protocol)) return;
+  try {
+    const t = (await fetch(`version.txt?t=${Date.now()}`, {cache: "no-store"}).then(r => r.ok ? r.text() : "")).trim();
+    if (!/^\d+$/.test(t) || +t <= +BUILD) return;
+    const tried = store.get("buildTry", null);
+    // already reloaded for this version and still got the old page (the site's cache lags a few minutes): wait a bit
+    if (tried && tried.v === t && Date.now() - (+tried.at || 0) < 600e3) { newBuild = t; showNewBuildBar(); return; }
+    newBuild = t;
+    if (reloadSafe()) goNewBuild(); else showNewBuildBar();
+  } catch {}
+}
+setInterval(checkBuild, 180e3);
+// a refresh is waiting: do it as soon as the window/game is closed (unless we just tried and the cache was still old)
+setInterval(() => { const tr = store.get("buildTry", null) || {}; if (newBuild && reloadSafe() && !(tr.v === newBuild && Date.now() - (+tr.at || 0) < 600e3)) goNewBuild(); }, 15e3);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkBuild(); });
+window.addEventListener("online", checkBuild);
+setTimeout(checkBuild, 5000);
 async function checkForce(){
   pruneDeletedRooms();
   try {
