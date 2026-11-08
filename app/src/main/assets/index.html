@@ -1997,7 +1997,7 @@ function adminSheet(){
       <div class="raadd" style="margin-top:6px"><input id="a_admid" maxlength="30" placeholder="identyfikator, np. d1234567890" autocomplete="off" autocapitalize="off" spellcheck="false"><input id="a_admn" maxlength="20" placeholder="nick (opcjonalnie)" autocomplete="off"><button class="btn" id="a_admadd">Dodaj admina</button></div></details>
     <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
     <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
+      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Wyzeruj długi</b> kasuje wszystkie długi w pokoju (także takim, w którym cię nie ma). <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
       <div class="raadd"><input id="a_rname" maxlength="40" autocomplete="off" placeholder="albo wpisz nazwę pokoju"><button class="btn" id="a_radd">Pokaż</button></div>
       <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Zbanowani</h2>
@@ -2151,7 +2151,7 @@ function adminSheet(){
           return `<li class="rrow"><span><b>${r}</b> <span class="pme">${when}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${r}">Odblokuj</button>`
             : `<button class="btn" data-ract="pw" data-room="${r}">Hasło</button><button class="btn" data-rmore aria-expanded="false">Więcej ▾</button>`}</span>
             ${rb[n] ? "" : `<div class="rdanger" hidden><span class="rdwarn">Niebezpieczne – tego nie da się cofnąć:</span>
-              <button class="btn danger" data-ract="zero" data-room="${r}">Zeruj timery</button><button class="btn danger" data-ract="reset" data-room="${r}">Reset respów</button><button class="btn danger" data-ract="ban" data-room="${r}">Zablokuj</button><button class="btn danger" data-ract="del" data-room="${r}">Usuń pokój</button></div>`}</li>`;
+              <button class="btn danger" data-ract="zero" data-room="${r}">Zeruj timery</button><button class="btn danger" data-ract="debts" data-room="${r}">Wyzeruj długi</button><button class="btn danger" data-ract="reset" data-room="${r}">Reset respów</button><button class="btn danger" data-ract="ban" data-room="${r}">Zablokuj</button><button class="btn danger" data-ract="del" data-room="${r}">Usuń pokój</button></div>`}</li>`;
         }).join("") : '<li class="pme">Brak pokoi.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
@@ -2175,7 +2175,7 @@ function adminSheet(){
       }
       if (act !== "unban" && b.dataset.ok !== "1") {
         // confirmation: type the room's name, then the red button does it
-        const d = b.closest(".rdanger"), what = {zero: "wyzerować wszystkie timery", reset: "przywrócić domyślne respy (własne respy znikną)", ban: "zablokować", del: "usunąć na zawsze (z długami i wynikami gier)"}[act];
+        const d = b.closest(".rdanger"), what = {debts: "wyzerować wszystkie długi (historia długów zostaje)", zero: "wyzerować wszystkie timery", reset: "przywrócić domyślne respy (własne respy znikną)", ban: "zablokować", del: "usunąć na zawsze (z długami i wynikami gier)"}[act];
         d.innerHTML = `<span class="rdwarn">Na pewno ${what} w pokoju <b>${esc(room)}</b>? Wpisz nazwę pokoju, żeby potwierdzić:</span>
           <input class="rdconf" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(room)}">
           <button class="btn danger" data-ract="${act}" data-room="${esc(room)}" data-ok="1" disabled>${b.textContent}</button><button class="btn" data-rdcancel>Anuluj</button>`;
@@ -2186,7 +2186,14 @@ function adminSheet(){
       }
       b.disabled = true;
       try {
-        if (act === "del") {
+        if (act === "debts") {
+          // debts of any room, also one the admin is not in: clear them and leave a note in that room's debt history
+          await adminPatch({}, "Wyzerowano długi w pokoju: " + room);
+          const r = await fetch(`${rurl}.json`, {method: "PATCH", body: JSON.stringify({debts: null, ["dlog/" + hkey()]: {s: "Admin zresetował wszystkie długi", at: {".sv": "timestamp"}}})});
+          if (!r.ok) throw new Error("Baza nie pozwoliła wyzerować długów (" + r.status + ").");
+          toast(`Wyzerowano długi w pokoju ${room}`);
+        }
+        else if (act === "del") {
           const pr = await fetch(`${rurl}/presence.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
           const here = Object.values(pr).filter(v => v && now() - (+v.t || 0) < 360000).map(v => v.n);
           if (here.length) throw new Error(`W pokoju ${room} ktoś jest (${[...new Set(here)].join(", ")}) – usunąć można tylko nieużywany pokój.`);
