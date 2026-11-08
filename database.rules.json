@@ -173,6 +173,9 @@
               },
               "o": {
                 ".validate": "newData.isNumber()"
+              },
+              "w": {
+                ".validate": "newData.isBoolean() && newData.val() === true"
               }
             }
           },

@@ -51,6 +51,18 @@ header{grid-template-columns:minmax(0,1fr)}
 @keyframes marq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(min(0px,calc(-100% + 160px)))}}
 .ytdock{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:12;width:200px;height:200px;border-radius:8px;overflow:hidden;border:1px solid var(--rule);box-shadow:0 8px 24px rgba(0,0,0,.45);background:#000}
 .ytdock iframe{width:200px;height:200px;display:block}
+/* Watch2Gether: the same player, laid over the big box under the timers (moving an iframe would restart it) */
+.ytdock.big{position:absolute;right:auto;bottom:auto;z-index:4;border-radius:10px}
+.ytdock.big iframe{width:100%;height:100%}
+.w2g{margin:18px 0 8px;display:grid;gap:8px}
+.w2gbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--accent);border-radius:10px;padding:8px 10px 8px 12px;min-width:0}
+.w2gbar .w2gt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w2gbar .w2gt b{color:var(--accent);margin-right:6px}
+.w2gbox{width:100%;aspect-ratio:16/9;max-height:78vh;border-radius:10px;background:#000}
+.w2gopt{display:flex;align-items:flex-start;gap:8px;font-size:14px;color:var(--muted);cursor:pointer}
+.w2gopt input{margin-top:3px;accent-color:var(--accent)}
+.rqw{min-width:38px;padding:6px 8px;opacity:.45}.rqw[aria-pressed="true"]{opacity:1;border-color:var(--accent);color:var(--accent)}
+.rqby .w2gtag{color:var(--accent);font-weight:600}
 .rq li{padding:2px 3px 2px 6px;min-width:0;font-size:14px}
 .rq{gap:4px}
 .rq li.rqmore{background:none;border:0;padding:0;justify-content:center;font-size:13px}
@@ -427,6 +439,7 @@ body.sizing{cursor:ew-resize;user-select:none}
     <nav class="tabs" id="tabs" role="tablist"></nav>
   </header>
   <main id="main"></main>
+  <section id="w2g" class="w2g" hidden><div class="w2gbar" id="w2gbar"></div><div class="w2gbox" id="w2gbox" hidden></div></section>
 </div>
 <div id="layer"></div>
 <div id="ytdock" class="ytdock" hidden><div id="ytplayer"></div></div>
@@ -726,7 +739,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794161561";
+const BUILD = "1794171958";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2473,7 +2486,8 @@ function adminSheet(){
 }
 
 /* ---------- room radio (YouTube) ----------
-   Shared state in rooms/<room>/radio: queue {key: {v: videoId, t: title, by: nick}}, cur: key, start: server ms.
+   Shared state in rooms/<room>/radio: queue {key: {v: videoId, t: title, by: nick, w: true = Watch2Gether}}, cur: key, start: server ms.
+   A Watch2Gether video plays in a big window under the timers (same moment for everyone); each person can hide it.
    Everyone computes the position from "start" and follows it. Each person turns the radio on/off and mutes
    it for themselves. YouTube requires its player to stay visible (min. 200×200), so it sits in a corner
    while the radio is on. */
@@ -2651,7 +2665,7 @@ async function playlistIds(list){
     setTimeout(() => finish([]), 10000);
   });
 }
-async function addToRadio(text){
+async function addToRadio(text, w2g){
   const ids = [];
   for (const part of String(text).split(/\s+/).filter(Boolean)) {
     const list = ytListFrom(part), vid = ytIdFrom(part);
@@ -2662,7 +2676,7 @@ async function addToRadio(text){
   const rc = {}; let first = null;
   // one millisecond apart, so the queue keeps the order the links were pasted in
   const base = Math.round(now());
-  ids.forEach((v, i) => { const k = String(base + i).padStart(14, "0") + "-" + uid(); rc[`queue/${k}`] = {v, by: myNick().slice(0, 20)}; first = first || k; });
+  ids.forEach((v, i) => { const k = String(base + i).padStart(14, "0") + "-" + uid(); rc[`queue/${k}`] = {v, by: myNick().slice(0, 20), ...(w2g ? {w: true} : {})}; first = first || k; });
   const r = RADIO(), curGone = !r.cur || !(r.queue || {})[r.cur];
   if (curGone) { rc.cur = first; rc.start = {".sv": "timestamp"}; }
   radioPatch(rc);
@@ -2695,7 +2709,43 @@ function renderRadio(){
   if (act && (act.id === "rvol" || act.id === "rvoln")) return;          // don't rebuild while the volume is being changed
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
   document.getElementById("ytdock").hidden = !(radioOn && it);
+  renderW2g();
 }
+// Watch2Gether: when the current queue item is marked "w", the player grows into the box under the timers.
+// "Nie oglądam" hides it only on this device (the sound keeps going, mute it with the radio button if you like).
+let w2gHidden = null;
+function renderW2g(){
+  const sec = document.getElementById("w2g"), bar = document.getElementById("w2gbar"), box = document.getElementById("w2gbox"), dock = document.getElementById("ytdock");
+  if (!sec) return;
+  const r = RADIO(), it = online && RADIO_ENABLED ? curItem() : null, on = !!(it && it.w);
+  sec.hidden = !on;
+  const watching = on && radioOn && w2gHidden !== r.cur;
+  if (on) {
+    const t = it.t || titleCache[it.v] || "Wczytywanie tytułu…";
+    const html = `<span class="w2gt" title="${esc(t)}"><b>Watch2Gether</b>${esc(t)}${it.by ? ` <span class="pme">· dodał(a) ${esc(it.by)}</span>` : ""}</span>
+      <button class="btn" data-w2g="next" title="Następny w kolejce">Następny</button>
+      <button class="btn${watching ? "" : " primary"}" data-w2g="${watching ? "hide" : "show"}">${watching ? "Nie oglądam" : "Oglądaj"}</button>`;
+    if (bar.dataset.html !== html) { bar.innerHTML = html; bar.dataset.html = html; }
+  }
+  box.hidden = !watching;
+  dock.classList.toggle("big", watching);
+  if (watching) {
+    const b = box.getBoundingClientRect();
+    Object.assign(dock.style, {left: b.left + scrollX + "px", top: b.top + scrollY + "px", width: b.width + "px", height: b.height + "px"});
+  } else if (dock.style.width) dock.removeAttribute("style");
+}
+document.getElementById("w2gbar").addEventListener("click", e => {
+  const b = e.target.closest("[data-w2g]"); if (!b) return;
+  const a = b.dataset.w2g;
+  if (a === "hide") w2gHidden = RADIO().cur;
+  if (a === "show") { w2gHidden = null; if (!radioOn) setRadioOn(true); }
+  if (a === "next") stepRadio(1);
+  renderRadio();
+});
+// keep the big player on its box when the timers above change height or the window is resized
+addEventListener("resize", renderW2g);
+if (window.ResizeObserver) new ResizeObserver(renderW2g).observe(document.getElementById("main"));
+setInterval(renderW2g, 1000);
 const ICON = {
   radio: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>',
   sound: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>',
@@ -2708,6 +2758,7 @@ function radioSheet(){
   sheet(`<h2>Radio pokoju</h2>
     <p>Wklej link do filmiku albo playlisty z YouTube. Wszyscy w pokoju słyszą to samo.</p>
     <div class="raadd"><input id="ra_url" aria-label="Link z YouTube" autocomplete="off" spellcheck="false" placeholder="Link z YouTube"><button class="btn primary" id="ra_add">Dodaj</button></div>
+    <label class="w2gopt"><input type="checkbox" id="ra_w2g"><span><b>Watch2Gether</b> (opcjonalnie) – zamiast muzyki w tle film na dużym ekranie pod timerami, wszyscy oglądają ten sam moment. Kto nie chce, chowa go u siebie.</span></label>
     <p id="ra_err" style="color:var(--danger)" hidden></p>
     <ol class="banlist rq" id="ra_list"></ol>
     <div class="acts"><button class="btn danger grow" id="ra_clear">Wyczyść kolejkę</button><button class="btn" id="ra_off">${radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"}</button><button class="btn" data-close>Zamknij</button></div>`, el => {
@@ -2720,7 +2771,8 @@ function radioSheet(){
       const before = showAll ? 0 : ci, after = showAll ? 0 : Math.max(0, ks.length - ci - SHOW);
       const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}" data-qk="${k}">
         <span class="rqgrip" title="Złap i przeciągnij" aria-hidden="true">⠿</span>
-        <button class="rqplay" data-rq="${k}" title="${esc(t)}${it.by ? " – dodał(a) " + esc(it.by) : ""}"><span class="rqt">${k === r.cur ? "▶ " : ""}${esc(t)}</span>${it.by ? `<span class="rqby">dodał(a) ${esc(it.by)}</span>` : ""}</button>
+        <button class="rqplay" data-rq="${k}" title="${esc(t)}${it.by ? " – dodał(a) " + esc(it.by) : ""}"><span class="rqt">${k === r.cur ? "▶ " : ""}${esc(t)}</span>${it.by || it.w ? `<span class="rqby">${it.w ? '<span class="w2gtag">Watch2Gether</span>' + (it.by ? " · " : "") : ""}${it.by ? "dodał(a) " + esc(it.by) : ""}</span>` : ""}</button>
+        <button class="btn rqw" data-rqw="${k}" aria-pressed="${it.w ? "true" : "false"}" title="${it.w ? "Watch2Gether włączony – kliknij, żeby grało jako zwykła muzyka" : "Oznacz jako Watch2Gether (film na dużym ekranie)"}" aria-label="Watch2Gether">📺</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
       el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
       el.querySelector("#ra_list").innerHTML = !ks.length ? '<li class="pme">Kolejka jest pusta.</li>'
@@ -2760,10 +2812,10 @@ function radioSheet(){
     const add = async () => {
       const inp = el.querySelector("#ra_url"), err = el.querySelector("#ra_err"); err.hidden = true;
       const btn = el.querySelector("#ra_add"); btn.disabled = true; btn.textContent = "Dodawanie…";
-      const n = await addToRadio(inp.value);
+      const wb = el.querySelector("#ra_w2g"), n = await addToRadio(inp.value, wb.checked);
       btn.disabled = false; btn.textContent = "Dodaj";
       if (!n) { err.textContent = "Nie rozpoznaję linku. Wklej link do filmiku albo playlisty z YouTube."; err.hidden = false; return; }
-      inp.value = ""; toast(n === 1 ? "Dodano do kolejki" : `Dodano ${n} utworów`); if (!radioOn) setRadioOn(true); draw();
+      inp.value = ""; toast((n === 1 ? "Dodano do kolejki" : `Dodano ${n} utworów`) + (wb.checked ? " jako Watch2Gether" : "")); wb.checked = false; if (!radioOn) setRadioOn(true); draw();
     };
     el.querySelector("#ra_add").onclick = add;
     el.querySelector("#ra_url").addEventListener("keydown", e => { if (e.key === "Enter") add(); });
@@ -2776,6 +2828,8 @@ function radioSheet(){
       if (e.target.closest("[data-rqall]")) { showAll = !showAll; draw(); return; }
       if (Date.now() - justDragged < 300) return;                           // the click that ends a drag is not a "play"
       const pl = e.target.closest("[data-rq]"); if (pl) { playFromQueue(pl.dataset.rq); if (!radioOn) setRadioOn(true); draw(); return; }
+      const wt = e.target.closest("[data-rqw]");
+      if (wt) { const k = wt.dataset.rqw, q = RADIO().queue || {}; if (q[k]) radioPatch({[`queue/${k}/w`]: q[k].w ? null : true}); draw(); return; }
       const del = e.target.closest("[data-rqdel]"); if (!del) return;
       const k = del.dataset.rqdel;
       if (RADIO().cur === k) stepRadio(1);
