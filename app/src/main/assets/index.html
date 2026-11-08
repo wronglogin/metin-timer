@@ -1209,7 +1209,7 @@ function roomBlockHtml(welcome = false){
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo. Po wylogowaniu wracasz do prywatnego timera tylko na tym urządzeniu.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
     <div class="field"><label for="m_room">Nazwy pokoi (możesz być w kilku pokojach naraz – każdy pokój oddziel ;)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
-    <div class="acts">${online ? `<button class="btn danger" id="m_off">Wyloguj z pokoi (tryb offline)</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button>${online ? `<button class="btn danger" id="m_off">Wyloguj z pokoi (tryb offline)</button>` : ""}</div>
     </div>`;
 }
 function bindAccount(el){
@@ -1242,8 +1242,8 @@ function bindAccount(el){
         const warn = el.querySelector("#m_nwarn");
         if (!taken[pkey(nick)] && warn.dataset.ok !== pkey(nick)) {
           warn.dataset.ok = pkey(nick); warn.hidden = false;
-          warn.innerHTML = `Uwaga: zakładasz nick <b>${esc(nick)}</b>. Po ustawieniu hasła nie zmienisz go bez zgody admina. Sprawdź pisownię i kliknij jeszcze raz, żeby potwierdzić.`;
-          nb.disabled = false; nb.textContent = "Potwierdzam nick"; return;
+          warn.innerHTML = `Uwaga: zakładasz nick <b>${esc(nick)}</b>. Po ustawieniu hasła nie zmienisz go bez zgody admina. Sprawdź pisownię i hasło, potem kliknij „Potwierdzam nick i hasło”.`;
+          nb.disabled = false; nb.textContent = "Potwierdzam nick i hasło"; return;
         }
       }
       await nickLogin(nick, el.querySelector("#m_npw").value);
