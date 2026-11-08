@@ -697,6 +697,8 @@ const presUrl = id => roomUrl("/presence/" + id);
 function heartbeat(){
   if (!online || !myNick()) return;
   fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {})})}).catch(() => {});
+  // list of rooms with recent activity, so the admin can see who is online in every room
+  fetch(`${online.db}/roomlist/${encodeURIComponent(online.room)}.json`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({".sv":"timestamp"})}).catch(() => {});
 }
 function startPresence(){
   stopPresence(true);
@@ -1608,6 +1610,7 @@ function adminSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
+    <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Zbanowani</h2>
     <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul>
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
@@ -1671,6 +1674,25 @@ function adminSheet(){
           : '<li class="pme">Brak akcji w ostatnich 48 h.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać dziennika.</li>'; }
     };
+    // everyone online in every room (rooms come from /roomlist, written with each presence heartbeat)
+    const drawAll = async () => {
+      const ul = el.querySelector("#a_all");
+      try {
+        const rl = await fetch(`${DB_URL}/roomlist.json`).then(r => r.ok ? r.json() : {}) || {};
+        const old = Object.keys(rl).filter(k => now() - (+rl[k] || 0) > 7 * 86400e3);
+        if (old.length) fetch(`${DB_URL}/roomlist.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(Object.fromEntries(old.map(k => [k, null])))}).catch(() => {});
+        const rooms = Object.keys(rl).filter(k => now() - (+rl[k] || 0) < 360000).sort((a, b) => a.localeCompare(b));
+        const res = await Promise.all(rooms.map(room => fetch(`${DB_URL}/rooms/${encodeURIComponent(room)}/presence.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})).then(p => [room, p || {}])));
+        const html = res.map(([room, pr]) => {
+          const byNick = new Map();
+          for (const [id, v] of Object.entries(pr)) if (v && v.n && now() - (+v.t || 0) < 360000) { const k = pkey(v.n); if (!byNick.has(k)) byNick.set(k, {id, n: v.n}); }
+          const ppl = [...byNick.values()].sort((a, b) => a.n.localeCompare(b.n));
+          return ppl.length ? `<li class="pme" style="font-weight:600">Pokój ${esc(room)} (${ppl.length})</li>` + ppl.map(p => `<li><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span>${p.id === deviceId ? "" : `<button class="btn danger" data-ban="${esc(p.id)}" data-nick="${esc(p.n)}">Zbanuj</button>`}</li>`).join("") : "";
+        }).join("");
+        ul.innerHTML = html || '<li class="pme">Nikogo nie ma teraz w żadnym pokoju.</li>';
+      } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
+    };
+    el.querySelector("#a_alld").addEventListener("toggle", e => { if (e.target.open) drawAll(); });
     el.querySelector("#a_logd").addEventListener("toggle", e => { if (e.target.open) drawLog(); });
     // the admin options appear only after the password has been accepted by the database
     const login = async () => {
@@ -1724,7 +1746,7 @@ function adminSheet(){
           await adminPatch({["bans/" + b.dataset.unban]: null}, "Odbanowano: " + (b.closest("li")?.querySelector("span")?.firstChild?.textContent || "?").trim());
           toast("Odbanowano");
         }
-        drawBans(); setTimeout(drawPeople, 400);
+        drawBans(); setTimeout(drawPeople, 400); if (el.querySelector("#a_alld").open) setTimeout(drawAll, 400);
       } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; b.disabled = false; }
     });
     async function drawReqs(){

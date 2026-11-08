@@ -537,6 +537,13 @@
         }
       }
     },
+    "roomlist": {
+      ".read": true,
+      "$room": {
+        ".write": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/)",
+        ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+      }
+    },
     "clock": {
       "$c": {
         ".read": true,
