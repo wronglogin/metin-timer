@@ -1584,9 +1584,12 @@ document.querySelector(".brand").addEventListener("click", () => {
   if (brandTaps.length >= 5) { brandTaps = []; adminSheet(); }
 });
 function adminSheet(){
-  store.set("adminPw", ""); // the password is never remembered: it is asked every time the panel opens
+  // the admin password is remembered for 48 h on this device, then asked again
+  const ADMIN_KEEP = 48 * 3600e3;
+  if (Date.now() - store.get("adminPwAt", 0) > ADMIN_KEEP) { store.set("adminPw", ""); store.set("adminOk", false); }
+  const savedPw = store.get("adminPw", "");
   sheet(`<h2>Panel admina</h2>
-    <div class="field" id="a_pwf"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
+    <div class="field" id="a_pwf"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password" value="${esc(savedPw)}"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
     <p id="a_lerr" style="color:var(--danger)" hidden></p>
     <div class="abody" id="a_body" hidden>
     <div class="field"><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
@@ -1675,19 +1678,21 @@ function adminSheet(){
       if (!el.querySelector("#a_pw").value) { lerr.textContent = "Wpisz hasło admina."; lerr.hidden = false; return; }
       lb.disabled = true; lb.textContent = "Sprawdzam…";
       try {
-        await adminPatch({}, "Zalogowano do panelu");
+        const fresh = !savedPw;
+        await adminPatch({}, fresh ? "Zalogowano do panelu" : "");
+        if (fresh) { store.set("adminPw", el.querySelector("#a_pw").value); store.set("adminPwAt", Date.now()); }
         el.querySelector("#a_body").hidden = false; el.querySelector("#a_pwf").hidden = true; store.set("adminOk", true); renderGame();
         drawPeople(); drawBans(); drawDebts(); drawReqs();
         const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
       } catch (x) {
-        store.set("adminOk", false);
+        store.set("adminOk", false); store.set("adminPw", ""); store.set("adminPwAt", 0);
         lerr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; lerr.hidden = false;
         lb.disabled = false; lb.textContent = "Zaloguj";
       }
     };
     el.querySelector("#a_login").onclick = login;
     el.querySelector("#a_pw").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
-    el.querySelector("#a_pw").focus();
+    if (savedPw) login(); else el.querySelector("#a_pw").focus();
     el.addEventListener("click", async e => {
       const d = e.target.closest("[data-ddel],#a_dreset"); if (!d) return;
       berr.hidden = true;
@@ -3189,7 +3194,7 @@ function rematch(g){
    The person running the game and a logged-in admin can also remove someone by hand (✕). */
 const presentSet = () => new Set(gpeople().map(p => p.id));
 const here = id => presentSet().has(id);
-const isAdmin = () => !!store.get("adminOk", false);
+const isAdmin = () => !!store.get("adminOk", false) && Date.now() - store.get("adminPwAt", 0) < 48 * 3600e3;
 const canKick = g => g.by === meId() || isAdmin();
 const kickBtn = (g, id, act) => canKick(g) && id !== meId() ? `<button class="kick" data-gact="${act}" data-id="${esc(id)}" title="Usuń z gry" aria-label="Usuń z gry">✕</button>` : "";
 function dropAbsent(g){
