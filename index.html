@@ -346,6 +346,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .sheet p{margin:0;color:var(--muted);font-size:15px}
 .field{display:grid;gap:4px}
 .field[hidden]{display:none}
+.btn[hidden]{display:none}
 .stakein{display:flex;align-items:center;gap:8px}.stakein input{flex:1;min-width:0}.stakein span{color:var(--muted);font-weight:600;white-space:nowrap}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
@@ -1578,7 +1579,7 @@ function menuSheet(){
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_admin"${amAdminAcct ? "" : " hidden"}>Panel admina</button><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
@@ -1628,6 +1629,8 @@ function menuSheet(){
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
     bindRoomBlock(el, close);
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
+    const ab = el.querySelector("#m_admin"); ab.onclick = () => { close(); adminSheet(); };
+    checkAdminAcct().then(ok => { if (ab.isConnected) ab.hidden = !ok; });
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
   });
@@ -1910,12 +1913,18 @@ async function loadConfig(){
     if (o * 1000 !== gameOff) { gameOff = o * 1000; store.set("gameoff", o); updateReset(); render(); }
   } catch {}
 }
-// hidden entry: tap the "Unity Timer" title 5 times quickly
-let brandTaps = [];
-document.querySelector(".brand").addEventListener("click", () => {
-  const t = Date.now(); brandTaps = brandTaps.filter(x => t - x < 2500); brandTaps.push(t);
-  if (brandTaps.length >= 5) { brandTaps = []; adminSheet(); }
-});
+/* admin panel entry: only Discord accounts listed in the database under adminuids/<uid> (added by the owner in the
+   Firebase console) see a "Panel admina" button in the menu; the address …/#admin opens it too. The database rules
+   accept admin changes only from those accounts, and only with the admin password. */
+let amAdminAcct = false;
+async function checkAdminAcct(){
+  const s = dOn() ? dSess() : null; if (!s || !s.uid) { amAdminAcct = false; return false; }
+  const v = await fetch(`${DB_URL}/adminuids/${encodeURIComponent(s.uid)}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+  amAdminAcct = v === true; return amAdminAcct;
+}
+const openAdminFromHash = () => { if (location.hash === "#admin") { history.replaceState(null, "", location.pathname + location.search); adminSheet(); } };
+window.addEventListener("hashchange", openAdminFromHash);
+setTimeout(openAdminFromHash, 600);
 function adminSheet(){
   // the admin password is remembered for 48 h on this device, then asked again
   const ADMIN_KEEP = 48 * 3600e3;
@@ -2666,6 +2675,7 @@ const yangTxt = s => /\dk+\s*$/i.test(String(s || "")) ? String(s).trim() + " ya
 const stakeField = (id, label = "Stawka od osoby") => {
   const saved = parseStake(store.get("rlStake", "")) / 1e6;
   return `<div class="field"><label for="${id}">${label} (puste = gra za darmo, bez rozliczeń)</label>
+    <p class="pme" style="font-size:13px;margin:0">Minimalna stawka to 1kk, maksymalna 1000kk yang.</p>
     <div class="stakein"><input id="${id}" class="stakenum" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="1–1000"${saved >= 1 && saved <= 1000 && Number.isInteger(saved) ? ` value="${saved}"` : ""}><span>kk yang</span></div></div>`;
 };
 // stake fields take whole numbers 1–1000 only: anything else is removed while typing
