@@ -1749,7 +1749,7 @@ function adminSheet(){
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
     <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
     <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy.</p>
+      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
       <div class="raadd"><input id="a_rname" maxlength="40" autocomplete="off" placeholder="albo wpisz nazwę pokoju"><button class="btn" id="a_radd">Pokaż</button></div>
       <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Zbanowani</h2>
@@ -1847,7 +1847,7 @@ function adminSheet(){
           const ago = rl[n] ? Math.round((now() - rl[n]) / 60000) : null;
           const when = rb[n] ? '<span style="color:var(--danger)">zablokowany</span>' : ago == null ? "" : ago < 7 ? '<span style="color:var(--ok,#4ade80)">ktoś jest teraz</span>' : ago < 60 ? `${ago} min temu` : ago < 1440 ? `${Math.round(ago / 60)} h temu` : ago < 43200 ? `${Math.round(ago / 1440)} dni temu` : `<span style="color:var(--danger)">nieużywany ${Math.round(ago / 1440)} dni</span>`;
           return `<li style="flex-wrap:wrap;gap:6px"><span><b>${esc(n)}</b> <span class="pme">${when}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${esc(n)}">Odblokuj</button>`
-            : `<button class="btn" data-ract="zero" data-room="${esc(n)}">Zeruj timery</button><button class="btn" data-ract="reset" data-room="${esc(n)}">Reset</button><button class="btn danger" data-ract="ban" data-room="${esc(n)}">Zablokuj</button>`}</span></li>`;
+            : `<button class="btn" data-ract="zero" data-room="${esc(n)}">Zeruj timery</button><button class="btn" data-ract="reset" data-room="${esc(n)}">Reset</button><button class="btn danger" data-ract="ban" data-room="${esc(n)}">Zablokuj</button><button class="btn danger" data-ract="del" data-room="${esc(n)}">Usuń</button>`}</span></li>`;
         }).join("") : '<li class="pme">Brak pokoi.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
@@ -1860,7 +1860,17 @@ function adminSheet(){
       if (act !== "unban" && b.dataset.sure !== "1") { const t = b.textContent; b.dataset.sure = "1"; b.textContent = "Na pewno?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = t; } }, 3000); return; }
       b.disabled = true;
       try {
-        if (act === "ban") { await adminPatch({["roombans/" + room]: {".sv": "timestamp"}}, "Zablokowano pokój: " + room); toast(`Zablokowano pokój ${room}`); }
+        if (act === "del") {
+          const pr = await fetch(`${rurl}/presence.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
+          const here = Object.values(pr).filter(v => v && now() - (+v.t || 0) < 360000).map(v => v.n);
+          if (here.length) throw new Error(`W pokoju ${room} ktoś jest (${[...new Set(here)].join(", ")}) – usunąć można tylko nieużywany pokój.`);
+          await adminPatch({}, "Usunięto pokój: " + room);
+          const r = await fetch(`${rurl}.json`, {method: "DELETE"});
+          if (!r.ok) throw new Error("Baza nie pozwoliła usunąć pokoju (" + r.status + ").");
+          await fetch(`${DB_URL}/roomlist/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
+          extraRooms.delete(room); toast(`Usunięto pokój ${room}`);
+        }
+        else if (act === "ban") { await adminPatch({["roombans/" + room]: {".sv": "timestamp"}}, "Zablokowano pokój: " + room); toast(`Zablokowano pokój ${room}`); }
         else if (act === "unban") { await adminPatch({["roombans/" + room]: null}, "Odblokowano pokój: " + room); toast(`Odblokowano pokój ${room}`); }
         else {
           await adminPatch({}, (act === "zero" ? "Wyzerowano timery w pokoju: " : "Zresetowano pokój do ustawień początkowych: ") + room);
