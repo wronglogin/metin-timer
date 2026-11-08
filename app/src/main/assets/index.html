@@ -634,7 +634,7 @@ const DSESS_DAYS = 7;
 let dTok = null, dExp = 0, dBusy = null;
 const dSess = () => { const s = store.get("dsess", null); return s && s.rt && Date.now() - (+s.at || 0) < (DSESS_DAYS * 86400 - 3600) * 1000 && (+s.at || 0) > (+store.get("authEpoch", 0) || 0) ? s : null; };
 const PAGE_AT = Date.now();
-setInterval(() => checkForce(), 300000);
+setInterval(() => checkForce(), 900000);   // every 15 min (and whenever the page comes back to the front)
 /* the admin can make every open page reload (config/reload) and log everyone out (config/authepoch); both are
    public timestamps, checked when the page comes back to the front and with every presence heartbeat */
 async function checkForce(){
@@ -1949,7 +1949,7 @@ function adminSheet(){
     const sure = (b, label) => { if (b.dataset.sure === "1") return true; b.dataset.sure = "1"; b.textContent = "Na pewno? Kliknij jeszcze raz"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = label; } }, 4000); return false; };
     el.querySelector("#a_reload").onclick = async ev => {
       const b = ev.target; berr.hidden = true; if (!sure(b, "Odśwież stronę u wszystkich")) return; b.disabled = true;
-      try { await adminPatch({reload: {".sv": "timestamp"}}, "Odświeżono stronę u wszystkich"); toast("Otwarte strony odświeżą się w ciągu kilku minut."); b.textContent = "Wysłano"; }
+      try { await adminPatch({reload: {".sv": "timestamp"}}, "Odświeżono stronę u wszystkich"); toast("Otwarte strony odświeżą się w ciągu 15 minut (od razu, gdy ktoś wróci do karty)."); b.textContent = "Wysłano"; }
       catch (x) { berr.textContent = x.message; berr.hidden = false; b.disabled = false; b.dataset.sure = ""; b.textContent = "Odśwież stronę u wszystkich"; }
     };
     el.querySelector("#a_logout").onclick = async ev => {
