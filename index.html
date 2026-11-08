@@ -349,6 +349,8 @@ body.sizing{cursor:ew-resize;user-select:none}
 .acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
 .acts .grow{margin-right:auto}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
+.field .fhint{margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}
+.seg .addmap{border-style:dashed}
 .seg button{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 12px;min-height:38px}
 .seg button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 14px;z-index:30;font-size:15px;max-width:90vw}
@@ -1487,16 +1489,16 @@ function menuSheet(){
       </div></div>
     <div class="field"><label>Komunikaty głosowe (tylko na tym urządzeniu)</label>
       <div class="seg"><button id="voice" aria-pressed="${!!settings.voice}">Czytaj na głos</button><button id="voicetest">Posłuchaj</button></div>
-      <p style="font-size:13px">${canSpeak() ? "Np. „Czerwony Las 2, kanał 3, stoi”. Używa głosu telefonu albo komputera." : "To urządzenie nie ma syntezatora mowy. Zaktualizuj aplikację albo otwórz timer w Chrome."}</p></div>
+      <p class="fhint">${canSpeak() ? "Np. „Czerwony Las 2, kanał 3, stoi”. Używa głosu telefonu albo komputera." : "To urządzenie nie ma syntezatora mowy. Zaktualizuj aplikację albo otwórz timer w Chrome."}</p></div>
     <div class="field"><label for="vol">Głośność alarmu</label>
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
-    <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
-      <p style="font-size:13px">Ukryte mapy znikają z zakładek i nie dają alarmów. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+    <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}<button class="addmap" id="m_maps">+ Dodaj mapę</button></div>
+      <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. „+ Dodaj mapę” tworzy własną mapę (w pokoju widzą ją wszyscy), tam też zmienisz jej nazwę albo ją usuniesz. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
-      <p class="pme" style="font-size:13px;margin:0">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
+      <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_maps">Własne mapy</button><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
