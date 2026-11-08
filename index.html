@@ -123,7 +123,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 :is(.menusheet, .adminsheet #a_body) > details.alogd:not([open]) > summary::after{transform:rotate(-45deg)}
 :is(.menusheet, .adminsheet #a_body) > details.alogd[open] > summary{margin-bottom:10px}
 :is(.menusheet, .adminsheet #a_body) > details.alogd > p{font-size:13px;line-height:1.45}
-.adminsheet #a_body > h2{font-size:14px!important;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
+.adminsheet #a_body > h2.agroup{font-size:13px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:10px 0 -4px;padding-top:12px;border-top:1px solid var(--rule)}
+.adminsheet #a_body > h2.agroup:first-child{border-top:0;padding-top:0;margin-top:0}
 .adminsheet .banlist li{font-weight:500}
 .adminsheet .banlist li > span:first-child{font-weight:700}
 .adminsheet .banlist li .pme{font-weight:400}
@@ -1970,51 +1971,53 @@ function adminSheet(){
     <div class="field" id="a_pwf"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password" value="${esc(savedPw)}"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
     <p id="a_lerr" style="color:var(--danger)" hidden></p>
     <div class="abody" id="a_body" hidden>
-    <div class="field"${dOn() ? " hidden" : ""}><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
-      <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_sitego">Zmień hasło</button></div>
-      <p id="a_serr" style="color:var(--danger);margin:0" hidden></p></div>
+    <h2 class="agroup">Ustawienia</h2>
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
-      <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
-    <p id="a_err" style="color:var(--danger)" hidden></p>
-    <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
+      <div class="raadd"><select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select><button class="btn primary" id="a_ok">Zapisz</button></div>
+      <p id="a_err" style="color:var(--danger);margin:0" hidden></p></div>
     <div class="field"><label for="a_goff">Przesunięcie zegara względem gry (sekundy)</label>
       <div class="stakein"><input id="a_goff" inputmode="numeric" maxlength="6" value="${gameOff / 1000}" placeholder="np. 25 albo -60"><span>s</span></div>
       <p class="pme" style="font-size:13px;margin:0">Porównaj zegar w grze z zegarem obok tytułu: jeśli gra pokazuje o 25 s więcej, wpisz 25, jeśli o minutę mniej – -60. Przesuwa zegar przy tytule i codzienne zerowanie o 01:00 u wszystkich. Timery liczą czas od kliknięcia, więc same nie potrzebują przesunięcia.</p>
       <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_goffok">Zapisz przesunięcie</button></div>
       <p id="a_gerr" style="color:var(--danger);margin:0" hidden></p></div>
-    ${dOn() ? "" : '<hr style="border:0;border-top:1px solid var(--rule);width:100%">'}
+    <div class="field"${dOn() ? " hidden" : ""}><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
+      <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_sitego">Zmień hasło</button></div>
+      <p id="a_serr" style="color:var(--danger);margin:0" hidden></p></div>
+
+    <h2 class="agroup">Pokoje</h2>
+    <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Wyzeruj długi</b> kasuje wszystkie długi w pokoju (także takim, w którym cię nie ma). <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
+      <div class="raadd"><input id="a_rname" maxlength="40" autocomplete="off" placeholder="albo wpisz nazwę pokoju"><button class="btn" id="a_radd">Pokaż</button></div>
+      <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
+    <details class="alogd" id="a_peopled" open><summary>Osoby w pokoju${online ? " " + esc(online.room) : ""}</summary>
+      <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul></details>
+    <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
+    <details class="alogd" id="a_debtsd"><summary>Długi we wszystkich pokojach</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Kto komu ile wisi, w każdym pokoju (także tam, gdzie cię nie ma). Pojedynczy dług usuniesz tutaj, wszystkie w pokoju – w Zarządzaniu pokojami → Więcej.</p>
+      <ul class="banlist" id="a_debts"><li class="pme">Wczytywanie…</li></ul></details>
+
+    <h2 class="agroup">Użytkownicy</h2>
+    <details class="alogd" id="a_admd" hidden><summary>Administratorzy (tylko właściciel)</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Ty jesteś właścicielem – tego nikt nie zmieni ani nie usunie (ustawione w konsoli Firebase). Admini, których tu dodasz, mają panel admina z tym samym hasłem, ale nie mogą dodawać ani usuwać adminów. Identyfikator osoby jest w jej Menu → Twoje konto, albo dodaj ją przyciskiem „Daj admina” na liście zalogowanych.</p>
+      <ul class="banlist" id="a_admins"></ul>
+      <div class="raadd" style="margin-top:6px"><input id="a_admid" maxlength="30" placeholder="identyfikator, np. d1234567890" autocomplete="off" autocapitalize="off" spellcheck="false"><input id="a_admn" maxlength="20" placeholder="nick (opcjonalnie)" autocomplete="off"><button class="btn" id="a_admadd">Dodaj admina</button></div></details>
+    <details class="alogd" id="a_usersd"${dOn() ? "" : " hidden"}><summary>Wszyscy, którzy kiedykolwiek się logowali</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Każde konto Discord, które weszło na stronę, z ostatnią wizytą. Ban działa na konto – na każdym urządzeniu, także gdy tej osoby teraz nie ma.</p>
+      <input id="a_usearch" placeholder="szukaj nicku albo identyfikatora" autocomplete="off" style="width:100%;margin-bottom:6px">
+      <ul class="banlist" id="a_users"><li class="pme">Wczytywanie…</li></ul></details>
+    <details class="alogd" id="a_bansd" open><summary>Zbanowani</summary>
+      <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul></details>
+    <div class="field"><label>Wszyscy użytkownicy</label><div class="acts" style="justify-content:flex-start"><button class="btn" id="a_reload">Odśwież stronę u wszystkich</button><button class="btn danger" id="a_logout">Wyloguj wszystkich</button></div>
+      <p class="pme" style="font-size:13px;margin:0">„Wyloguj wszystkich” – każdy (ty też) musi się zalogować ponownie przez Discord; otwarte strony same się przeładują.</p></div>
     <div class="field"${dOn() ? " hidden" : ""}><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
     <div class="field"${dOn() ? " hidden" : ""}><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
       <p class="pme" style="font-size:13px;margin:0">Ta osoba będzie mogła raz zmienić nick w Menu.</p></div>
     <div class="field"${dOn() ? " hidden" : ""}><label for="a_nick">Reset hasła nicku (np. ktoś zapomniał hasła)</label><div class="raadd"><input id="a_nick" maxlength="20" autocomplete="off" placeholder="nick"><button class="btn" id="a_nreset">Resetuj</button></div>
       <p class="pme" style="font-size:13px;margin:0">Po resecie pierwsza osoba, która wejdzie tym nickiem, ustawi nowe hasło.</p></div>
-    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
-    <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
-    <details class="alogd" id="a_admd" hidden><summary>Administratorzy (tylko właściciel)</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Ty jesteś właścicielem – tego nikt nie zmieni ani nie usunie (ustawione w konsoli Firebase). Admini, których tu dodasz, mają panel admina z tym samym hasłem, ale nie mogą dodawać ani usuwać adminów. Identyfikator osoby jest w jej Menu → Twoje konto, albo dodaj ją przyciskiem „Daj admina” na liście zalogowanych.</p>
-      <ul class="banlist" id="a_admins"></ul>
-      <div class="raadd" style="margin-top:6px"><input id="a_admid" maxlength="30" placeholder="identyfikator, np. d1234567890" autocomplete="off" autocapitalize="off" spellcheck="false"><input id="a_admn" maxlength="20" placeholder="nick (opcjonalnie)" autocomplete="off"><button class="btn" id="a_admadd">Dodaj admina</button></div></details>
-    <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
-    <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Wyzeruj długi</b> kasuje wszystkie długi w pokoju (także takim, w którym cię nie ma). <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
-      <div class="raadd"><input id="a_rname" maxlength="40" autocomplete="off" placeholder="albo wpisz nazwę pokoju"><button class="btn" id="a_radd">Pokaż</button></div>
-      <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
-    <h2 style="font-size:19px">Zbanowani</h2>
-    <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul>
-    <details class="alogd" id="a_usersd"${dOn() ? "" : " hidden"}><summary>Wszyscy, którzy kiedykolwiek się logowali</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Każde konto Discord, które weszło na stronę, z ostatnią wizytą. Ban działa na konto – na każdym urządzeniu, także gdy tej osoby teraz nie ma.</p>
-      <input id="a_usearch" placeholder="szukaj nicku albo identyfikatora" autocomplete="off" style="width:100%;margin-bottom:6px">
-      <ul class="banlist" id="a_users"><li class="pme">Wczytywanie…</li></ul></details>
-    <details class="alogd" id="a_debtsd"><summary>Długi we wszystkich pokojach</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Kto komu ile wisi, w każdym pokoju (także tam, gdzie cię nie ma). Pojedynczy dług usuniesz tutaj, wszystkie w pokoju – w Zarządzaniu pokojami → Więcej.</p>
-      <ul class="banlist" id="a_debts"><li class="pme">Wczytywanie…</li></ul></details>
-    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="field"><label>Wszyscy użytkownicy</label><div class="acts" style="justify-content:flex-start"><button class="btn" id="a_reload">Odśwież stronę u wszystkich</button><button class="btn danger" id="a_logout">Wyloguj wszystkich</button></div>
-      <p class="pme" style="font-size:13px;margin:0">„Wyloguj wszystkich” – każdy (ty też) musi się zalogować ponownie przez Discord; otwarte strony same się przeładują.</p></div>
     <div class="field"${dOn() ? " hidden" : ""}><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
       <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
-    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+
+    <h2 class="agroup">Historia</h2>
     <details class="alogd" id="a_logd"><summary>Dziennik akcji admina (ostatnie 48 h)</summary><ul class="banlist" id="a_log"><li class="pme">Wczytywanie…</li></ul></details>
     <p id="a_berr" style="color:var(--danger)" hidden></p>
     </div>`,
