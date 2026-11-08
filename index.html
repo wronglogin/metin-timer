@@ -1580,9 +1580,9 @@ document.querySelector(".brand").addEventListener("click", () => {
   if (brandTaps.length >= 5) { brandTaps = []; adminSheet(); }
 });
 function adminSheet(){
-  const pw = store.get("adminPw", "");
+  store.set("adminPw", ""); // the password is never remembered: it is asked every time the panel opens
   sheet(`<h2>Panel admina</h2>
-    <div class="field"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="off" value="${esc(pw)}"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
+    <div class="field"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
     <p id="a_lerr" style="color:var(--danger)" hidden></p>
     <div class="abody" id="a_body" hidden>
     <div class="field"><label for="a_site">Nowe hasło do strony (zostaw puste, żeby nie zmieniać)</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy"></div>
@@ -1616,7 +1616,6 @@ function adminSheet(){
       const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pw, ...body})});
       if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
       if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
-      store.set("adminPw", pw);
     };
     const drawPeople = () => {
       const ul = el.querySelector("#a_people"); if (!online || !ul) return;
@@ -1658,14 +1657,14 @@ function adminSheet(){
         drawPeople(); drawBans(); drawDebts(); drawReqs();
         const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
       } catch (x) {
-        store.set("adminPw", ""); store.set("adminOk", false);
+        store.set("adminOk", false);
         lerr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; lerr.hidden = false;
         lb.disabled = false; lb.textContent = "Zaloguj";
       }
     };
     el.querySelector("#a_login").onclick = login;
     el.querySelector("#a_pw").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
-    if (el.querySelector("#a_pw").value) login(); else el.querySelector("#a_pw").focus();
+    el.querySelector("#a_pw").focus();
     el.addEventListener("click", async e => {
       const d = e.target.closest("[data-ddel],#a_dreset"); if (!d) return;
       berr.hidden = true;
@@ -1748,7 +1747,7 @@ function adminSheet(){
       const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
       if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
       if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
-      store.set("adminPw", pw); channels = n; store.set("channels", n);
+      channels = n; store.set("channels", n);
       if (body.sitepw) { sitepwHash = body.sitepw; store.set("sitepwHash", body.sitepw); store.set("sitepwOk", body.sitepw); }
       close(); render(); toast(body.sitepw ? `Zapisano. Nowe hasło do strony: ${site}` : "Ustawiono " + n + " kanałów dla wszystkich");
     } catch (x) { err.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; err.hidden = false; ev.target.disabled = false; }
