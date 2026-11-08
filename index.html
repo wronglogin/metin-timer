@@ -3540,14 +3540,17 @@ function drawRace3d(cv, g, lead){
   const fin = h => m && tt >= m.horses[h.n - 1].T ? m.horses[h.n - 1].T : Infinity;
   const ranks = H.slice().sort((a, b) => fin(a) - fin(b) || b.d - a.d);
   if (tt >= 0) {
-    c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(8, 8, 128, 6 + 17 * 6);
+    // the box is as wide as the longest name in this race
+    c.font = "600 12px system-ui,sans-serif";
+    const boxW = Math.max(128, Math.ceil(Math.max(...ranks.map((h, i) => c.measureText(`${i + 1}. ${hname(h.n)}`).width))) + 42);
+    c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(8, 8, boxW, 6 + 17 * 6);
     ranks.forEach((h, i) => {
       const y = 14 + i * 17; c.fillStyle = F[h.n - 1].c; c.fillRect(14, y, 14, 13);
       c.fillStyle = "#111"; c.font = "bold 10px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(h.n), 21, y + 7);
       c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "600 12px system-ui,sans-serif"; c.fillText(`${i + 1}. ${hname(h.n)}`, 33, y + 7);
     });
     // distance bar along the top with a dot for every horse
-    const bx = 148, bw = Math.max(60, realW - bx - 14), by = 16;
+    const bx = boxW + 20, bw = Math.max(60, realW - bx - 14), by = 16;
     c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(bx - 6, 8, bw + 12, 30);
     c.fillStyle = "rgba(255,255,255,.35)"; c.fillRect(bx, by + 4, bw, 3);
     for (const hz of H3.HURDLES) { c.fillStyle = "#9fd27a"; c.fillRect(bx + hz / L * bw - 1, by + 1, 2, 9); }
