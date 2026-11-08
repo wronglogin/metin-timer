@@ -57,8 +57,9 @@ header{grid-template-columns:minmax(0,1fr)}
 .rq li.rnow{border-color:var(--accent)}
 .rqplay{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rq .btn{min-height:28px;padding:0 9px;flex:0 0 auto}
-.rq .btn.rqmv{padding:0 7px;font-size:11px;margin-right:-2px}
-.rq .btn.rqmv:disabled{opacity:.3}
+.rqgrip{flex:0 0 auto;cursor:grab;color:var(--muted);padding:6px 4px;font-size:16px;line-height:1;touch-action:none;user-select:none}
+.rq li[data-qk]{user-select:none}
+.rq li.rqdrag{opacity:.85;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:grabbing}
 @media (max-width:520px){.radio{flex:1 1 100%;max-width:none}}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
@@ -1354,7 +1355,7 @@ function menuSheet(){
       <p class="pme" style="font-size:13px;margin:0">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">Globalny reset</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
@@ -1529,7 +1530,7 @@ function importSheet(){
   });
 }
 function resetSheet(){
-  sheet(`<h2>Globalny reset</h2><p>Wyzeruje wszystkie liczniki na wszystkich mapach${online ? " dla całego pokoju" : ""}. Respy i ich nazwy zostają. Możesz to cofnąć.</p>
+  sheet(`<h2>${online ? "Reset pokoju" : "Reset timerów"}</h2><p>Wyzeruje wszystkie liczniki na wszystkich mapach${online ? ` tylko w pokoju <b>${esc(online.room)}</b> (dla wszystkich w nim). Inne pokoje się nie zmienią` : ""}. Respy i ich nazwy zostają. Możesz to cofnąć.</p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn danger" id="r_ok">Zeruj wszystko</button></div>`,
   (el, close) => el.querySelector("#r_ok").onclick = () => {
     const ch = {}; for (const s of Object.values(spots)) if (s.t && Object.keys(s.t).length) ch[`${s.id}/t`] = null;
@@ -1900,12 +1901,22 @@ const RADIO = () => (remoteRoot && remoteRoot.radio) || {};
 // queue order: "o" when someone moved the song, otherwise the time it was added (the start of its key)
 const qOrd = (k, it) => it && typeof it.o === "number" ? it.o : +String(k).slice(0, 14);
 const rqKeys = () => { const q = RADIO().queue || {}; return Object.keys(q).sort((a, b) => qOrd(a, q[a]) - qOrd(b, q[b]) || (a < b ? -1 : 1)); };
-function moveRq(k, d){
-  const q = RADIO().queue || {}, ks = rqKeys(), i = ks.indexOf(k), j = i + d;
-  if (i < 0 || j < 0 || j >= ks.length) return;
-  let a = qOrd(k, q[k]), b = qOrd(ks[j], q[ks[j]]);
-  if (a === b) b = a + d;                                     // equal places: nudge so the swap shows
-  radioPatch({[`queue/${k}/o`]: b, [`queue/${ks[j]}/o`]: a});
+// put song k right before song "before" (null = at the end); only k gets a new place, the rest keep theirs
+function placeRq(k, before){
+  const q = RADIO().queue || {}, ks = rqKeys().filter(x => x !== k);
+  if (!q[k]) return;
+  const at = before && ks.includes(before) ? ks.indexOf(before) : ks.length;
+  const ord = x => qOrd(x, q[x]), lo = at > 0 ? ord(ks[at - 1]) : null, hi = at < ks.length ? ord(ks[at]) : null;
+  const o = lo == null && hi == null ? ord(k) : lo == null ? hi - 1 : hi == null ? lo + 1 : (lo + hi) / 2;
+  radioPatch({[`queue/${k}/o`]: o});
+}
+// playing a song picked from further down: it jumps right behind the current one and starts, nothing else moves
+function playFromQueue(k){
+  const r = RADIO(), ks = rqKeys();
+  if (!r.cur || k === r.cur || !ks.includes(r.cur)) { playKey(k); return; }
+  const next = ks[ks.indexOf(r.cur) + 1];
+  if (next !== k) placeRq(k, next || null);
+  playKey(k);
 }
 const curItem = () => { const r = RADIO(); return r.cur && r.queue ? r.queue[r.cur] : null; };
 function ytIdFrom(u){
@@ -2123,16 +2134,45 @@ function radioSheet(){
       const r = RADIO(), ks = rqKeys(), ci = Math.max(0, ks.indexOf(r.cur));
       const vis = showAll ? ks : ks.slice(ci, ci + SHOW);
       const before = showAll ? 0 : ci, after = showAll ? 0 : Math.max(0, ks.length - ci - SHOW);
-      const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}">
+      const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}" data-qk="${k}">
+        <span class="rqgrip" title="Złap i przeciągnij" aria-hidden="true">⠿</span>
         <button class="rqplay" data-rq="${k}" title="${esc(t)}">${k === r.cur ? "▶ " : ""}${esc(t)}</button>
-        <button class="btn rqmv" data-rqmv="-1" data-k="${k}" aria-label="W górę" title="W górę"${ks.indexOf(k) === 0 ? " disabled" : ""}>▲</button><button class="btn rqmv" data-rqmv="1" data-k="${k}" aria-label="W dół" title="W dół"${ks.indexOf(k) === ks.length - 1 ? " disabled" : ""}>▼</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
       el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
       el.querySelector("#ra_list").innerHTML = !ks.length ? '<li class="pme">Kolejka jest pusta.</li>'
         : (before ? `<li class="pme rqmore">${before} wcześniej</li>` : "") + vis.map(row).join("")
-          + (after || showAll ? `<li class="rqmore"><button class="rqtoggle" data-rqall="1">${showAll ? "Pokaż mniej" : `Pokaż całą kolejkę (${ks.length})`}</button></li>` : "");
+          + (before || after || showAll ? `<li class="rqmore"><button class="rqtoggle" data-rqall="1">${showAll ? "Pokaż mniej" : `Pokaż całą kolejkę (${ks.length})`}</button></li>` : "");
     };
-    draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
+    let dragging = null;
+    draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); if (!dragging) draw(); }, 2000);
+    // drag & drop: grab a song (the ⠿ handle on touch screens, anywhere on the row with a mouse) and drop it elsewhere
+    const list = el.querySelector("#ra_list");
+    let justDragged = 0;
+    list.addEventListener("pointerdown", e => {
+      const li = e.target.closest("li[data-qk]"); if (!li || e.button > 0) return;
+      const onGrip = !!e.target.closest(".rqgrip");
+      if (!onGrip && (e.pointerType !== "mouse" || e.target.closest("[data-rqdel]"))) return;
+      if (onGrip) e.preventDefault();
+      const y0 = e.clientY; let started = false;
+      const move = ev => {
+        if (!started) { if (Math.abs(ev.clientY - y0) < 6) return; started = true; dragging = li; li.classList.add("rqdrag"); try { list.setPointerCapture(e.pointerId); } catch {} }
+        ev.preventDefault();
+        const rows = [...list.querySelectorAll("li[data-qk]")].filter(x => x !== li);
+        const after = rows.find(x => { const b = x.getBoundingClientRect(); return ev.clientY < b.top + b.height / 2; });
+        if (after) { if (li.nextElementSibling !== after) list.insertBefore(li, after); }
+        else { const last = rows[rows.length - 1]; if (last && last.nextElementSibling !== li) last.after(li); }
+      };
+      const up = () => {
+        list.removeEventListener("pointermove", move); list.removeEventListener("pointerup", up); list.removeEventListener("pointercancel", up);
+        if (!started) return;
+        li.classList.remove("rqdrag"); dragging = null; justDragged = Date.now();
+        const k = li.dataset.qk, shown = [...list.querySelectorAll("li[data-qk]")].map(x => x.dataset.qk), i = shown.indexOf(k);
+        let before = shown[i + 1] || null;
+        if (!before) { const ks = rqKeys().filter(x => x !== k), last = shown[i - 1], j = ks.indexOf(last); before = j >= 0 ? ks[j + 1] || null : null; }
+        placeRq(k, before); draw();
+      };
+      list.addEventListener("pointermove", move); list.addEventListener("pointerup", up); list.addEventListener("pointercancel", up);
+    });
     const add = async () => {
       const inp = el.querySelector("#ra_url"), err = el.querySelector("#ra_err"); err.hidden = true;
       const btn = el.querySelector("#ra_add"); btn.disabled = true; btn.textContent = "Dodawanie…";
@@ -2150,8 +2190,8 @@ function radioSheet(){
     };
     el.addEventListener("click", e => {
       if (e.target.closest("[data-rqall]")) { showAll = !showAll; draw(); return; }
-      const mv = e.target.closest("[data-rqmv]"); if (mv) { moveRq(mv.dataset.k, +mv.dataset.rqmv); draw(); return; }
-      const pl = e.target.closest("[data-rq]"); if (pl) { playKey(pl.dataset.rq); if (!radioOn) setRadioOn(true); draw(); return; }
+      if (Date.now() - justDragged < 300) return;                           // the click that ends a drag is not a "play"
+      const pl = e.target.closest("[data-rq]"); if (pl) { playFromQueue(pl.dataset.rq); if (!radioOn) setRadioOn(true); draw(); return; }
       const del = e.target.closest("[data-rqdel]"); if (!del) return;
       const k = del.dataset.rqdel;
       if (RADIO().cur === k) stepRadio(1);
