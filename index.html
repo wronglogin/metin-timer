@@ -391,7 +391,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 (() => {
 "use strict";
 /* ---------- data ---------- */
-const MAPS = [
+const BASE_MAPS = [
   {id:"m1",  name:"Miasta pierwsze",   metin:[11,25], boss:[15,20],  wiki:{metin:"13 (11–25 min)", metinN:"+3 do 13 (10–25 min)", boss:"9 (15–20 min)", bossN:"—"}},
   {id:"m2",  name:"Miasta drugie",     metin:[12,15], boss:[15,33],  wiki:{metin:"10 (12–15 min)", metinN:"+3 do 6 (12–20 min)", boss:"15 (15–33 min)", bossN:"+1 (25–33 min)"}},
   {id:"m3",  name:"M3",                metin:[12,25], boss:null,     wiki:{metin:"2 (12–25 min)", metinN:"+1 (12–20 min)", boss:"0", bossN:"—"}},
@@ -414,7 +414,32 @@ const ROSY = [
   {n:"Żółta", d:"szybkość", s:["Gango → Sok","Sok + Grzyb → Young","Young + Morwa → Hwal"], f:"20× Hwal + 10× Butelka → 10× Rosa"},
 ];
 const COLORS = ["#c8955a","#e8c24a","#4fd39b","#5bb8ef","#a98bef","#ef6a9b","#ef6a5b","#cfd8d5"];
+// MAPS = the built-in maps followed by the room's own maps (or this device's, offline); refreshed before each render
+const MAPS = [...BASE_MAPS];
 const mapById = Object.fromEntries(MAPS.map(m => [m.id, m]));
+const customSrc = () => online ? (remoteRoot && remoteRoot.maps) || {} : store.get("mymaps", {}) || {};
+function customMaps(){
+  return Object.entries(customSrc()).filter(([id, v]) => v && v.n && /^x[a-z0-9]{3,9}$/.test(id))
+    .sort((a, b) => (+a[1].o || 0) - (+b[1].o || 0))
+    .map(([id, v]) => ({id, name: String(v.n), metin: [+v.mn || 15, +v.mx || +v.mn || 20], boss: v.bn ? [+v.bn, +v.bx || +v.bn] : null, custom: true}));
+}
+function refreshMaps(){
+  const cm = customMaps(), sig = JSON.stringify(cm);
+  if (sig === refreshMaps.sig) return; refreshMaps.sig = sig;
+  MAPS.length = 0; MAPS.push(...BASE_MAPS, ...cm);
+  for (const k of Object.keys(mapById)) delete mapById[k];
+  for (const m of MAPS) mapById[m.id] = m;
+}
+// save one custom map (v = null removes it, together with its respawn spots)
+function saveMap(id, v){
+  if (v === null) {
+    const gone = {}; for (const sp of Object.values(spots)) if (sp.map === id) gone[sp.id] = null;
+    if (Object.keys(gone).length) commit(gone);
+  }
+  if (online) { setPath(remoteRoot, "maps/" + id, clone(v)); push({["maps/" + id]: v}); }
+  else { const all = store.get("mymaps", {}) || {}; if (v === null) delete all[id]; else all[id] = v; store.set("mymaps", all); }
+  scheduleRender();
+}
 // default respawn spots per map: number of metin spots, boss spot names
 const SEED = {
   m1:{metin:13, boss:["boss"]}, m2:{metin:10, boss:["boss"]}, m3:{metin:2, boss:[]},
@@ -478,7 +503,7 @@ const clone = o => o == null ? null : JSON.parse(JSON.stringify(o));
 // default timer = shortest respawn from MiniWiki minus one minute, so you are there before it spawns
 const dmin = r => Math.max(1, r[0] - 1);
 function seedMap(mapId, base = Date.now()){
-  const m = mapById[mapId], sd = SEED[mapId], out = {};
+  const m = mapById[mapId], sd = SEED[mapId] || {metin: 0, boss: []}, out = {};
   let i = 0;
   for (let n = 1; n <= sd.metin; n++, i++) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${n}`, kind:"metin", min:dmin(m.metin), max:m.metin[1], color:null, o:base + i, t:{}}; }
   for (const b of sd.boss) { const id = uid(); out[id] = {id, map:m.id, name:`${m.name} ${b}`, kind:"boss", min:dmin(m.boss), max:m.boss[1], color:null, o:base + i++, t:{}}; }
@@ -486,7 +511,7 @@ function seedMap(mapId, base = Date.now()){
 }
 function seedAll(){
   const t = Date.now(); let out = {};
-  MAPS.forEach((m, k) => Object.assign(out, seedMap(m.id, t + k * 1000)));
+  BASE_MAPS.forEach((m, k) => Object.assign(out, seedMap(m.id, t + k * 1000)));
   // a few running timers on the first map so the states are visible right away
   const first = Object.values(out).filter(s => s.map === "m1").sort((a, b) => a.o - b.o);
   if (first[0]) first[0].t = {c1: t - 13*60000, c2: t - 19*60000, c3: t - 27*60000, c4: t - 5*60000};
@@ -715,7 +740,12 @@ async function push(changes){
     return true;
   } catch (e) { setMode("Błąd zapisu", "err"); return false; }
 }
+// the clock difference is measured again every 30 minutes and whenever the page comes back to the front,
+// so a computer clock changed (or corrected by Windows) while the page is open does not shift the timers
+setInterval(() => { if (online) syncClock(online.db); }, 30 * 60e3);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && online && Date.now() - (syncClock.at || 0) > 60e3) syncClock(online.db); });
 async function syncClock(db){
+  syncClock.at = Date.now();
   try {
     const key = `${db}/clock/${uid()}.json`, t0 = Date.now();
     const r = await fetch(key, {method:"PUT", body: JSON.stringify({".sv":"timestamp"})});
@@ -1131,6 +1161,7 @@ function fixTab(){
   if (tab === "mine" ? !showMine() : !vis.includes(tab)) tab = showMine() ? "mine" : (vis[0] || "m1");
 }
 function render(){
+  refreshMaps();
   fixTab();
   renderTabs();
   if (editingInline()) { renderPending = true; return; } // don't wipe a field someone is typing in
@@ -1142,8 +1173,8 @@ function render(){
   fitNames();
 }
 function paneHtml(id){
-  const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id];
-  const rng = `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + " (minutę przed respem z MiniWiki)";
+  const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id] || {metin: 0, boss: []};
+  const rng = `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + (m.custom ? (online ? " · własna mapa pokoju" : " · własna mapa") : " (minutę przed respem z MiniWiki)");
   return `<section class="pane">
     <div class="maphead"><h1>${esc(m.name)}</h1><span class="ranges">${rng}</span></div>
     <div class="spots">${ss.length ? ss.map(spotHtml).join("") :
@@ -1188,7 +1219,7 @@ function wcol(title, base, night){
   </div>`;
 }
 function wikiHtml(){
-  const maps = MAPS.map(m => `<details class="wmap" data-wmap="${m.id}"${wikiOpen.has(m.id) ? " open" : ""}>
+  const maps = BASE_MAPS.map(m => `<details class="wmap" data-wmap="${m.id}"${wikiOpen.has(m.id) ? " open" : ""}>
       <summary>${esc(m.name)}<span class="sub">metiny ${esc(wsplit(m.wiki.metin)[1] || m.wiki.metin)}</span></summary>
       <div class="wbody">${wcol("Metiny", m.wiki.metin, m.wiki.metinN)}${wcol("Bossy", m.wiki.boss, m.wiki.bossN)}</div>
     </details>`).join("");
@@ -1456,7 +1487,7 @@ function menuSheet(){
       <p class="pme" style="font-size:13px;margin:0">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_maps">Własne mapy</button><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
@@ -1504,6 +1535,7 @@ function menuSheet(){
     });
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
     bindRoomBlock(el, close);
+    el.querySelector("#m_maps").onclick = () => { close(); mapsSheet(); };
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
@@ -1544,6 +1576,58 @@ const curMap = () => mapById[tab] ? tab : (visibleMaps()[0] || MAPS[0]).id;
 function copyText(ta, code){
   ta.select();
   Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } });
+}
+// own maps: name and respawn times; online they belong to the room (everyone in it sees them), offline to this device
+function mapsSheet(){
+  refreshMaps();
+  sheet(`<h2>Własne mapy</h2>
+    <p>${online ? `Mapy dodane tutaj widzą wszyscy w pokoju <b>${esc(online.room)}</b>.` : "Jesteś w trybie offline – mapy zapiszą się tylko na tym urządzeniu."} Na nowej mapie dodasz respy przyciskiem „+ Dodaj resp”.</p>
+    <ul class="banlist" id="mp_list"></ul>
+    <h3 style="margin:6px 0 0">Nowa mapa</h3>
+    <div class="field"><label for="mp_n">Nazwa</label><input id="mp_n" maxlength="30" autocomplete="off" placeholder="np. Grota Wygnańców"></div>
+    <div class="field"><label>Metiny – resp co (minuty)</label><div class="stakein"><input id="mp_mn" inputmode="numeric" maxlength="3" placeholder="od, np. 15"><span>–</span><input id="mp_mx" inputmode="numeric" maxlength="3" placeholder="do, np. 20"></div></div>
+    <div class="field"><label>Bossy – resp co (minuty, puste = bez bossów)</label><div class="stakein"><input id="mp_bn" inputmode="numeric" maxlength="3" placeholder="od"><span>–</span><input id="mp_bx" inputmode="numeric" maxlength="3" placeholder="do"></div></div>
+    <p id="mp_err" style="color:var(--danger);margin:0" hidden></p>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="mp_add">Dodaj mapę</button></div>`, (el, close) => {
+    const err = el.querySelector("#mp_err"), num = id => { const v = el.querySelector(id).value.trim(); return v === "" ? null : Math.round(+v); };
+    const draw = () => {
+      const cm = customMaps(), ul = el.querySelector("#mp_list");
+      ul.innerHTML = cm.length ? cm.map(m => `<li><span><b>${esc(m.name)}</b> <span class="pme">metiny ${m.metin[0]}–${m.metin[1]} min${m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : ""} · ${mapSpots(m.id).length} resp.</span></span>
+        <span style="display:flex;gap:6px"><button class="btn" data-mren="${m.id}">Zmień nazwę</button><button class="btn danger" data-mdel="${m.id}">Usuń</button></span></li>`).join("")
+        : '<li class="pme">Nie ma jeszcze własnych map.</li>';
+    };
+    draw();
+    el.querySelector("#mp_list").addEventListener("click", e => {
+      const ren = e.target.closest("[data-mren]"), del = e.target.closest("[data-mdel]");
+      const src = customSrc();
+      if (ren) {
+        const id = ren.dataset.mren, li = ren.closest("li");
+        li.innerHTML = `<input maxlength="30" value="${esc(src[id] ? src[id].n : "")}" style="flex:1;min-width:0"><button class="btn primary">Zapisz</button>`;
+        const inp = li.querySelector("input"); inp.focus();
+        const ok = () => { const n = inp.value.trim(); if (n && src[id]) saveMap(id, {...src[id], n}); draw(); };
+        li.querySelector("button").onclick = ok; inp.onkeydown = ev => { if (ev.key === "Enter") ok(); };
+      }
+      if (del) {
+        const id = del.dataset.mdel, n = mapSpots(id).length;
+        if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = n ? `Usunąć z ${n} resp.?` : "Na pewno?"; setTimeout(() => { if (del.isConnected) { del.dataset.sure = ""; del.textContent = "Usuń"; } }, 3000); return; }
+        saveMap(id, null); toast("Usunięto mapę"); setTimeout(draw, 50);
+      }
+    });
+    el.querySelector("#mp_add").onclick = () => {
+      err.hidden = true;
+      const n = el.querySelector("#mp_n").value.trim(), mn = num("#mp_mn"), mx = num("#mp_mx") ?? mn, bn = num("#mp_bn"), bx = num("#mp_bx") ?? bn;
+      const bad = x => !(x >= 1 && x <= 600);
+      if (!n) { err.textContent = "Wpisz nazwę mapy."; err.hidden = false; return; }
+      if (MAPS.some(m => m.name.toLowerCase() === n.toLowerCase())) { err.textContent = "Mapa o tej nazwie już jest."; err.hidden = false; return; }
+      if (mn == null || bad(mn) || bad(mx) || mx < mn) { err.textContent = "Czas metinów: liczby minut od 1 do 600, „od” nie większe niż „do”."; err.hidden = false; return; }
+      if (bn != null && (bad(bn) || bad(bx) || bx < bn)) { err.textContent = "Czas bossów: liczby minut od 1 do 600, „od” nie większe niż „do” (albo zostaw puste)."; err.hidden = false; return; }
+      if (customMaps().length >= 20) { err.textContent = "Można mieć najwyżej 20 własnych map."; err.hidden = false; return; }
+      const id = "x" + Math.random().toString(36).slice(2, 8);
+      saveMap(id, {n, mn, mx, ...(bn != null ? {bn, bx} : {}), o: Date.now()});
+      if (isHidden(id)) settings.hidden = settings.hidden.filter(h => h !== id);
+      view = "maps"; tab = id; close(); scheduleRender(); toast(`Dodano mapę ${n}`);
+    };
+  });
 }
 function exportSheet(){
   const code = b64enc(JSON.stringify(Object.values(spots).map(({id, ...r}) => r)));
@@ -1880,7 +1964,7 @@ function adminSheet(){
             if (!sp) throw new Error("Nie udało się wczytać pokoju.");
             rc = {hist: null, redo: null}; for (const id of Object.keys(sp)) rc[`spots/${id}/t`] = null;
           } else {
-            const t = Date.now(), fresh = {}; MAPS.forEach((m, k) => Object.assign(fresh, seedMap(m.id, t + k * 1000)));
+            const t = Date.now(), fresh = {}; BASE_MAPS.forEach((m, k) => Object.assign(fresh, seedMap(m.id, t + k * 1000)));
             for (const v of Object.values(fresh)) delete v.t;
             rc = {spots: fresh, hist: null, redo: null};
           }
