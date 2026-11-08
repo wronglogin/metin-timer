@@ -1236,8 +1236,8 @@ function wikiHtml(){
   </section>`;
 }
 document.addEventListener("toggle", e => { const d = e.target; if (d.dataset && d.dataset.wmap) d.open ? wikiOpen.add(d.dataset.wmap) : wikiOpen.delete(d.dataset.wmap); }, true);
-// the clock next to the title: local time zone, corrected to the server's time while in a room
-function drawClock(){ const el = document.getElementById("clock"); if (!el) return; const d = new Date(gnow()), p = n => String(n).padStart(2, "0"); const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; if (el.textContent !== t) el.textContent = t; }
+// the clock next to the title: Polish time whatever the device zone, corrected to the server's time while in a room
+function drawClock(){ const el = document.getElementById("clock"); if (!el) return; const g = gnow(), d = new Date(g + tzOffset(g)), p = n => String(n).padStart(2, "0"); const t = `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`; if (el.textContent !== t) el.textContent = t; }
 setInterval(drawClock, 250); drawClock();
 function tick(){
   if (tick.n % 4 === 0) updateReset();
