@@ -1590,7 +1590,7 @@ function adminSheet(){
     <p id="a_lerr" style="color:var(--danger)" hidden></p>
     <div class="abody" id="a_body" hidden>
     <div class="field"><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
-      <div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="btn" id="a_sitego">Zmień hasło</button></div>
+      <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_sitego">Zmień hasło</button></div>
       <p id="a_serr" style="color:var(--danger);margin:0" hidden></p></div>
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
       <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
