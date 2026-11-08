@@ -88,6 +88,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .kick{background:none;border:0;color:var(--danger);cursor:pointer;font-size:13px;padding:0 2px;margin-left:4px;line-height:1}
 .kick:hover{color:var(--fg)}
 .autoline{color:var(--fg)!important;background:color-mix(in srgb,var(--accent) 18%,transparent);border:1px solid var(--accent);border-radius:8px;padding:5px 8px}
+.nwarn{color:var(--window)!important;border:1px solid var(--window);border-radius:8px;padding:6px 8px;font-size:14px!important;margin:4px 0 0!important}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
 .gfloat.mid{width:min(400px,calc(100vw - 24px))}
 .wpick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
@@ -711,6 +712,7 @@ const meId = () => myNick() ? pkey(myNick()) : deviceId;
    others must give the same password, checked by the database itself (nickcheck only accepts the right hash).
    The hash is remembered on the device, so the password is typed once. The admin can reset a nick's password. */
 const nickSaved = n => !!(store.get("nickok", {}) || {})[pkey(n)];
+if (!store.get("nickLock", null) && myNick() && nickSaved(myNick())) { store.set("nickLock", myNick()); store.set("nickLockAt", Date.now()); }
 async function nickHashOk(k, h){
   const url = `${DB_URL}/nickcheck/${k}/${deviceId}.json`;
   const r = await fetch(url, {method: "PUT", body: JSON.stringify(h)}).catch(() => null);
@@ -741,6 +743,11 @@ function tooSimilar(nick, taken){
     if (s1 === s2 || (Math.min(s1.length, s2.length) >= 5 && editDist(s1, s2) <= 1)) return other;
   }
   return null;
+}
+// the admin allowed this nick to be changed (config/nickchange/<id> newer than when this device took the nick)
+async function nickChangeAllowed(lock){
+  const t = await fetch(`${DB_URL}/config/nickchange/${pkey(lock)}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+  return typeof t === "number" && t > (+store.get("nickLockAt", 0) || 0);
 }
 async function nickLogin(nick, pw){
   const k = pkey(nick), saved = store.get("nickok", {}) || {};
@@ -1191,9 +1198,11 @@ function menuSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
-    <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}"></div>
+    <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}">
+      ${store.get("nickLock", null) ? '<p class="pme" style="font-size:13px;margin:0">Nick ma hasło – zmienić go możesz tylko za zgodą admina.</p>' : ""}</div>
     <div class="field"><label for="m_npw">Hasło do nicku</label><input id="m_npw" type="password" maxlength="40" autocomplete="off" placeholder="${nickSaved(myNick()) ? "zapamiętane na tym urządzeniu" : "pierwszy raz? wymyśl hasło"}">
-      <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p></div>
+      <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p>
+      <p id="m_nwarn" class="nwarn" hidden></p></div>
     <div class="field"><label for="m_room">Nazwy pokoi (kilka oddziel średnikiem)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
     <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
@@ -1252,7 +1261,21 @@ function menuSheet(){
       try {
         if (nick.length < 2) { el.querySelector("#m_nick").focus(); throw new Error("Wpisz swój nick (2–20 znaków), żeby wejść do pokoju."); }
         if (!rooms.length) throw new Error("Wpisz nazwę pokoju.");
+        // a nick with a password stays on this device until the admin allows a change
+        const lock = store.get("nickLock", null), changing = lock && pkey(lock) !== pkey(nick);
+        if (changing && !(await nickChangeAllowed(lock))) throw new Error(`Masz już nick „${lock}”. Zmienić go możesz tylko za zgodą admina.`);
+        // a brand-new nick: warn once that it can't be changed later, the second click confirms
+        if (!lock || changing) {
+          const taken = await fetch(`${DB_URL}/nicknames.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
+          const warn = el.querySelector("#m_nwarn");
+          if (!taken[pkey(nick)] && warn.dataset.ok !== pkey(nick)) {
+            warn.dataset.ok = pkey(nick); warn.hidden = false;
+            warn.innerHTML = `Uwaga: zakładasz nick <b>${esc(nick)}</b>. Po ustawieniu hasła nie zmienisz go bez zgody admina. Sprawdź pisownię i kliknij jeszcze raz, żeby potwierdzić.`;
+            ev.target.disabled = false; ev.target.textContent = "Potwierdzam nick"; return;
+          }
+        }
         await nickLogin(nick, el.querySelector("#m_npw").value);
+        if (!lock || changing) { store.set("nickLock", nick); store.set("nickLockAt", Math.round(now())); }
         const nickChanged = nick !== myNick(); store.set("nick", nick); if (nickChanged && online) heartbeat();
         const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
         if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
@@ -1484,6 +1507,8 @@ function adminSheet(){
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="field"><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
+      <p class="pme" style="font-size:13px;margin:0">Ta osoba będzie mogła raz zmienić nick w Menu.</p></div>
     <div class="field"><label for="a_nick">Reset hasła nicku (np. ktoś zapomniał hasła)</label><div class="raadd"><input id="a_nick" maxlength="20" autocomplete="off" placeholder="nick"><button class="btn" id="a_nreset">Resetuj</button></div>
       <p class="pme" style="font-size:13px;margin:0">Po resecie pierwsza osoba, która wejdzie tym nickiem, ustawi nowe hasło.</p></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
@@ -1587,6 +1612,11 @@ function adminSheet(){
         drawBans(); setTimeout(drawPeople, 400);
       } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; b.disabled = false; }
     });
+    el.querySelector("#a_nchok").onclick = async () => {
+      const n = el.querySelector("#a_nch").value.trim(); berr.hidden = true; if (n.length < 2) return;
+      try { await adminPatch({["nickchange/" + pkey(n)]: {".sv": "timestamp"}}); toast(`${n} może teraz zmienić nick`); el.querySelector("#a_nch").value = ""; }
+      catch (x) { berr.textContent = x.message; berr.hidden = false; }
+    };
     el.querySelector("#a_nreset").onclick = async () => {
       const n = el.querySelector("#a_nick").value.trim(); berr.hidden = true; if (n.length < 2) return;
       try { await adminPatch({["nickreset/" + pkey(n)]: {".sv": "timestamp"}}); toast(`Zresetowano hasło nicku ${n}`); el.querySelector("#a_nick").value = ""; }
