@@ -1190,9 +1190,11 @@ function render(){
 }
 function paneHtml(id){
   const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id] || {metin: 0, boss: []};
-  const rng = m.notimes ? (online ? "Własna mapa pokoju · czas każdego respu ustawisz w jego polu „min”" : "Własna mapa · czas każdego respu ustawisz w jego polu „min”") : `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + (m.custom ? (online ? " · własna mapa pokoju" : " · własna mapa") : " (minutę przed respem z MiniWiki)");
+  const rng = m.custom
+    ? (m.notimes ? "Custom mapa · czasy respu do ustawienia (Edytuj mapę), timer respu w polu „min”" : `Custom mapa · metiny ${m.metin[0]}–${m.metin[1]} min` + (m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : "") + " · timer respu w polu „min”")
+    : `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + " (minutę przed respem z MiniWiki)";
   return `<section class="pane">
-    <div class="maphead"><h1>${esc(m.name)}</h1><span class="ranges">${rng}</span></div>
+    <div class="maphead"><h1>${esc(m.name)}</h1><span class="ranges">${rng}</span>${m.custom ? `<button class="btn" data-editmap="${m.id}" style="min-height:30px;padding:0 10px">Edytuj mapę</button>` : ""}</div>
     <div class="spots">${ss.length ? ss.map(spotHtml).join("") :
       `<div class="empty">Na tej mapie nie ma jeszcze respów.${sd.metin ? `<button class="btn primary" data-seed="${m.id}">Wstaw domyślne: ${sd.metin} metinów${sd.boss.length ? " + " + sd.boss.length + (sd.boss.length === 1 ? " boss" : " bossy") : ""}</button>` : " Dodaj je przyciskiem „+ Dodaj resp” poniżej i ustaw nazwę oraz czas."}</div>`}</div>
     <div class="addrow"><button class="btn" data-add="${m.id}">+ Dodaj resp</button></div>
@@ -1325,7 +1327,7 @@ setTimeout(applyGamesOff, 0);
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
-document.addEventListener("click", e => { if (e.target.closest("[data-addmap]")) mapsSheet(); });
+document.addEventListener("click", e => { if (e.target.closest("[data-addmap]")) mapsSheet(); const em = e.target.closest("[data-editmap]"); if (em) mapsSheet(em.dataset.editmap); });
 // "Darmowa gra": empties the stake and starts the game straight away (no stake = nothing is settled in Rozliczenia)
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-free]"); if (!b || b.disabled) return;
@@ -1598,52 +1600,66 @@ function copyText(ta, code){
   Promise.resolve().then(() => navigator.clipboard.writeText(code)).then(() => toast("Skopiowano"), () => { try { document.execCommand("copy"); toast("Skopiowano"); } catch { toast("Zaznaczono kod, skopiuj go ręcznie"); } });
 }
 // own maps: name and respawn times; online they belong to the room (everyone in it sees them), offline to this device
-function mapsSheet(){
+// custom maps: a name and (optionally, can be filled in later) the metin and boss respawn range, min–max minutes.
+// Online they belong to the room (everyone in it sees and can edit them), offline to this device.
+// Each respawn on the map then has its own timer in its "min" field, starting one minute before the map's minimum.
+function mapsSheet(editId){
   refreshMaps();
-  sheet(`<h2>Własne mapy</h2>
-    <p>${online ? `Mapy dodane tutaj widzą wszyscy w pokoju <b>${esc(online.room)}</b>.` : "Jesteś w trybie offline – mapy zapiszą się tylko na tym urządzeniu."} Na nowej mapie dodasz respy przyciskiem „+ Dodaj resp”.</p>
+  sheet(`<h2>Custom mapy</h2>
+    <p>${online ? `Mapy dodane tutaj widzą i mogą edytować wszyscy w pokoju <b>${esc(online.room)}</b>.` : "Jesteś w trybie offline – mapy zapiszą się tylko na tym urządzeniu."} Czasy respu możesz zostawić puste i uzupełnić później przyciskiem „Edytuj”.</p>
     <ul class="banlist" id="mp_list"></ul>
-    <h3 style="margin:6px 0 0">Nowa mapa</h3>
+    <h3 style="margin:6px 0 0" id="mp_title">Nowa mapa</h3>
     <div class="field"><label for="mp_n">Nazwa</label><input id="mp_n" maxlength="30" autocomplete="off" placeholder="np. Grota Wygnańców"></div>
-    <div class="field"><label>Metiny – resp co (minuty, puste = ustawicie później przy respach)</label><div class="stakein"><input id="mp_mn" inputmode="numeric" maxlength="3" placeholder="od, np. 15"><span>–</span><input id="mp_mx" inputmode="numeric" maxlength="3" placeholder="do, np. 20"></div></div>
-    <div class="field"><label>Bossy – resp co (minuty, puste = bez bossów)</label><div class="stakein"><input id="mp_bn" inputmode="numeric" maxlength="3" placeholder="od"><span>–</span><input id="mp_bx" inputmode="numeric" maxlength="3" placeholder="do"></div></div>
+    <div class="field"><label>Metiny – resp minimalny i maksymalny (minuty)</label><div class="stakein"><input id="mp_mn" inputmode="numeric" maxlength="3" placeholder="min, np. 15"><span>–</span><input id="mp_mx" inputmode="numeric" maxlength="3" placeholder="maks, np. 20"></div></div>
+    <div class="field"><label>Bossy – resp minimalny i maksymalny (minuty, puste = bez bossów)</label><div class="stakein"><input id="mp_bn" inputmode="numeric" maxlength="3" placeholder="min"><span>–</span><input id="mp_bx" inputmode="numeric" maxlength="3" placeholder="maks"></div></div>
+    <p class="pme" style="font-size:13px;margin:0">Nowy resp na mapie dostaje timer o minutę krótszy od respu minimalnego (puste czasy = 10 min). Timer każdego respu i tak zmienisz w jego polu „min”.</p>
     <p id="mp_err" style="color:var(--danger);margin:0" hidden></p>
-    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="mp_add">Dodaj mapę</button></div>`, (el, close) => {
-    const err = el.querySelector("#mp_err"), num = id => { const v = el.querySelector(id).value.trim(); return v === "" ? null : Math.round(+v); };
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn" id="mp_cancel" hidden>Anuluj edycję</button><button class="btn primary" id="mp_add">Dodaj mapę</button></div>`, (el, close) => {
+    const err = el.querySelector("#mp_err"), $f = id => el.querySelector(id), num = id => { const v = $f(id).value.trim(); return v === "" ? null : Math.round(+v); };
+    let editing = null;                                            // id of the map being edited, null = adding a new one
+    const setForm = (id) => {
+      editing = id; const v = id ? customSrc()[id] || {} : {};
+      $f("#mp_n").value = v.n || ""; $f("#mp_mn").value = v.mn || ""; $f("#mp_mx").value = v.mx || ""; $f("#mp_bn").value = v.bn || ""; $f("#mp_bx").value = v.bx || "";
+      $f("#mp_title").textContent = id ? `Edycja: ${v.n}` : "Nowa mapa";
+      $f("#mp_add").textContent = id ? "Zapisz zmiany" : "Dodaj mapę"; $f("#mp_cancel").hidden = !id; err.hidden = true;
+      if (id) $f("#mp_n").focus();
+    };
     const draw = () => {
       const cm = customMaps(), ul = el.querySelector("#mp_list");
       ul.innerHTML = cm.length ? cm.map(m => `<li><span><b>${esc(m.name)}</b> <span class="pme">${m.notimes ? "czasy do ustawienia" : `metiny ${m.metin[0]}–${m.metin[1]} min`}${m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : ""} · ${mapSpots(m.id).length} resp.</span></span>
-        <span style="display:flex;gap:6px"><button class="btn" data-mren="${m.id}">Zmień nazwę</button><button class="btn danger" data-mdel="${m.id}">Usuń</button></span></li>`).join("")
-        : '<li class="pme">Nie ma jeszcze własnych map.</li>';
+        <span style="display:flex;gap:6px"><button class="btn" data-medit="${m.id}">Edytuj</button><button class="btn danger" data-mdel="${m.id}">Usuń</button></span></li>`).join("")
+        : '<li class="pme">Nie ma jeszcze custom map.</li>';
     };
-    draw();
+    draw(); if (editId && customSrc()[editId]) setForm(editId);
+    el.querySelector("#mp_cancel").onclick = () => setForm(null);
     el.querySelector("#mp_list").addEventListener("click", e => {
-      const ren = e.target.closest("[data-mren]"), del = e.target.closest("[data-mdel]");
-      const src = customSrc();
-      if (ren) {
-        const id = ren.dataset.mren, li = ren.closest("li");
-        li.innerHTML = `<input maxlength="30" value="${esc(src[id] ? src[id].n : "")}" style="flex:1;min-width:0"><button class="btn primary">Zapisz</button>`;
-        const inp = li.querySelector("input"); inp.focus();
-        const ok = () => { const n = inp.value.trim(); if (n && src[id]) saveMap(id, {...src[id], n}); draw(); };
-        li.querySelector("button").onclick = ok; inp.onkeydown = ev => { if (ev.key === "Enter") ok(); };
-      }
+      const ed = e.target.closest("[data-medit]"), del = e.target.closest("[data-mdel]");
+      if (ed) setForm(ed.dataset.medit);
       if (del) {
         const id = del.dataset.mdel, n = mapSpots(id).length;
         if (del.dataset.sure !== "1") { del.dataset.sure = "1"; del.textContent = n ? `Usunąć z ${n} resp.?` : "Na pewno?"; setTimeout(() => { if (del.isConnected) { del.dataset.sure = ""; del.textContent = "Usuń"; } }, 3000); return; }
+        if (editing === id) setForm(null);
         saveMap(id, null); toast("Usunięto mapę"); setTimeout(draw, 50);
       }
     });
     el.querySelector("#mp_add").onclick = () => {
       err.hidden = true;
-      const n = el.querySelector("#mp_n").value.trim(), mn = num("#mp_mn"), mx = num("#mp_mx") ?? mn, bn = num("#mp_bn"), bx = num("#mp_bx") ?? bn;
-      const bad = x => !(x >= 1 && x <= 600);
-      if (!n) { err.textContent = "Wpisz nazwę mapy."; err.hidden = false; return; }
-      if (MAPS.some(m => m.name.toLowerCase() === n.toLowerCase())) { err.textContent = "Mapa o tej nazwie już jest."; err.hidden = false; return; }
-      if (mn != null && (bad(mn) || bad(mx) || mx < mn)) { err.textContent = "Czas metinów: liczby minut od 1 do 600, „od” nie większe niż „do” (albo zostaw puste)."; err.hidden = false; return; }
-      if (bn != null && (bad(bn) || bad(bx) || bx < bn)) { err.textContent = "Czas bossów: liczby minut od 1 do 600, „od” nie większe niż „do” (albo zostaw puste)."; err.hidden = false; return; }
-      if (customMaps().length >= 20) { err.textContent = "Można mieć najwyżej 20 własnych map."; err.hidden = false; return; }
+      const n = $f("#mp_n").value.trim(), mn = num("#mp_mn"), mx = num("#mp_mx") ?? mn, bn = num("#mp_bn"), bx = num("#mp_bx") ?? bn;
+      const bad = x => !(x >= 1 && x <= 600), fail = t => { err.textContent = t; err.hidden = false; };
+      if (!n) return fail("Wpisz nazwę mapy.");
+      if (MAPS.some(m => m.id !== editing && m.name.toLowerCase() === n.toLowerCase())) return fail("Mapa o tej nazwie już jest.");
+      if (mn == null && num("#mp_mx") != null) return fail("Wpisz też resp minimalny metinów.");
+      if (mn != null && (bad(mn) || bad(mx) || mx < mn)) return fail("Metiny: liczby minut od 1 do 600, minimalny nie większy niż maksymalny (albo zostaw oba puste).");
+      if (bn == null && num("#mp_bx") != null) return fail("Wpisz też resp minimalny bossów.");
+      if (bn != null && (bad(bn) || bad(bx) || bx < bn)) return fail("Bossy: liczby minut od 1 do 600, minimalny nie większy niż maksymalny (albo zostaw oba puste).");
+      const v = {n, ...(mn != null ? {mn, mx} : {}), ...(bn != null ? {bn, bx} : {})};
+      if (editing) {
+        const old = customSrc()[editing]; if (!old) { setForm(null); draw(); return; }
+        saveMap(editing, {...v, o: +old.o || Date.now()}); toast(`Zapisano mapę ${n}`); setForm(null); setTimeout(draw, 50); return;
+      }
+      if (customMaps().length >= 20) return fail("Można mieć najwyżej 20 custom map.");
       const id = "x" + Math.random().toString(36).slice(2, 8);
-      saveMap(id, {n, ...(mn != null ? {mn, mx} : {}), ...(bn != null ? {bn, bx} : {}), o: Date.now()});
+      saveMap(id, {...v, o: Date.now()});
       if (isHidden(id)) settings.hidden = settings.hidden.filter(h => h !== id);
       view = "maps"; tab = id; close(); scheduleRender(); toast(`Dodano mapę ${n}`);
     };
