@@ -636,6 +636,7 @@ async function connect(db, room){
   if (await checkBan()) throw new Error("Admin zablokował ci dostęp do pokoi.");
   if (!/^https:\/\/[\w.-]+$/.test(db)) throw new Error("Adres bazy musi zaczynać się od https:// i nie mieć ścieżki.");
   if (!/^[\w-]{3,40}$/.test(room)) throw new Error("Nazwa pokoju: 3–40 znaków, litery, cyfry, - lub _.");
+  if (await roomBanned(db, room)) throw new Error("Ten pokój został zablokowany przez admina.");
   disconnect(true);
   online = {db, room, es:null};
   setMode("Łączenie…");
@@ -667,11 +668,15 @@ async function connect(db, room){
   };
   es.addEventListener("put", handle("put"));
   es.addEventListener("patch", handle("patch"));
-  es.addEventListener("cancel", () => setMode("Brak dostępu", "err"));
+  es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err");
+    if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); } });
   es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
   es.onerror = () => setMode("Wznawianie…", "err");
   es.onopen = () => setMode(room, "on");
   startPresence();
+}
+async function roomBanned(db, room){
+  try { const r = await fetch(`${db}/config/roombans/${encodeURIComponent(room)}.json`); return r.ok && !!(await r.json()); } catch { return false; }
 }
 function disconnect(silent){
   stopPresence();
@@ -1611,6 +1616,10 @@ function adminSheet(){
     <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
     <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
+    <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Pokoje używane w ostatnich 7 dniach. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy.</p>
+      <div class="raadd"><input id="a_rname" maxlength="40" autocomplete="off" placeholder="albo wpisz nazwę pokoju"><button class="btn" id="a_radd">Pokaż</button></div>
+      <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Zbanowani</h2>
     <ul class="banlist" id="a_bans"><li class="pme">Wczytywanie…</li></ul>
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
@@ -1693,6 +1702,51 @@ function adminSheet(){
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
     el.querySelector("#a_alld").addEventListener("toggle", e => { if (e.target.open) drawAll(); });
+    // room management: zero timers, reset to the default respawn list, block / unblock a room
+    const extraRooms = new Set();
+    const drawRooms = async () => {
+      const ul = el.querySelector("#a_rooms");
+      try {
+        const [rl, rb] = await Promise.all([`${DB_URL}/roomlist.json`, `${DB_URL}/config/roombans.json`].map(u => fetch(u).then(r => r.ok ? r.json() : {}).catch(() => ({})).then(x => x || {})));
+        const names = [...new Set([...Object.keys(rl).filter(k => now() - (+rl[k] || 0) < 7 * 86400e3), ...Object.keys(rb), ...extraRooms])].sort((a, b) => a.localeCompare(b));
+        ul.innerHTML = names.length ? names.map(n => {
+          const ago = rl[n] ? Math.round((now() - rl[n]) / 60000) : null;
+          const when = rb[n] ? '<span style="color:var(--danger)">zablokowany</span>' : ago == null ? "" : ago < 7 ? '<span style="color:var(--ok,#4ade80)">ktoś jest teraz</span>' : ago < 60 ? `${ago} min temu` : ago < 1440 ? `${Math.round(ago / 60)} h temu` : `${Math.round(ago / 1440)} dni temu`;
+          return `<li style="flex-wrap:wrap;gap:6px"><span><b>${esc(n)}</b> <span class="pme">${when}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${esc(n)}">Odblokuj</button>`
+            : `<button class="btn" data-ract="zero" data-room="${esc(n)}">Zeruj timery</button><button class="btn" data-ract="reset" data-room="${esc(n)}">Reset</button><button class="btn danger" data-ract="ban" data-room="${esc(n)}">Zablokuj</button>`}</span></li>`;
+        }).join("") : '<li class="pme">Brak pokoi.</li>';
+      } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
+    };
+    el.querySelector("#a_roomsd").addEventListener("toggle", e => { if (e.target.open) drawRooms(); });
+    el.querySelector("#a_radd").onclick = () => { const n = el.querySelector("#a_rname").value.trim(); if (!/^[\w-]{3,40}$/.test(n)) return; extraRooms.add(n); el.querySelector("#a_rname").value = ""; drawRooms(); };
+    el.querySelector("#a_rooms").addEventListener("click", async e => {
+      const b = e.target.closest("[data-ract]"); if (!b) return;
+      const act = b.dataset.ract, room = b.dataset.room, rurl = `${DB_URL}/rooms/${encodeURIComponent(room)}`;
+      berr.hidden = true;
+      if (act !== "unban" && b.dataset.sure !== "1") { const t = b.textContent; b.dataset.sure = "1"; b.textContent = "Na pewno?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = t; } }, 3000); return; }
+      b.disabled = true;
+      try {
+        if (act === "ban") { await adminPatch({["roombans/" + room]: {".sv": "timestamp"}}, "Zablokowano pokój: " + room); toast(`Zablokowano pokój ${room}`); }
+        else if (act === "unban") { await adminPatch({["roombans/" + room]: null}, "Odblokowano pokój: " + room); toast(`Odblokowano pokój ${room}`); }
+        else {
+          await adminPatch({}, (act === "zero" ? "Wyzerowano timery w pokoju: " : "Zresetowano pokój do ustawień początkowych: ") + room);
+          let rc;
+          if (act === "zero") {
+            const sp = await fetch(`${rurl}/spots.json?shallow=true`).then(r => r.ok ? r.json() : null);
+            if (!sp) throw new Error("Nie udało się wczytać pokoju.");
+            rc = {hist: null, redo: null}; for (const id of Object.keys(sp)) rc[`spots/${id}/t`] = null;
+          } else {
+            const t = Date.now(), fresh = {}; MAPS.forEach((m, k) => Object.assign(fresh, seedMap(m.id, t + k * 1000)));
+            for (const v of Object.values(fresh)) delete v.t;
+            rc = {spots: fresh, hist: null, redo: null};
+          }
+          const r = await fetch(`${rurl}.json`, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(rc)});
+          if (!r.ok) throw new Error("Baza odrzuciła zmianę pokoju (" + r.status + ").");
+          toast(act === "zero" ? `Wyzerowano timery w pokoju ${room}` : `Pokój ${room} ma znowu domyślne respy`);
+        }
+        drawRooms();
+      } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; b.disabled = false; b.dataset.sure = ""; }
+    });
     el.querySelector("#a_logd").addEventListener("toggle", e => { if (e.target.open) drawLog(); });
     // the admin options appear only after the password has been accepted by the database
     const login = async () => {
