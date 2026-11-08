@@ -485,6 +485,7 @@
     },
     "nicks": {
       ".read": false,
+      ".write": "!newData.exists() && root.child('config/acctepoch').val() > now - 60000",
       "$k": {
         ".write": "!data.exists() || (root.child('config/nickreset/' + $k).exists() && root.child('config/nickreset/' + $k).val() > data.child('at').val())",
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.hasChildren(['h', 'at'])",
@@ -513,6 +514,7 @@
     },
     "nicknames": {
       ".read": true,
+      ".write": "!newData.exists() && root.child('config/acctepoch').val() > now - 60000",
       "$k": {
         ".write": "!data.exists()",
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && root.child('nicks').child($k).exists() && newData.isString() && newData.val().length >= 2 && newData.val().length <= 20"
@@ -520,6 +522,7 @@
     },
     "nickreq": {
       ".read": true,
+      ".write": "!newData.exists() && root.child('config/acctepoch').val() > now - 60000",
       "$k": {
         ".write": true,
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.hasChildren(['n', 'at'])",
@@ -583,6 +586,10 @@
         "$k": {
           ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.isNumber()"
         }
+      },
+      "acctepoch": {
+        ".read": true,
+        ".validate": "newData.isNumber()"
       },
       "$other": {
         ".validate": false

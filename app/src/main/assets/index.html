@@ -760,6 +760,16 @@ async function nickChangeAllowed(lock){
   const t = await fetch(`${DB_URL}/config/nickchange/${pkey(lock)}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
   return typeof t === "number" && t > (+store.get("nickLockAt", 0) || 0);
 }
+// the admin wiped all accounts: forget this device's nick password and lock (the nick stays filled in)
+async function checkAccountWipe(){
+  const t = await fetch(`${DB_URL}/config/acctepoch.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+  if (typeof t === "number" && t > (+store.get("acctEpoch", 0) || 0)) {
+    const hadLock = !!store.get("nickLock", null);
+    store.set("nickok", {}); store.set("nickLock", null); store.set("nickLockAt", 0); store.set("acctEpoch", t);
+    return hadLock;
+  }
+  return false;
+}
 async function nickLogin(nick, pw){
   const k = pkey(nick), saved = store.get("nickok", {}) || {};
   const taken = await fetch(`${DB_URL}/nicknames.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
@@ -1581,6 +1591,8 @@ function adminSheet(){
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
+      <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
     <div class="field"><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
     <div class="field"><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
       <p class="pme" style="font-size:13px;margin:0">Ta osoba będzie mogła raz zmienić nick w Menu.</p></div>
@@ -1703,6 +1715,18 @@ function adminSheet(){
         drawReqs();
       } catch (x) { berr.textContent = x.message; berr.hidden = false; }
     });
+    el.querySelector("#a_wipe").onclick = async ev => {
+      const b = ev.target; berr.hidden = true;
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Na pewno? Kliknij jeszcze raz"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Wyczyść wszystkie konta"; } }, 4000); return; }
+      b.disabled = true;
+      try {
+        // the new "accounts epoch" lets the database delete the nick lists for a minute and tells every device to forget its nick lock
+        await adminPatch({acctepoch: {".sv": "timestamp"}});
+        for (const node of ["nicks", "nicknames", "nickreq"]) { const r = await fetch(`${DB_URL}/${node}.json`, {method: "DELETE"}); if (!r.ok) throw new Error(`Baza nie pozwoliła usunąć „${node}” (${r.status}). Sprawdź, czy wkleiłeś nowe reguły.`); }
+        store.set("nickok", {}); store.set("nickLock", null); store.set("nickLockAt", 0); store.set("acctEpoch", Date.now());
+        toast("Wyczyszczono wszystkie konta. Każdy może założyć nowe.", 5000); drawReqs(); b.textContent = "Wyczyszczono";
+      } catch (x) { berr.textContent = x.message; berr.hidden = false; b.disabled = false; b.dataset.sure = ""; b.textContent = "Wyczyść wszystkie konta"; }
+    };
     el.querySelector("#a_nchok").onclick = async () => {
       const n = el.querySelector("#a_nch").value.trim(); berr.hidden = true; if (n.length < 2) return;
       try { await adminPatch({["nickchange/" + pkey(n)]: {".sv": "timestamp"}}); toast(`${n} może teraz zmienić nick`); el.querySelector("#a_nch").value = ""; }
@@ -3328,13 +3352,14 @@ const auto = store.get("online", null);
 // rooms connect only after the site password was entered
 afterUnlock.push(() => {
   if (online) return;
+  if (!(auto && auto.room)) checkAccountWipe();
   // not in a room yet: a welcome window explains the second step (nick + nick password + room)
   if (!(auto && auto.room)) { if (!store.get("stayOffline", false)) setTimeout(welcomeSheet, 300); return; }
   // nick is required in rooms: ask for it once if this device joined before nicks existed
   if (!myNick()) { store.set("online", null); setTimeout(() => { welcomeSheet(); toast("Wpisz swój nick, żeby wrócić do pokoju " + auto.room); }, 300); return; }
-  nickLogin(myNick(), "").then(() => connect(DB_URL, auto.room)).catch(x => {
+  checkAccountWipe().then(wiped => { if (wiped) throw new Error("Admin wyczyścił konta – załóż swoje konto (nick i hasło) od nowa."); return nickLogin(myNick(), ""); }).then(() => connect(DB_URL, auto.room)).catch(x => {
     setMode("Prywatny");
-    if (/hasło|Hasło/.test(x.message)) setTimeout(() => { welcomeSheet(); toast("Ustaw albo wpisz hasło do nicku, żeby wrócić do pokoju " + auto.room, 6000); }, 300);
+    if (/hasło|Hasło|konto/.test(x.message)) setTimeout(() => { welcomeSheet(); toast("Ustaw albo wpisz hasło do nicku, żeby wrócić do pokoju " + auto.room, 6000); }, 300);
   });
 });
 gate();
