@@ -2,8 +2,8 @@
   "rules": {
     "rooms": {
       "$room": {
-        ".read": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/)",
-        ".write": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/)",
+        ".read": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && !root.child('config/roombans').child($room).exists()",
+        ".write": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && !root.child('config/roombans').child($room).exists()",
         "spots": {
           "$id": {
             ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['id', 'map', 'name', 'min', 'max'])",
@@ -597,6 +597,12 @@
       "acctepoch": {
         ".read": true,
         ".validate": "newData.isNumber()"
+      },
+      "roombans": {
+        ".read": true,
+        "$room": {
+          ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isNumber()"
+        }
       },
       "alog": {
         ".read": true,
