@@ -432,7 +432,7 @@ const customSrc = () => online ? (remoteRoot && remoteRoot.maps) || {} : store.g
 function customMaps(){
   return Object.entries(customSrc()).filter(([id, v]) => v && v.n && /^x[a-z0-9]{3,9}$/.test(id))
     .sort((a, b) => (+a[1].o || 0) - (+b[1].o || 0))
-    .map(([id, v]) => ({id, name: String(v.n), metin: [+v.mn || 15, +v.mx || +v.mn || 20], boss: v.bn ? [+v.bn, +v.bx || +v.bn] : null, custom: true}));
+    .map(([id, v]) => ({id, name: String(v.n), metin: [+v.mn || 11, +v.mx || +v.mn || 15], boss: v.bn ? [+v.bn, +v.bx || +v.bn] : null, custom: true, notimes: !v.mn}));
 }
 function refreshMaps(){
   const cm = customMaps(), sig = JSON.stringify(cm);
@@ -1167,7 +1167,7 @@ function renderTabs(){
     mine = `<button class="tab mine" role="tab" data-tab="mine" aria-selected="${view === "maps" && tab === "mine"}">Twoje mapy${r ? `<span class="badge ready" title="Na minusie">${r}</span>` : ""}</button>`;
   }
   // "+ Mapa": the room's own maps are added from the map bar, where everyone in the room sees them
-  const out = mine + html + `<button class="tab addtab" data-addmap title="Dodaj własną mapę – w pokoju zobaczą ją wszyscy (tu też zmienisz nazwę lub usuniesz)">+ Mapa</button>`;
+  const out = mine + html + `<button class="tab addtab" data-addmap title="Dodaj własną mapę – w pokoju zobaczą ją wszyscy (tu też zmienisz nazwę lub usuniesz)">+ Custom Mapa</button>`;
   if (out !== renderTabs.last) { $("#tabs").innerHTML = out; renderTabs.last = out; }
   updateHistButtons();
   $("#wikiBtn").setAttribute("aria-pressed", view === "wiki");
@@ -1190,7 +1190,7 @@ function render(){
 }
 function paneHtml(id){
   const m = mapById[id], ss = mapSpots(m.id), sd = SEED[m.id] || {metin: 0, boss: []};
-  const rng = `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + (m.custom ? (online ? " · własna mapa pokoju" : " · własna mapa") : " (minutę przed respem z MiniWiki)");
+  const rng = m.notimes ? (online ? "Własna mapa pokoju · czas każdego respu ustawisz w jego polu „min”" : "Własna mapa · czas każdego respu ustawisz w jego polu „min”") : `Domyślnie: metiny ${dmin(m.metin)} min` + (m.boss ? ` · bossy ${dmin(m.boss)} min` : "") + (m.custom ? (online ? " · własna mapa pokoju" : " · własna mapa") : " (minutę przed respem z MiniWiki)");
   return `<section class="pane">
     <div class="maphead"><h1>${esc(m.name)}</h1><span class="ranges">${rng}</span></div>
     <div class="spots">${ss.length ? ss.map(spotHtml).join("") :
@@ -1502,7 +1502,7 @@ function menuSheet(){
     <div class="field"><label for="vol">Głośność alarmu</label>
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
-      <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. Własną mapę dla całego pokoju dodasz przyciskiem „+ Mapa” na końcu paska map. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+      <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. Własną mapę dla całego pokoju dodasz przyciskiem „+ Custom Mapa” na końcu paska map. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
@@ -1605,14 +1605,14 @@ function mapsSheet(){
     <ul class="banlist" id="mp_list"></ul>
     <h3 style="margin:6px 0 0">Nowa mapa</h3>
     <div class="field"><label for="mp_n">Nazwa</label><input id="mp_n" maxlength="30" autocomplete="off" placeholder="np. Grota Wygnańców"></div>
-    <div class="field"><label>Metiny – resp co (minuty)</label><div class="stakein"><input id="mp_mn" inputmode="numeric" maxlength="3" placeholder="od, np. 15"><span>–</span><input id="mp_mx" inputmode="numeric" maxlength="3" placeholder="do, np. 20"></div></div>
+    <div class="field"><label>Metiny – resp co (minuty, puste = ustawicie później przy respach)</label><div class="stakein"><input id="mp_mn" inputmode="numeric" maxlength="3" placeholder="od, np. 15"><span>–</span><input id="mp_mx" inputmode="numeric" maxlength="3" placeholder="do, np. 20"></div></div>
     <div class="field"><label>Bossy – resp co (minuty, puste = bez bossów)</label><div class="stakein"><input id="mp_bn" inputmode="numeric" maxlength="3" placeholder="od"><span>–</span><input id="mp_bx" inputmode="numeric" maxlength="3" placeholder="do"></div></div>
     <p id="mp_err" style="color:var(--danger);margin:0" hidden></p>
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="mp_add">Dodaj mapę</button></div>`, (el, close) => {
     const err = el.querySelector("#mp_err"), num = id => { const v = el.querySelector(id).value.trim(); return v === "" ? null : Math.round(+v); };
     const draw = () => {
       const cm = customMaps(), ul = el.querySelector("#mp_list");
-      ul.innerHTML = cm.length ? cm.map(m => `<li><span><b>${esc(m.name)}</b> <span class="pme">metiny ${m.metin[0]}–${m.metin[1]} min${m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : ""} · ${mapSpots(m.id).length} resp.</span></span>
+      ul.innerHTML = cm.length ? cm.map(m => `<li><span><b>${esc(m.name)}</b> <span class="pme">${m.notimes ? "czasy do ustawienia" : `metiny ${m.metin[0]}–${m.metin[1]} min`}${m.boss ? ` · bossy ${m.boss[0]}–${m.boss[1]} min` : ""} · ${mapSpots(m.id).length} resp.</span></span>
         <span style="display:flex;gap:6px"><button class="btn" data-mren="${m.id}">Zmień nazwę</button><button class="btn danger" data-mdel="${m.id}">Usuń</button></span></li>`).join("")
         : '<li class="pme">Nie ma jeszcze własnych map.</li>';
     };
@@ -1639,11 +1639,11 @@ function mapsSheet(){
       const bad = x => !(x >= 1 && x <= 600);
       if (!n) { err.textContent = "Wpisz nazwę mapy."; err.hidden = false; return; }
       if (MAPS.some(m => m.name.toLowerCase() === n.toLowerCase())) { err.textContent = "Mapa o tej nazwie już jest."; err.hidden = false; return; }
-      if (mn == null || bad(mn) || bad(mx) || mx < mn) { err.textContent = "Czas metinów: liczby minut od 1 do 600, „od” nie większe niż „do”."; err.hidden = false; return; }
+      if (mn != null && (bad(mn) || bad(mx) || mx < mn)) { err.textContent = "Czas metinów: liczby minut od 1 do 600, „od” nie większe niż „do” (albo zostaw puste)."; err.hidden = false; return; }
       if (bn != null && (bad(bn) || bad(bx) || bx < bn)) { err.textContent = "Czas bossów: liczby minut od 1 do 600, „od” nie większe niż „do” (albo zostaw puste)."; err.hidden = false; return; }
       if (customMaps().length >= 20) { err.textContent = "Można mieć najwyżej 20 własnych map."; err.hidden = false; return; }
       const id = "x" + Math.random().toString(36).slice(2, 8);
-      saveMap(id, {n, mn, mx, ...(bn != null ? {bn, bx} : {}), o: Date.now()});
+      saveMap(id, {n, ...(mn != null ? {mn, mx} : {}), ...(bn != null ? {bn, bx} : {}), o: Date.now()});
       if (isHidden(id)) settings.hidden = settings.hidden.filter(h => h !== id);
       view = "maps"; tab = id; close(); scheduleRender(); toast(`Dodano mapę ${n}`);
     };
