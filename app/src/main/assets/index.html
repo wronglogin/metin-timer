@@ -63,6 +63,9 @@ header{grid-template-columns:minmax(0,1fr)}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);left:0;right:auto;max-width:calc(100vw - 24px);z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
 .people[hidden]{display:none}
+.alogd summary{cursor:pointer;font-weight:600;padding:4px 0}
+.alogd .banlist{margin-top:8px;max-height:260px;overflow:auto}
+.alogd .banlist li{font-size:13px}
 .people .nogame{color:var(--danger);font-weight:500;font-size:.85em}
 .people .pme{color:var(--muted);font-weight:500}
 .gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:19;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
@@ -325,6 +328,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .sheet h2{margin:0;font-size:22px}
 .sheet p{margin:0;color:var(--muted);font-size:15px}
 .field{display:grid;gap:4px}
+.field[hidden]{display:none}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
 .field textarea{font-family:var(--f-num);font-size:12px;min-height:110px;resize:vertical}
@@ -1582,10 +1586,12 @@ document.querySelector(".brand").addEventListener("click", () => {
 function adminSheet(){
   store.set("adminPw", ""); // the password is never remembered: it is asked every time the panel opens
   sheet(`<h2>Panel admina</h2>
-    <div class="field"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
+    <div class="field" id="a_pwf"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
     <p id="a_lerr" style="color:var(--danger)" hidden></p>
     <div class="abody" id="a_body" hidden>
-    <div class="field"><label for="a_site">Nowe hasło do strony (zostaw puste, żeby nie zmieniać)</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy"></div>
+    <div class="field"><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
+      <div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="btn" id="a_sitego">Zmień hasło</button></div>
+      <p id="a_serr" style="color:var(--danger);margin:0" hidden></p></div>
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
       <select id="a_ch">${Array.from({length:10}, (_, i) => `<option value="${i + 1}"${i + 1 === channels ? " selected" : ""}>${i + 1}</option>`).join("")}</select></div>
     <p id="a_err" style="color:var(--danger)" hidden></p>
@@ -1604,6 +1610,7 @@ function adminSheet(){
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
     ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
+    <details class="alogd" id="a_logd"><summary>Dziennik akcji admina (ostatnie 48 h)</summary><ul class="banlist" id="a_log"><li class="pme">Wczytywanie…</li></ul></details>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
       <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
@@ -1611,8 +1618,10 @@ function adminSheet(){
     </div>`,
   (el, close) => {
     const berr = el.querySelector("#a_berr");
-    const adminPatch = async body => {
+    const alogEntry = msg => ({["alog/" + hkey()]: {s: (msg + " · " + (myNick() || "bez nicku")).slice(0, 200), at: {".sv": "timestamp"}}});
+    const adminPatch = async (body, msg) => {
       const pw = el.querySelector("#a_pw").value;
+      if (msg) body = {...body, ...alogEntry(msg)};
       const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({pw, ...body})});
       if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
       if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
@@ -1641,19 +1650,33 @@ function adminSheet(){
     };
     // debts live in the room; the admin password is checked first (a harmless write to config), then the room is changed
     const adminRoom = async (rc, msg) => {
-      await adminPatch({});
+      await adminPatch({}, msg);
       const hk = hkey(); rc["dlog/" + hk] = {s: msg.slice(0, 200), at: {".sv": "timestamp"}};
       for (const [p, v] of Object.entries(rc)) setPath(remoteRoot, p, clone(svNow(v)));
       await push(rc);
     };
+    // admin action log: loaded only when its section is opened; entries older than 48 h are removed
+    const ALOG_KEEP = 48 * 3600e3;
+    const drawLog = async () => {
+      const ul = el.querySelector("#a_log");
+      try {
+        const r = await fetch(`${DB_URL}/config/alog.json`); const all = r.ok ? (await r.json()) || {} : {};
+        const cut = now() - ALOG_KEEP, old = Object.keys(all).filter(k => (all[k].at || 0) < cut);
+        if (old.length) adminPatch(Object.fromEntries(old.map(k => ["alog/" + k, null]))).catch(() => {});
+        const rows = Object.values(all).filter(x => (x.at || 0) >= cut).sort((a, b) => b.at - a.at);
+        ul.innerHTML = rows.length ? rows.map(x => `<li><span><span class="pme">${fmtDate(x.at)}</span> ${esc(x.s || "")}</span></li>`).join("")
+          : '<li class="pme">Brak akcji w ostatnich 48 h.</li>';
+      } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać dziennika.</li>'; }
+    };
+    el.querySelector("#a_logd").addEventListener("toggle", e => { if (e.target.open) drawLog(); });
     // the admin options appear only after the password has been accepted by the database
     const login = async () => {
       const lerr = el.querySelector("#a_lerr"), lb = el.querySelector("#a_login"); lerr.hidden = true;
       if (!el.querySelector("#a_pw").value) { lerr.textContent = "Wpisz hasło admina."; lerr.hidden = false; return; }
       lb.disabled = true; lb.textContent = "Sprawdzam…";
       try {
-        await adminPatch({});
-        el.querySelector("#a_body").hidden = false; el.querySelector("#a_pw").readOnly = true; lb.hidden = true; store.set("adminOk", true); renderGame();
+        await adminPatch({}, "Zalogowano do panelu");
+        el.querySelector("#a_body").hidden = false; el.querySelector("#a_pwf").hidden = true; store.set("adminOk", true); renderGame();
         drawPeople(); drawBans(); drawDebts(); drawReqs();
         const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
       } catch (x) {
@@ -1689,11 +1712,11 @@ function adminSheet(){
       berr.hidden = true; b.disabled = true;
       try {
         if (b.dataset.ban) {
-          await adminPatch({["bans/" + b.dataset.ban]: {n: b.dataset.nick.slice(0, 20), at: {".sv": "timestamp"}}});
+          await adminPatch({["bans/" + b.dataset.ban]: {n: b.dataset.nick.slice(0, 20), at: {".sv": "timestamp"}}}, "Zbanowano: " + b.dataset.nick);
           if (online) fetch(presUrl(b.dataset.ban), {method:"DELETE"}).catch(() => {});   // drop them from the list right away
           toast(`Zbanowano: ${b.dataset.nick}`);
         } else {
-          await adminPatch({["bans/" + b.dataset.unban]: null});
+          await adminPatch({["bans/" + b.dataset.unban]: null}, "Odbanowano: " + (b.closest("li")?.querySelector("span")?.firstChild?.textContent || "?").trim());
           toast("Odbanowano");
         }
         drawBans(); setTimeout(drawPeople, 400);
@@ -1710,7 +1733,7 @@ function adminSheet(){
       const ok = e.target.closest("[data-nrok]"), no = e.target.closest("[data-nrno]"); if (!ok && !no) return;
       const k = (ok || no).dataset[ok ? "nrok" : "nrno"]; berr.hidden = true;
       try {
-        if (ok) { await adminPatch({["nickchange/" + k]: {".sv": "timestamp"}}); toast("Zaakceptowano – ta osoba może zmienić nick"); }
+        if (ok) { await adminPatch({["nickchange/" + k]: {".sv": "timestamp"}}, "Zaakceptowano prośbę o zmianę nicku: " + (ok.closest("li")?.querySelector("span")?.firstChild?.textContent || "?").trim()); toast("Zaakceptowano – ta osoba może zmienić nick"); }
         await fetch(`${DB_URL}/nickreq/${k}.json`, {method: "DELETE"});
         drawReqs();
       } catch (x) { berr.textContent = x.message; berr.hidden = false; }
@@ -1721,7 +1744,7 @@ function adminSheet(){
       b.disabled = true;
       try {
         // the new "accounts epoch" lets the database delete the nick lists for a minute and tells every device to forget its nick lock
-        await adminPatch({acctepoch: {".sv": "timestamp"}});
+        await adminPatch({acctepoch: {".sv": "timestamp"}}, "Wyczyszczono wszystkie konta");
         for (const node of ["nicks", "nicknames", "nickreq"]) { const r = await fetch(`${DB_URL}/${node}.json`, {method: "DELETE"}); if (!r.ok) throw new Error(`Baza nie pozwoliła usunąć „${node}” (${r.status}). Sprawdź, czy wkleiłeś nowe reguły.`); }
         store.set("nickok", {}); store.set("nickLock", null); store.set("nickLockAt", 0); store.set("acctEpoch", Date.now());
         toast("Wyczyszczono wszystkie konta. Każdy może założyć nowe.", 5000); drawReqs(); b.textContent = "Wyczyszczono";
@@ -1729,28 +1752,36 @@ function adminSheet(){
     };
     el.querySelector("#a_nchok").onclick = async () => {
       const n = el.querySelector("#a_nch").value.trim(); berr.hidden = true; if (n.length < 2) return;
-      try { await adminPatch({["nickchange/" + pkey(n)]: {".sv": "timestamp"}}); toast(`${n} może teraz zmienić nick`); el.querySelector("#a_nch").value = ""; }
+      try { await adminPatch({["nickchange/" + pkey(n)]: {".sv": "timestamp"}}, "Pozwolono na zmianę nicku: " + n); toast(`${n} może teraz zmienić nick`); el.querySelector("#a_nch").value = ""; }
       catch (x) { berr.textContent = x.message; berr.hidden = false; }
     };
     el.querySelector("#a_nreset").onclick = async () => {
       const n = el.querySelector("#a_nick").value.trim(); berr.hidden = true; if (n.length < 2) return;
-      try { await adminPatch({["nickreset/" + pkey(n)]: {".sv": "timestamp"}}); toast(`Zresetowano hasło nicku ${n}`); el.querySelector("#a_nick").value = ""; }
+      try { await adminPatch({["nickreset/" + pkey(n)]: {".sv": "timestamp"}}, "Zresetowano hasło nicku: " + n); toast(`Zresetowano hasło nicku ${n}`); el.querySelector("#a_nick").value = ""; }
       catch (x) { berr.textContent = x.message; berr.hidden = false; }
     };
+    const dbErr = x => x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message;
+    el.querySelector("#a_sitego").onclick = async ev => {
+      const err = el.querySelector("#a_serr"), inp = el.querySelector("#a_site"), site = inp.value.trim();
+      err.hidden = true;
+      if (site.length < 4) { err.textContent = "Hasło do strony musi mieć co najmniej 4 znaki."; err.hidden = false; return; }
+      ev.target.disabled = true;
+      try {
+        const h = await pwKey(site);
+        await adminPatch({sitepw: h}, "Zmieniono hasło do strony");
+        sitepwHash = h; store.set("sitepwHash", h); store.set("sitepwOk", h);
+        inp.value = ""; toast(`Zmieniono. Nowe hasło do strony: ${site}`, 5000);
+      } catch (x) { err.textContent = dbErr(x); err.hidden = false; }
+      ev.target.disabled = false;
+    };
     el.querySelector("#a_ok").onclick = async ev => {
-    const err = el.querySelector("#a_err"), pw = el.querySelector("#a_pw").value, n = +el.querySelector("#a_ch").value;
-    const site = el.querySelector("#a_site").value.trim();
-    err.hidden = true; ev.target.disabled = true;
-    try {
-      if (site && site.length < 4) throw new Error("Hasło do strony musi mieć co najmniej 4 znaki.");
-      const body = {channels:n, pw}; if (site) body.sitepw = await pwKey(site);
-      const r = await fetch(`${DB_URL}/config.json`, {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
-      if (r.status === 401 || r.status === 403) throw new Error("Złe hasło admina.");
-      if (!r.ok) throw new Error("Baza odrzuciła zapis (" + r.status + ").");
-      channels = n; store.set("channels", n);
-      if (body.sitepw) { sitepwHash = body.sitepw; store.set("sitepwHash", body.sitepw); store.set("sitepwOk", body.sitepw); }
-      close(); render(); toast(body.sitepw ? `Zapisano. Nowe hasło do strony: ${site}` : "Ustawiono " + n + " kanałów dla wszystkich");
-    } catch (x) { err.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; err.hidden = false; ev.target.disabled = false; }
+      const err = el.querySelector("#a_err"), n = +el.querySelector("#a_ch").value;
+      err.hidden = true; ev.target.disabled = true;
+      try {
+        await adminPatch({channels: n}, n !== channels ? "Ustawiono kanały: " + n : "");
+        channels = n; store.set("channels", n);
+        close(); render(); toast("Ustawiono " + n + " kanałów dla wszystkich");
+      } catch (x) { err.textContent = dbErr(x); err.hidden = false; ev.target.disabled = false; }
     };
   });
 }

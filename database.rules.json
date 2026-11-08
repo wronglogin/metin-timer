@@ -591,6 +591,21 @@
         ".read": true,
         ".validate": "newData.isNumber()"
       },
+      "alog": {
+        ".read": true,
+        "$k": {
+          ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{1,24}$/) && newData.hasChildren(['s', 'at'])",
+          "s": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
       "$other": {
         ".validate": false
       }
