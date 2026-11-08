@@ -1274,6 +1274,12 @@ setTimeout(applyGamesOff, 0);
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
+// "Darmowa gra": empties the stake and starts the game straight away (no stake = nothing is settled in Rozliczenia)
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-free]"); if (!b || b.disabled) return;
+  const box = b.closest(".sheet") || document, inp = box.querySelector(`#${b.dataset.free}s`), go = box.querySelector(`#${b.dataset.free}go`);
+  if (inp) inp.value = ""; if (go && !go.disabled) go.click();
+});
 function sheet(html, onMount){
   const layer = $("#layer");
   layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
@@ -2499,7 +2505,7 @@ function showLotteryWait(){
   const ps = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
   const mine = !!(r.p && r.p[meId()]), own = r.bd === meId(), kickable = own || isAdmin(), ok = r.ok || {};
   const names = ps.map(p => `<span class="spn${r.ready && ok[p.id] ? " win" : ""}">${r.ready ? (ok[p.id] ? "✓ " : "… ") : ""}${esc(p.n)}${p.id === meId() ? " (ty)" : ""}${hereNow.has(p.id) ? "" : " – nieaktywny"}${kickable && p.id !== meId() ? `<button class="kick" data-lw="kick" data-id="${esc(p.id)}" aria-label="Usuń z gry">✕</button>` : ""}</span>`).join("");
-  let html = `<p>Stawka <b>${esc(r.s)}</b> · ${ps.length} graczy · pula <b>${esc(poolText(r.s, ps.length))}</b> · prowadzi ${esc(r.by || "?")}</p>`;
+  let html = `<p>${r.s ? `Stawka <b>${esc(r.s)}</b> · ` : "Za darmo · "}${ps.length} graczy${r.s ? ` · pula <b>${esc(poolText(r.s, ps.length))}</b>` : ""} · prowadzi ${esc(r.by || "?")}</p>`;
   if (r.ready) {
     const left = Math.max(0, Math.ceil((+r.okd - t) / 1000));
     html += `<p class="autoline">Potwierdźcie gotowość: <b>${left} s</b>. Kto nie potwierdzi, tylko ogląda.</p><div class="spinnames">${names}</div>`
@@ -2537,7 +2543,7 @@ function showSpin(r, age){
   el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox"; lotWatch(r.id, true);
   const pool = poolText(r.s, players.length);
   el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Loteria");
-  el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>Stawka <b>${esc(r.s)}</b> · ${players.length} graczy · pula <b>${esc(pool)}</b>${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
+  el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>${r.s ? `Stawka <b>${esc(r.s)}</b> · ` : "Za darmo · "}${players.length} graczy${r.s ? ` · pula <b>${esc(pool)}</b>` : ""}${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
     <div class="spinnames">${players.map((p, i) => `<span class="spn" data-i="${i}">${esc(p.n)}</span>`).join("")}</div>
     <p class="spinres" aria-live="polite">Losowanie…</p>
 `;
@@ -2554,7 +2560,7 @@ function showSpin(r, age){
   const finish = () => {
     names.forEach((n, k) => { n.classList.toggle("on", k === wi); n.classList.toggle("win", k === wi); });
     const w = players[wi];
-    res.innerHTML = `Wygrywa <b>${esc(w.n)}</b>${w.id === meId() ? " (ty!)" : ""} – zgarnia pulę <b>${esc(pool)}</b>`;
+    res.innerHTML = `Wygrywa <b>${esc(w.n)}</b>${w.id === meId() ? " (ty!)" : ""}${r.s ? ` – zgarnia pulę <b>${esc(pool)}</b>` : ""}`;
     res.classList.add("done"); if (settings.sound) beep(settings.sound, false);
     const xb = el.querySelector("[data-spinclose]"); if (xb) { xb.disabled = false; xb.title = "Zamknij"; }
     // rematch: same players, same stake
@@ -2594,19 +2600,19 @@ function spinRoulette(ps, stake){
 function rouletteSheet(){
   if (!online) { toast("Loteria działa we wspólnym pokoju. Połącz się w Menu."); return; }
   const busy = roomBusy();
-  sheet(`<h2>Loteria</h2><p>Wpisz stawkę i zaznacz, kto gra. Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
+  sheet(`<h2>Loteria</h2><p>Zaznacz, kto gra, i wpisz stawkę (albo zostaw puste – wtedy gra za darmo). Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
     ${busyHtml(busy)}
-    <div class="field"><label for="rl_s">Za ile gramy (stawka od osoby)</label><input id="rl_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
+    <div class="field"><label for="rl_s">Stawka od osoby (puste = gra za darmo, bez rozliczeń)</label><input id="rl_s" maxlength="30" autocomplete="off" placeholder="np. 10kk"></div>
     <div class="field"><label>Gracze</label><ul class="banlist" id="rl_p"></ul></div>
     <p id="rl_err" style="color:var(--danger)" hidden></p>
-    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="rl_go"${busy ? " disabled" : ""}>Zakręć</button></div>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn" data-free="rl_"${busy ? " disabled" : ""} title="Gra bez stawki – nikt nic nie wygrywa ani nie traci">Darmowa gra</button><button class="btn primary" id="rl_go"${busy ? " disabled" : ""}>Zakręć</button></div>
     <div class="field"><label>Ostatnie losowania</label><ul class="banlist" id="rl_h"></ul></div>`, (el, close) => {
     const skip = new Set();
     const draw = () => {
       const ps = gamers();
       el.querySelector("#rl_p").innerHTML = ps.length ? ps.map(p => `<li><label class="rlp"><span>${esc(p.n)}${p.me ? ' <span class="pme">(ty)</span>' : ""}</span><input type="checkbox" data-rp="${esc(p.id)}" ${skip.has(p.id) ? "" : "checked"} aria-label="${esc(p.n)} gra"></label></li>`).join("") + noGamersLi() : '<li class="pme">Nikogo nie ma w pokoju.</li>' + noGamersLi();
       const h = Object.values(remoteRoot.rlog || {}).sort((a, b) => b.at - a.at).slice(0, 5);
-      el.querySelector("#rl_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b> <span class="pme">· pula ${esc(poolText(x.s, x.n))} · ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
+      el.querySelector("#rl_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b> <span class="pme">${x.s ? `· pula ${esc(poolText(x.s, x.n))} ` : "· za darmo "}· ${x.n} graczy</span></span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nikt nie grał.</li>';
     };
     draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); if (!el.contains(document.activeElement) || document.activeElement.id !== "rl_s") draw(); }, 3000);
     el.addEventListener("change", e => { const c = e.target.closest("[data-rp]"); if (c) c.checked ? skip.delete(c.dataset.rp) : skip.add(c.dataset.rp); });
@@ -2614,7 +2620,6 @@ function rouletteSheet(){
       if (roomBusy()) { toast(roomBusy()); return; }
       const err = el.querySelector("#rl_err"), stake = el.querySelector("#rl_s").value.trim(); err.hidden = true;
       const ps = gamers().filter(p => !skip.has(p.id));
-      if (!stake) { err.textContent = "Wpisz stawkę."; err.hidden = false; return; }
       if (ps.length < 2) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       store.set("rlStake", stake);
       close(); openLottery(ps, stake, meId(), myNick());
@@ -2860,7 +2865,7 @@ function renderGame(){
   if (g.type === "coin" && GAME_AFTER_COIN) GAME_AFTER_COIN(g);
   if (done && g.state === "done" && !el.dataset.dinged) { el.dataset.dinged = 1; if (settings.sound) beep(settings.sound, false); }
 }
-const stakeLine = g => `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b> · ` : ""}gra ${esc(g.byn || "?")}</p>`;
+const stakeLine = g => `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b> · ` : "Za darmo · "}gra ${esc(g.byn || "?")}</p>`;
 const resLine = g => `<p class="spinres done">${g.type === "rps" && g.w === "draw" ? "Remis!" : `Wygrywa <b>${esc(nickOf(g, g.w))}</b>${g.w === meId() ? " (ty!)" : ""}${g.s ? ` – zgarnia pulę <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b>` : ""}`}</p>`;
 
 const GAME_VIEW = {
@@ -3115,7 +3120,7 @@ function horseClick(g, act, b){
 GAME_VIEW.horse = g => {
   const bets = horseBets(g), host = g.by === meId(), mine = g.b && g.b[meId()];
   const byHorse = field(g).map(h => ({...h, bets: bets.filter(b => b.h === h.n)}));
-  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Bez stawki · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
+  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Za darmo · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
   const slot = `<div class="htrack-slot"></div><p class="hlead spinres"></p>`;
   if (g.state === "cancel") return head + `<p class="spinres">Wyścig odwołany.</p>`;
   if (g.state === "bet") {
@@ -3283,7 +3288,7 @@ function wheelTick(g){
 }
 GAME_VIEW.wheel = g => {
   const bets = horseBets(g), host = g.by === meId(), mine = g.b && g.b[meId()];
-  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Bez stawki · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
+  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Za darmo · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
   const slot = `<div class="htrack-slot"></div><p class="hlead spinres"></p>`;
   if (g.state === "cancel") return head + `<p class="spinres">Losowanie odwołane.</p>`;
   if (g.state === "bet") {
@@ -3879,9 +3884,9 @@ function horseSheet(type = "horse"){
     <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią to samo albo nikt nie trafi, nikt nic nie wygrywa."
       : h3 ? "Eksperymentalny wyścig w 3D: 6 koni, jedno okrążenie owalnego toru (1000 m) z przeszkodami, trwa około minuty. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa."
       : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
-    <div class="field"><label for="hs_s">Stawka od osoby (opcjonalnie)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
+    <div class="field"><label for="hs_s">Stawka od osoby (puste = gra za darmo, bez rozliczeń)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk"></div>
     ${busyHtml(busy)}
-    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="hs_go"${busy ? " disabled" : ""}>Otwórz zakłady</button></div>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn" data-free="hs_"${busy ? " disabled" : ""} title="Gra bez stawki – nikt nic nie wygrywa ani nie traci">Darmowa gra</button><button class="btn primary" id="hs_go"${busy ? " disabled" : ""}>Otwórz zakłady</button></div>
     <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
     el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(x.s)}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
@@ -4038,11 +4043,11 @@ function gameSheet(type){
           guess: "Losuje się liczba od 1 do 100. Każdy typuje, wygrywa najbliższy.",
           rps: "Wyzwij jedną osobę. Oboje wybieracie w ukryciu, wynik pokazuje się jednocześnie."}[type]}</p>
     ${busyHtml(busy)}
-    <div class="field"><label for="gm_s">Stawka od osoby (opcjonalnie)</label><input id="gm_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
+    <div class="field"><label for="gm_s">Stawka od osoby (puste = gra za darmo, bez rozliczeń)</label><input id="gm_s" maxlength="30" autocomplete="off" placeholder="np. 10kk"></div>
     ${type === "coin" ? `<div class="field"><label>Twoja strona</label><div class="seg"><button data-side="orzel" aria-pressed="true">Orzeł</button><button data-side="reszka" aria-pressed="false">Reszka</button></div></div>` : ""}
     <div class="field"><label>${def.duel ? "Przeciwnik" : "Gracze"}</label><ul class="banlist" id="gm_p"></ul></div>
     <p id="gm_err" style="color:var(--danger)" hidden></p>
-    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn primary" id="gm_go"${busy ? " disabled" : ""}>${def.duel ? "Wyzwij" : "Start"}</button></div>
+    <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn" data-free="gm_"${busy ? " disabled" : ""} title="Gra bez stawki – nikt nic nie wygrywa ani nie traci">Darmowa gra</button><button class="btn primary" id="gm_go"${busy ? " disabled" : ""}>${def.duel ? "Wyzwij" : "Start"}</button></div>
     <div class="field"><label>Ostatnie wyniki</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const skip = new Set(); let opp = null, side = "orzel";
     const draw = () => {

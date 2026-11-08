@@ -192,7 +192,7 @@
             ".validate": "newData.isString() && newData.val().length <= 20"
           },
           "s": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+            ".validate": "newData.isString() && newData.val().length <= 30"
           },
           "p": {
             "$id": {
