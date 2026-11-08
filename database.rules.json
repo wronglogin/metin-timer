@@ -425,6 +425,9 @@
           },
           "$other": {
             ".validate": false
+          },
+          "hs": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{1,2}(-[0-9]{1,2}){5}$/)"
           }
         },
         "glog": {

@@ -2832,8 +2832,42 @@ const GAME_VIEW = {
 const HORSES = [
   {n: 1, c: "#ef6a5b", name: "Błyskawica"}, {n: 2, c: "#4e9ff0", name: "Grom"}, {n: 3, c: "#e8c24a", name: "Iskra"},
   {n: 4, c: "#4fd39b", name: "Wicher"}, {n: 5, c: "#b57ee8", name: "Kometa"}, {n: 6, c: "#f29a4a", name: "Burza"},
+].map((h, i) => ({...h, c2: "#ffffff", coat: ["#7b4a2b", "#3d3d44", "#5c3a20", "#1f1f24", "#8d8d94", "#a0592c"][i]}));
+// 50 racehorses with their silks (jacket colour, second colour for sleeves and cap); every race draws 6 of them
+const ROSTER = [
+  ["Złota Strzała", "#e8c24a", "#1f2a44"], ["Northern Star", "#4e9ff0", "#ffffff"], ["Red Baron", "#e04a3f", "#f2f2f2"], ["Szmaragd", "#2fbf71", "#f0d34a"],
+  ["Midnight Run", "#6c7bd9", "#f2f2f2"], ["Wiatr Stepów", "#d9a066", "#6b3e1f"], ["Silver Arrow", "#b8c0cc", "#c0392b"], ["Królowa Nocy", "#9b59b6", "#f1c40f"],
+  ["Thunder Bay", "#f39c12", "#2c3e50"], ["Biały Kieł", "#f0f0f0", "#2e86de"], ["Lucky Clover", "#27ae60", "#ffffff"], ["Pomarańczowy Ogień", "#ff7a2f", "#222222"],
+  ["Ocean Breeze", "#1abc9c", "#34495e"], ["Rubinowa Gwiazda", "#c0392b", "#f5d76e"], ["Desert Rose", "#e8a0b4", "#7d3c98"], ["Iron Duke", "#95a5a6", "#e74c3c"],
+  ["Sokół", "#5dade2", "#f4d03f"], ["Black Pearl", "#e9e9ef", "#151515"], ["Cyklon", "#48c9b0", "#c0392b"], ["Golden Hour", "#f7c948", "#e67e22"],
+  ["Bursztyn", "#d68910", "#fdebd0"], ["Royal Flush", "#4169e1", "#f7dc6f"], ["Mustang", "#c0703a", "#f5f5f5"], ["Aurora", "#76d7c4", "#af7ac5"],
+  ["Grzmot", "#8e9eab", "#f4d03f"], ["Wild Card", "#e74c8c", "#222222"], ["Lawenda", "#b39ddb", "#ffffff"], ["Kasztan", "#b5651d", "#e8c24a"],
+  ["Blue Moon", "#3498db", "#e8e8e8"], ["Fire Dancer", "#ff5733", "#ffc300"], ["Śnieżna Burza", "#e8f1f8", "#5dade2"], ["Jade Emperor", "#16a085", "#f1c40f"],
+  ["Czerwony Kapturek", "#e53935", "#ffffff"], ["Sundance Kid", "#f5b041", "#1a5276"], ["Huragan", "#7f8c8d", "#2ecc71"], ["Mystic River", "#8aa1b8", "#1f3a5f"],
+  ["Malina", "#d81b60", "#f8bbd0"], ["Grey Ghost", "#bdc3c7", "#2c3e50"], ["Tygrysica", "#f39c12", "#111111"], ["Piorun", "#f1c40f", "#5b2c6f"],
+  ["Lime Light", "#a6d43c", "#1e3d2f"], ["Dziki Mustang", "#cd853f", "#2c3e50"], ["Copper Coin", "#b87333", "#f0e0c0"], ["Polarna Zorza", "#5ec4e8", "#9b59b6"],
+  ["Hazard", "#e67e22", "#ffffff"], ["Wiśnia", "#d0453a", "#f5b7b1"], ["Neptun", "#3a86c8", "#48c9b0"], ["Lady Luck", "#f06292", "#ffffff"],
+  ["Kometa", "#b57ee8", "#f9e79f"], ["Galopujący Grom", "#5b8def", "#e74c3c"],
 ];
-const hname = n => HORSES[n - 1] ? HORSES[n - 1].name : "?";
+// game.hs = "12-5-33-1-40-7": the roster horses running as numbers 1–6 in this race (older games: the 6 classic horses)
+function pickField(){
+  const out = [], rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255);
+  for (let tries = 0; out.length < 6 && tries < 600; tries++) {
+    const i = randInt(ROSTER.length); if (out.includes(i)) continue;
+    const c = rgb(ROSTER[i][1]);                                     // jackets in one race should be easy to tell apart
+    if (tries < 500 && out.some(j => { const d = rgb(ROSTER[j][1]); return Math.hypot(c[0] - d[0], c[1] - d[1], c[2] - d[2]) < 0.42; })) continue;
+    out.push(i);
+  }
+  return out.join("-");
+}
+const fieldCache = new Map();
+function field(g){
+  const hs = g && /^\d{1,2}(-\d{1,2}){5}$/.test(g.hs || "") ? g.hs : "";
+  if (!hs) return HORSES;
+  if (!fieldCache.has(hs)) fieldCache.set(hs, hs.split("-").map((x, k) => { const r = ROSTER[+x] || ROSTER[0]; return {n: k + 1, name: r[0], c: r[1], c2: r[2], coat: COATS[+x % COATS.length]}; }));
+  return fieldCache.get(hs);
+}
+const hname = (n, g = G()) => { const f = field(g)[n - 1]; return f ? f.name : "?"; };
 const isHorse = g => !!g && (g.type === "horse" || g.type === "horse3d");
 // every race the horses start from different lanes: game.lanes = "352164" means lane 1 has horse 3, lane 2 horse 5, …
 function shuffleLanes(){ const a = [1, 2, 3, 4, 5, 6]; for (let i = 5; i > 0; i--) { const j = randInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a.join(""); }
@@ -2843,7 +2877,7 @@ const raceCache = new Map();
 function raceModel(seed){
   if (raceCache.has(seed)) return raceCache.get(seed);
   const rnd = mulberry(seed), SEG = 10;
-  const horses = HORSES.map(() => {
+  const horses = Array.from({length: 6}, () => {
     const T = 8.8 + rnd() * 2.4;                                   // finish time in seconds (about 10 s)
     const w = Array.from({length: SEG}, () => 0.55 + rnd() * 0.9);  // how long each tenth of the track takes
     const sum = w.reduce((x, y) => x + y, 0), cum = [0];
@@ -2957,7 +2991,7 @@ function horseClick(g, act, b){
 }
 GAME_VIEW.horse = g => {
   const bets = horseBets(g), host = g.by === meId(), mine = g.b && g.b[meId()];
-  const byHorse = HORSES.map(h => ({...h, bets: bets.filter(b => b.h === h.n)}));
+  const byHorse = field(g).map(h => ({...h, bets: bets.filter(b => b.h === h.n)}));
   const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Bez stawki · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
   const slot = `<div class="htrack-slot"></div><p class="hlead spinres"></p>`;
   if (g.state === "cancel") return head + `<p class="spinres">Wyścig odwołany.</p>`;
@@ -2967,12 +3001,12 @@ GAME_VIEW.horse = g => {
       <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${hname(pick)} (${pick})` : `Obstawiasz: ${hname(mine.h)} (${mine.h})`) : pick ? `Obstaw ${hname(pick)} (${pick})${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
 ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
-      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === meId() ? " me" : ""}" style="--hc:${HORSES[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b>${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
+      ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === meId() ? " me" : ""}" style="--hc:${field(g)[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b>${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
       ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Start wyścigu</button></div>` : `<p class="pme">Wyścig wystartuje ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
   }
   if (g.state === "race") return head + slot;
   const {winners} = horsePayout(g, +g.wh);   // equal stakes: the winners split the pool evenly
-  return head + slot + `<p class="spinres done">Wygrywa <b style="color:${HORSES[g.wh - 1].c}">${hname(g.wh)} (${g.wh})</b></p>`
+  return head + slot + `<p class="spinres done">Wygrywa <b style="color:${field(g)[g.wh - 1].c}">${hname(g.wh)} (${g.wh})</b></p>`
     + poolResult(g, bets, winners, `Nikt nie obstawił konia ${hname(g.wh)}.`);
 };
 /* result of a pooled bet (horse race, roulette): there is no bank, the money only moves between the people who bet.
@@ -3084,7 +3118,7 @@ function drawRace(cv, g, lead){
   // horses, back row first so the near lanes are drawn in front
   let best = 0, bi = -1;
   laneOrder(g).forEach((hn, i) => {
-    const h = HORSES[hn - 1], y = laneY(i) + lane - 2, p = m ? horsePos(m.horses[hn - 1], tt) : 0;
+    const h = field(g)[hn - 1], y = laneY(i) + lane - 2, p = m ? horsePos(m.horses[hn - 1], tt) : 0;
     // after the line a horse runs on a little and slows down
     const over = m ? Math.max(0, tt - m.horses[hn - 1].T) : 0, coast = Math.min(1, over / 0.9), running = !!m && tt > 0 && over < 0.9;
     if (p > best) { best = p; bi = hn; }
@@ -3093,7 +3127,7 @@ function drawRace(cv, g, lead){
     // lane number on the left (the horse's own number is on the jockey's shirt)
     c.fillStyle = "rgba(0,0,0,.28)"; c.beginPath(); c.arc(11, laneY(i) + lane / 2, 7.5, 0, 7); c.fill();
     c.fillStyle = "rgba(255,255,255,.8)"; c.font = "600 10px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(i + 1, 11, laneY(i) + lane / 2 + .5);
-    drawHorse(c, x, y, COATS[hn - 1], h.c, tt * 15 + hn * 1.3, running, hn);
+    drawHorse(c, x, y, h.coat, h.c, tt * 15 + hn * 1.3, running, hn);
     tag(i, x, hn);
   });
   horseSound(cv, g, t, best, m);
@@ -3163,7 +3197,7 @@ function raceModel3d(seed){
   const key = "3d:" + seed;
   if (raceCache.has(key)) return raceCache.get(key);
   const rnd = mulberry(seed ^ 0x3d3d3d), SEG = 20;
-  const horses = HORSES.map(() => {
+  const horses = Array.from({length: 6}, () => {
     const T = 49.5 + rnd() * 3;                                    // finish time in seconds (about 50 s); the field stays close
     const w = Array.from({length: SEG}, () => 0.9 + rnd() * 0.2);   // how long each twentieth takes: the order keeps changing
     const sum = w.reduce((x, y) => x + y, 0), cum = [0];
@@ -3324,7 +3358,7 @@ function h3HorseAt(m, i, t){
   const v = t <= 0 ? 0 : t < h.T ? H3.L / h.T : Math.max(0, 20 - 6.2 * Math.min(t - h.T, 3.2));
   return {d, y, pitch, v};
 }
-function h3DrawHorse(st, base, coat, silk, ph, v){
+function h3DrawHorse(st, base, coat, silk, silk2, ph, v){
   const {gl, u} = st, go = v > 0.5, amp = Math.min(1, v / 14);
   const draw = (m, col) => { gl.uniformMatrix4fv(u.uM, false, m); gl.uniform3fv(u.uCol, col); gl.drawArrays(gl.TRIANGLES, 0, 36); };
   const part = (parent, px, py, pz, rx, ox, oy, oz, sx, sy, sz, col) => {
@@ -3362,11 +3396,11 @@ function h3DrawHorse(st, base, coat, silk, ph, v){
   const J = M4.mul(B, M4.t(0, jb, 0));
   for (const s of [-1, 1]) { part(J, s * 0.22, 1.75, -0.05, 0.3, 0, 0, 0, 0.13, 0.32, 0.45, white); }
   const tj = part(J, 0, 1.9, -0.15, -1.0, 0, 0.27, 0, 0.42, 0.56, 0.3, silk);
-  for (const s of [-1, 1]) part(tj, s * 0.24, 0.42, 0, 1.8, 0, -0.25, 0, 0.11, 0.5, 0.11, white);
+  for (const s of [-1, 1]) part(tj, s * 0.24, 0.42, 0, 1.8, 0, -0.25, 0, 0.11, 0.5, 0.11, silk2);
   const hd = M4.mul(M4.mul(tj, M4.t(0, 0.66, 0.02)), M4.rx(1.0));
   draw(M4.mul(hd, M4.s(0.22, 0.25, 0.24)), skin);
-  draw(M4.mul(M4.mul(hd, M4.t(0, 0.09, -0.02)), M4.s(0.26, 0.14, 0.29)), silk);
-  draw(M4.mul(M4.mul(hd, M4.t(0, 0.04, -0.17)), M4.s(0.24, 0.04, 0.12)), silk);
+  draw(M4.mul(M4.mul(hd, M4.t(0, 0.09, -0.02)), M4.s(0.26, 0.14, 0.29)), silk2);
+  draw(M4.mul(M4.mul(hd, M4.t(0, 0.04, -0.17)), M4.s(0.24, 0.04, 0.12)), silk2);
 }
 function drawRace3d(cv, g, lead){
   let st = cv._h3;
@@ -3386,7 +3420,8 @@ function drawRace3d(cv, g, lead){
   const pw = Math.round(realW * dpr), ph = Math.round(cssH * dpr);
   if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv.style.height = cssH + "px"; hud.width = pw; hud.height = ph; hud.style.height = cssH + "px"; }
   const order = laneOrder(g), tt = g.state === "bet" || !m ? -1 : t;
-  const H = HORSES.map((h, i) => {
+  const F = field(g);
+  const H = F.map((h, i) => {
     const lane = order.indexOf(h.n), p = m ? h3HorseAt(m, i, tt) : {d: 0, y: 0, pitch: 0, v: 0};
     return {...p, n: h.n, x: (lane - 2.5) * H3.LANE, z: -p.d};
   });
@@ -3423,7 +3458,7 @@ function drawRace3d(cv, g, lead){
   gl.vertexAttribPointer(st.aP, 3, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(st.aN, 3, gl.FLOAT, false, 24, 12);
   for (const h of H) {
     const base = M4.mul(M4.t(h.x, h.y, h.z), M4.rx(h.pitch));
-    h3DrawHorse(st, base, hexRgb(COATS[h.n - 1]), hexRgb(HORSES[h.n - 1].c), h.d / 6.2 * Math.PI * 2 + h.n, h.v);
+    h3DrawHorse(st, base, hexRgb(F[h.n - 1].coat), hexRgb(F[h.n - 1].c), hexRgb(F[h.n - 1].c2), h.d / 6.2 * Math.PI * 2 + h.n, h.v);
   }
   // soft shadows under the horses
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.uniform1f(u.uA, 0.35); gl.uniform3fv(u.uCol, [0, 0, 0]);
@@ -3441,7 +3476,7 @@ function drawRace3d(cv, g, lead){
   }
   tags.sort((a, b) => b.dist - a.dist);
   for (const {h, sx, sy, dist} of tags) {
-    const r = Math.max(7, Math.min(13, 130 / dist)), col = HORSES[h.n - 1].c;
+    const r = Math.max(7, Math.min(13, 130 / dist)), col = F[h.n - 1].c;
     c.fillStyle = col; c.strokeStyle = "#fff"; c.lineWidth = 2; c.beginPath(); c.arc(sx, sy, r, 0, 7); c.fill(); c.stroke();
     c.fillStyle = "#111"; c.font = `bold ${Math.round(r * 1.2)}px system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(h.n), sx, sy + 0.5);
     const who = backers[h.n]; if (who && dist < 70) {
@@ -3455,7 +3490,7 @@ function drawRace3d(cv, g, lead){
   if (tt >= 0) {
     c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(8, 8, 128, 6 + 17 * 6);
     ranks.forEach((h, i) => {
-      const y = 14 + i * 17; c.fillStyle = HORSES[h.n - 1].c; c.fillRect(14, y, 14, 13);
+      const y = 14 + i * 17; c.fillStyle = F[h.n - 1].c; c.fillRect(14, y, 14, 13);
       c.fillStyle = "#111"; c.font = "bold 10px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(h.n), 21, y + 7);
       c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "600 12px system-ui,sans-serif"; c.fillText(`${i + 1}. ${hname(h.n)}`, 33, y + 7);
     });
@@ -3464,7 +3499,7 @@ function drawRace3d(cv, g, lead){
     c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(bx - 6, 8, bw + 12, 30);
     c.fillStyle = "rgba(255,255,255,.35)"; c.fillRect(bx, by + 4, bw, 3);
     for (const hz of H3.HURDLES) { c.fillStyle = "#9fd27a"; c.fillRect(bx + hz / L * bw - 1, by + 1, 2, 9); }
-    for (const h of H) { c.fillStyle = HORSES[h.n - 1].c; c.beginPath(); c.arc(bx + Math.min(1, h.d / L) * bw, by + 5.5, 4.5, 0, 7); c.fill(); }
+    for (const h of H) { c.fillStyle = F[h.n - 1].c; c.beginPath(); c.arc(bx + Math.min(1, h.d / L) * bw, by + 5.5, 4.5, 0, 7); c.fill(); }
     c.fillStyle = "#fff"; c.font = "600 11px system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "alphabetic";
     c.fillText(leader.d < L ? `Do mety: ${Math.max(0, Math.round(L - leader.d))} m` : "Meta!", bx, by + 20);
     c.textAlign = "right"; c.fillText(`${Math.max(0, tt).toFixed(1)} s`, bx + bw, by + 20);
@@ -3476,7 +3511,7 @@ function drawRace3d(cv, g, lead){
   if (m && tt > m.horses[m.wh - 1].T && tt < m.horses[m.wh - 1].T + 6) {
     const txt = `${hname(m.wh)} (${m.wh}) wygrywa!`; c.font = "bold 22px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
     const w = c.measureText(txt).width + 28; c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(realW / 2 - w / 2, cssH - 54, w, 36);
-    c.fillStyle = HORSES[m.wh - 1].c; c.fillText(txt, realW / 2, cssH - 36);
+    c.fillStyle = F[m.wh - 1].c; c.fillText(txt, realW / 2, cssH - 36);
   }
   horseSound(cv, g, t, m ? Math.min(1, leader.d / L) : 0, m);
   if (lead) {
@@ -3666,7 +3701,7 @@ function horseSheet(type = "horse"){
     <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
     el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(x.s)}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
-    el.querySelector("#hs_go").onclick = () => { if (roomBusy()) { toast(roomBusy()); return; } const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type !== "wheel" ? {lanes: shuffleLanes()} : {}), state: "bet"}); };
+    el.querySelector("#hs_go").onclick = () => { if (roomBusy()) { toast(roomBusy()); return; } const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type !== "wheel" ? {lanes: shuffleLanes(), hs: pickField()} : {}), state: "bet"}); };
   });
 }
 /* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
@@ -3683,7 +3718,8 @@ function rematch(g){
     if (g.type === "coin") extra.oz = g.side === "orzel" ? g.by : ps.find(p => p.id !== g.by).id;   // who has "orzeł"
     startGame(g.type, ps, stake, extra);
   }
-  else { hPick = null; startGame(g.type, ps, stake, {...owner, state: "bet", b: Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), ...(isHorse(g) ? {lanes: shuffleLanes()} : {})}); }
+  // a horse race gets new horses, so its bets start over; the roulette keeps them
+  else { hPick = null; startGame(g.type, ps, stake, {...owner, state: "bet", b: isHorse(g) ? {} : Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), ...(isHorse(g) ? {lanes: shuffleLanes(), hs: pickField()} : {})}); }
 }
 /* people who closed the page are dropped: absent players are not copied into a rematch, and while bets are open
    or a rematch is waiting, the person running the game removes anyone who is no longer in the room.
