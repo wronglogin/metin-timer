@@ -707,6 +707,30 @@ const noGamersLi = () => { const n = people().filter(p => p.ng && !p.me); return
    does the background work of a game, so nothing is done twice. */
 const pkey = n => { let h = 2166136261; for (const ch of String(n).trim().toLowerCase()) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return "u" + h.toString(36).padStart(7, "0"); };
 const meId = () => myNick() ? pkey(myNick()) : deviceId;
+/* nick passwords: the first device to use a nick sets its password (database: nicks/<id> = sha256, unreadable);
+   others must give the same password, checked by the database itself (nickcheck only accepts the right hash).
+   The hash is remembered on the device, so the password is typed once. The admin can reset a nick's password. */
+const nickSaved = n => !!(store.get("nickok", {}) || {})[pkey(n)];
+async function nickHashOk(k, h){
+  const url = `${DB_URL}/nickcheck/${k}/${deviceId}.json`;
+  const r = await fetch(url, {method: "PUT", body: JSON.stringify(h)}).catch(() => null);
+  if (!r) throw new Error("Brak połączenia z bazą.");
+  if (r.ok) fetch(url, {method: "DELETE"}).catch(() => {});
+  return r.ok;
+}
+async function nickLogin(nick, pw){
+  const k = pkey(nick), saved = store.get("nickok", {}) || {};
+  if (!pw && saved[k]) { if (await nickHashOk(k, saved[k])) return; throw new Error("Hasło do tego nicku się zmieniło – wpisz je."); }
+  if (!pw) throw new Error("Wpisz hasło do nicku (przy pierwszym wejściu wymyśl je – zostanie zapamiętane).");
+  if (pw.length < 3) throw new Error("Hasło do nicku: co najmniej 3 znaki.");
+  const h = await sha256(k + ":" + pw);
+  // a new nick (or one the admin reset) is claimed with this password; an existing one must match
+  const claim = await fetch(`${DB_URL}/nicks/${k}.json`, {method: "PUT", body: JSON.stringify({h, n: nick.slice(0, 20), at: {".sv": "timestamp"}})}).catch(() => null);
+  if (!claim) throw new Error("Brak połączenia z bazą.");
+  if (!claim.ok && !(await nickHashOk(k, h))) throw new Error("Ten nick jest zajęty, a hasło się nie zgadza.");
+  saved[k] = h; store.set("nickok", saved);
+  if (claim.ok) toast("Ustawiono hasło do nicku " + nick);
+}
 function gpeople(){
   const by = new Map();
   for (const p of people()) {
@@ -1138,6 +1162,8 @@ function menuSheet(){
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
     <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}"></div>
+    <div class="field"><label for="m_npw">Hasło do nicku</label><input id="m_npw" type="password" maxlength="40" autocomplete="off" placeholder="${nickSaved(myNick()) ? "zapamiętane na tym urządzeniu" : "pierwszy raz? wymyśl hasło"}">
+      <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p></div>
     <div class="field"><label for="m_room">Nazwy pokoi (kilka oddziel średnikiem)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
     <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
@@ -1196,6 +1222,7 @@ function menuSheet(){
       try {
         if (nick.length < 2) { el.querySelector("#m_nick").focus(); throw new Error("Wpisz swój nick (2–20 znaków), żeby wejść do pokoju."); }
         if (!rooms.length) throw new Error("Wpisz nazwę pokoju.");
+        await nickLogin(nick, el.querySelector("#m_npw").value);
         const nickChanged = nick !== myNick(); store.set("nick", nick); if (nickChanged && online) heartbeat();
         const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
         if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
@@ -1427,6 +1454,9 @@ function adminSheet(){
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="field"><label for="a_nick">Reset hasła nicku (np. ktoś zapomniał hasła)</label><div class="raadd"><input id="a_nick" maxlength="20" autocomplete="off" placeholder="nick"><button class="btn" id="a_nreset">Resetuj</button></div>
+      <p class="pme" style="font-size:13px;margin:0">Po resecie pierwsza osoba, która wejdzie tym nickiem, ustawi nowe hasło.</p></div>
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
     <h2 style="font-size:19px">Zbanowani</h2>
@@ -1527,6 +1557,11 @@ function adminSheet(){
         drawBans(); setTimeout(drawPeople, 400);
       } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; b.disabled = false; }
     });
+    el.querySelector("#a_nreset").onclick = async () => {
+      const n = el.querySelector("#a_nick").value.trim(); berr.hidden = true; if (n.length < 2) return;
+      try { await adminPatch({["nickreset/" + pkey(n)]: {".sv": "timestamp"}}); toast(`Zresetowano hasło nicku ${n}`); el.querySelector("#a_nick").value = ""; }
+      catch (x) { berr.textContent = x.message; berr.hidden = false; }
+    };
     el.querySelector("#a_ok").onclick = async ev => {
     const err = el.querySelector("#a_err"), pw = el.querySelector("#a_pw").value, n = +el.querySelector("#a_ch").value;
     const site = el.querySelector("#a_site").value.trim();
@@ -3144,7 +3179,10 @@ afterUnlock.push(() => {
   if (!(auto && auto.room) || online) return;
   // nick is required in rooms: ask for it once if this device joined before nicks existed
   if (!myNick()) { store.set("online", null); setTimeout(() => { menuSheet(); toast("Wpisz swój nick, żeby wrócić do pokoju " + auto.room); }, 300); return; }
-  connect(DB_URL, auto.room).catch(() => setMode("Prywatny"));
+  nickLogin(myNick(), "").then(() => connect(DB_URL, auto.room)).catch(x => {
+    setMode("Prywatny");
+    if (/hasło|Hasło/.test(x.message)) setTimeout(() => { menuSheet(); toast("Ustaw albo wpisz hasło do nicku, żeby wrócić do pokoju " + auto.room, 6000); }, 300);
+  });
 });
 gate();
 })();

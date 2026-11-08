@@ -483,6 +483,34 @@
         }
       }
     },
+    "nicks": {
+      ".read": false,
+      "$k": {
+        ".write": "!data.exists() || (root.child('config/nickreset/' + $k).exists() && root.child('config/nickreset/' + $k).val() > data.child('at').val())",
+        ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.hasChildren(['h', 'at'])",
+        "h": {
+          ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
+        },
+        "n": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "at": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000 && newData.val() >= now - 60000"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "nickcheck": {
+      "$k": {
+        "$dev": {
+          ".read": false,
+          ".write": true,
+          ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && $dev.matches(/^[a-z0-9]{6,24}$/) && newData.isString() && newData.val() === root.child('nicks').child($k).child('h').val()"
+        }
+      }
+    },
     "clock": {
       "$c": {
         ".read": true,
@@ -520,6 +548,11 @@
           "$other": {
             ".validate": false
           }
+        }
+      },
+      "nickreset": {
+        "$k": {
+          ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.isNumber()"
         }
       },
       "$other": {
