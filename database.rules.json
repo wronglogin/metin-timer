@@ -665,6 +665,16 @@
       "gameoff": {
         ".read": true,
         ".validate": "newData.isNumber() && newData.val() >= -3600 && newData.val() <= 3600"
+      },
+      "roompw": {
+        "$room": {
+          ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isString() && (newData.val() === '-' || newData.val().matches(/^[0-9a-f]{64}$/))"
+        }
+      },
+      "admins": {
+        "$uid": {
+          ".validate": "newData.isBoolean()"
+        }
       }
     }
   }
