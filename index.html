@@ -56,6 +56,8 @@ header{grid-template-columns:minmax(0,1fr)}
 .raadd input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px}
 .rq li.rnow{border-color:var(--accent)}
 .rqplay{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rqplay .rqt,.rqplay .rqby{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rqplay .rqby{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:1px}
 .rq .btn{min-height:28px;padding:0 9px;flex:0 0 auto}
 .rqgrip{flex:0 0 auto;cursor:grab;color:var(--muted);padding:6px 4px;font-size:16px;line-height:1;touch-action:none;user-select:none}
 .rq li[data-qk]{user-select:none}
@@ -2646,7 +2648,7 @@ function radioSheet(){
       const before = showAll ? 0 : ci, after = showAll ? 0 : Math.max(0, ks.length - ci - SHOW);
       const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}" data-qk="${k}">
         <span class="rqgrip" title="Złap i przeciągnij" aria-hidden="true">⠿</span>
-        <button class="rqplay" data-rq="${k}" title="${esc(t)}">${k === r.cur ? "▶ " : ""}${esc(t)}</button>
+        <button class="rqplay" data-rq="${k}" title="${esc(t)}${it.by ? " – dodał(a) " + esc(it.by) : ""}"><span class="rqt">${k === r.cur ? "▶ " : ""}${esc(t)}</span>${it.by ? `<span class="rqby">dodał(a) ${esc(it.by)}</span>` : ""}</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
       el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
       el.querySelector("#ra_list").innerHTML = !ks.length ? '<li class="pme">Kolejka jest pusta.</li>'
