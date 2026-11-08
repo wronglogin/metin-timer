@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
-<title>Metin Timer</title>
+<title>Unity Timer</title>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
-<title>Metin Timer</title>
+<title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@500;700;900&family=Saira+Condensed:wght@500;600;700&display=swap">
@@ -61,7 +61,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .rq li[data-qk]{user-select:none}
 .rq li.rqdrag{opacity:.85;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:grabbing}
 @media (max-width:520px){.radio{flex:1 1 100%;max-width:none}}
-.brand .clock{margin-left:10px;font-size:17px;font-weight:600;letter-spacing:.02em;color:var(--accent);font-variant-numeric:tabular-nums}
+.brand small.clock{font-size:15px;font-weight:600;letter-spacing:.06em;color:var(--accent);font-variant-numeric:tabular-nums;min-height:1.2em}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);left:0;right:auto;max-width:calc(100vw - 24px);z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
@@ -368,7 +368,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 <div class="wrap">
   <header>
     <div class="bar">
-      <div class="brand">Metin Timer<span class="clock" id="clock" title="Aktualny czas (w pokoju zgrany z serwerem)"></span><small>respawn metinów i bossów</small></div>
+      <div class="brand">Unity Timer<small class="clock" id="clock" title="Aktualny czas polski (w pokoju zgrany z serwerem)"></small></div>
       <div id="radio" class="radio" hidden></div>
       <div class="ctrls">
       <span class="mode" id="mode" title="Pokój">Prywatny</span>
@@ -1764,7 +1764,7 @@ function gate(){
   const el = document.createElement("div"); el.id = "gate"; el.className = "gate";
   if (dOn()) {
     const old = store.get("dsess", null);
-    el.innerHTML = `<div class="gatebox"><h1>Metin Timer</h1><p>${!old ? "Wejście tylko dla osób z naszego serwera Discord." : (+old.at || 0) <= (+store.get("authEpoch", 0) || 0) ? "Admin wylogował wszystkich – zaloguj się ponownie." : "Minęło 7 dni od ostatniego logowania – Discord musi jeszcze raz potwierdzić, że jesteś na naszym serwerze."}</p>
+    el.innerHTML = `<div class="gatebox"><h1>Unity Timer</h1><p>${!old ? "Wejście tylko dla osób z naszego serwera Discord." : (+old.at || 0) <= (+store.get("authEpoch", 0) || 0) ? "Admin wylogował wszystkich – zaloguj się ponownie." : "Minęło 7 dni od ostatniego logowania – Discord musi jeszcze raz potwierdzić, że jesteś na naszym serwerze."}</p>
       <button class="btn primary" id="g_dc" type="button">Zaloguj przez Discord</button><p id="g_msg" class="pme" hidden></p></div>`;
     document.body.appendChild(el);
     const msg = el.querySelector("#g_msg");
@@ -1772,7 +1772,7 @@ function gate(){
     if (dReturn) { msg.hidden = false; msg.textContent = "Logowanie…"; dSignIn(dReturn).then(gate).catch(x => { msg.textContent = x.message; }); }
     return;
   }
-  el.innerHTML = `<form class="gatebox" autocomplete="off"><h1>Metin Timer</h1><p>Podaj hasło, żeby wejść.</p>
+  el.innerHTML = `<form class="gatebox" autocomplete="off"><h1>Unity Timer</h1><p>Podaj hasło, żeby wejść.</p>
     <input id="g_pw" type="password" aria-label="Hasło" autofocus><p id="g_err" class="gerr" hidden>Złe hasło.</p>
     <button class="btn primary" type="submit">Wejdź</button></form>`;
   document.body.appendChild(el);
@@ -1813,7 +1813,7 @@ async function loadConfig(){
     if (o * 1000 !== gameOff) { gameOff = o * 1000; store.set("gameoff", o); updateReset(); render(); }
   } catch {}
 }
-// hidden entry: tap the "Metin Timer" title 5 times quickly
+// hidden entry: tap the "Unity Timer" title 5 times quickly
 let brandTaps = [];
 document.querySelector(".brand").addEventListener("click", () => {
   const t = Date.now(); brandTaps = brandTaps.filter(x => t - x < 2500); brandTaps.push(t);
