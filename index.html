@@ -335,6 +335,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .sheet p{margin:0;color:var(--muted);font-size:15px}
 .field{display:grid;gap:4px}
 .field[hidden]{display:none}
+.stakein{display:flex;align-items:center;gap:8px}.stakein input{flex:1;min-width:0}.stakein span{color:var(--muted);font-weight:600;white-space:nowrap}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
 .field textarea{font-family:var(--f-num);font-size:12px;min-height:110px;resize:vertical}
@@ -2408,7 +2409,21 @@ function poolText(stake, n){
   if (!m || m[3]) return `${stake} × ${n}`;
   const v = parseFloat(m[1].replace(",", ".")) * n;
   const out = (Math.round(v * 100) / 100).toString().replace(".", ",");
-  return out + m[2].toLowerCase();
+  return out + m[2].toLowerCase() + (m[2] ? " yang" : "");
+}
+// stakes are entered in kk yang: the field takes just the number, the game stores "10kk"
+const yangTxt = s => /\dk+\s*$/i.test(String(s || "")) ? String(s).trim() + " yang" : String(s || "");
+const stakeField = (id, label = "Stawka od osoby") => {
+  const saved = parseStake(store.get("rlStake", "")) / 1e6;
+  return `<div class="field"><label for="${id}">${label} (puste = gra za darmo, bez rozliczeń)</label>
+    <div class="stakein"><input id="${id}" inputmode="decimal" maxlength="9" autocomplete="off" placeholder="np. 10"${saved > 0 ? ` value="${String(Math.round(saved * 100) / 100).replace(".", ",")}"` : ""}><span>kk yang</span></div></div>`;
+};
+// the number typed in a stake field as a stake ("" = free); throws on anything that is not a number
+function stakeOf(inp){
+  const t = String(inp.value || "").trim().replace(/\s+/g, "").replace(/kk$/i, "");
+  if (!t) return "";
+  if (!/^\d+([.,]\d{1,2})?$/.test(t) || parseFloat(t.replace(",", ".")) <= 0) throw new Error("Stawka: wpisz samą liczbę kk yang, np. 10 albo 2,5.");
+  return t.replace(".", ",") + "kk";
 }
 let rwaitTimer = null;
 // "don't show other people's games": the window only opens if this person plays, runs it, or asked to see it
@@ -2505,7 +2520,7 @@ function showLotteryWait(){
   const ps = Object.entries(r.p || {}).map(([id, n]) => ({id, n: String(n)})).sort((a, b) => a.n.localeCompare(b.n, "pl"));
   const mine = !!(r.p && r.p[meId()]), own = r.bd === meId(), kickable = own || isAdmin(), ok = r.ok || {};
   const names = ps.map(p => `<span class="spn${r.ready && ok[p.id] ? " win" : ""}">${r.ready ? (ok[p.id] ? "✓ " : "… ") : ""}${esc(p.n)}${p.id === meId() ? " (ty)" : ""}${hereNow.has(p.id) ? "" : " – nieaktywny"}${kickable && p.id !== meId() ? `<button class="kick" data-lw="kick" data-id="${esc(p.id)}" aria-label="Usuń z gry">✕</button>` : ""}</span>`).join("");
-  let html = `<p>${r.s ? `Stawka <b>${esc(r.s)}</b> · ` : "Za darmo · "}${ps.length} graczy${r.s ? ` · pula <b>${esc(poolText(r.s, ps.length))}</b>` : ""} · prowadzi ${esc(r.by || "?")}</p>`;
+  let html = `<p>${r.s ? `Stawka <b>${esc(yangTxt(r.s))}</b> · ` : "Za darmo · "}${ps.length} graczy${r.s ? ` · pula <b>${esc(poolText(r.s, ps.length))}</b>` : ""} · prowadzi ${esc(r.by || "?")}</p>`;
   if (r.ready) {
     const left = Math.max(0, Math.ceil((+r.okd - t) / 1000));
     html += `<p class="autoline">Potwierdźcie gotowość: <b>${left} s</b>. Kto nie potwierdzi, tylko ogląda.</p><div class="spinnames">${names}</div>`
@@ -2543,7 +2558,7 @@ function showSpin(r, age){
   el = document.createElement("div"); el.id = "spin"; el.className = "gfloat spinbox"; lotWatch(r.id, true);
   const pool = poolText(r.s, players.length);
   el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Loteria");
-  el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>${r.s ? `Stawka <b>${esc(r.s)}</b> · ` : "Za darmo · "}${players.length} graczy${r.s ? ` · pula <b>${esc(pool)}</b>` : ""}${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
+  el.innerHTML = `<div class="ghead" data-drag><h2>Loteria</h2><button class="gx" data-spinclose aria-label="Zamknij">✕</button></div><p>${r.s ? `Stawka <b>${esc(yangTxt(r.s))}</b> · ` : "Za darmo · "}${players.length} graczy${r.s ? ` · pula <b>${esc(pool)}</b>` : ""}${r.by ? ` · kręci ${esc(r.by)}` : ""}</p>
     <div class="spinnames">${players.map((p, i) => `<span class="spn" data-i="${i}">${esc(p.n)}</span>`).join("")}</div>
     <p class="spinres" aria-live="polite">Losowanie…</p>
 `;
@@ -2602,7 +2617,7 @@ function rouletteSheet(){
   const busy = roomBusy();
   sheet(`<h2>Loteria</h2><p>Zaznacz, kto gra, i wpisz stawkę (albo zostaw puste – wtedy gra za darmo). Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
     ${busyHtml(busy)}
-    <div class="field"><label for="rl_s">Stawka od osoby (puste = gra za darmo, bez rozliczeń)</label><input id="rl_s" maxlength="30" autocomplete="off" placeholder="np. 10kk"></div>
+    ${stakeField("rl_s")}
     <div class="field"><label>Gracze</label><ul class="banlist" id="rl_p"></ul></div>
     <p id="rl_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn" data-free="rl_"${busy ? " disabled" : ""} title="Gra bez stawki – nikt nic nie wygrywa ani nie traci">Darmowa gra</button><button class="btn primary" id="rl_go"${busy ? " disabled" : ""}>Zakręć</button></div>
@@ -2618,7 +2633,8 @@ function rouletteSheet(){
     el.addEventListener("change", e => { const c = e.target.closest("[data-rp]"); if (c) c.checked ? skip.delete(c.dataset.rp) : skip.add(c.dataset.rp); });
     el.querySelector("#rl_go").onclick = () => {
       if (roomBusy()) { toast(roomBusy()); return; }
-      const err = el.querySelector("#rl_err"), stake = el.querySelector("#rl_s").value.trim(); err.hidden = true;
+      const err = el.querySelector("#rl_err"), stakeIn = el.querySelector("#rl_s"); err.hidden = true;
+      let stake; try { stake = stakeOf(stakeIn); } catch (x) { err.textContent = x.message; err.hidden = false; return; }
       const ps = gamers().filter(p => !skip.has(p.id));
       if (ps.length < 2) { err.textContent = "Do gry potrzeba co najmniej dwóch osób."; err.hidden = false; return; }
       store.set("rlStake", stake);
@@ -2736,7 +2752,7 @@ function debtsSheet(){
       el.querySelector("#dl_me").innerHTML = myNick() ? `Twój bilans: <b class="${bal > 0 ? "pos" : bal < 0 ? "neg" : ""}">${bal > 0 ? "+" : ""}${fmtYang(bal)}</b>${bal > 0 ? " (inni wiszą tobie)" : bal < 0 ? " (wisisz innym)" : ""}` : "";
       el.querySelector("#dl_list").innerHTML = rows.length ? rows.map(r => `<li><span><b>${esc(r.from)}</b> → <b>${esc(r.to)}</b> <b class="neg">${fmtYang(r.v)}</b></span>${nkey(r.to) === me ? `<button class="btn" data-paid="${esc(r.k)}">Spłacone</button>` : ""}</li>`).join("") : '<li class="pme">Nikt nikomu nic nie wisi.</li>';
       const log = Object.values(remoteRoot.dlog || {}).sort((a, b) => b.at - a.at).slice(0, 15);
-      el.querySelector("#dl_log").innerHTML = log.length ? log.map(x => `<li><span>${esc(x.s)}</span><span class="pme">${new Date(x.at).toLocaleString("pl-PL", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Brak wpisów.</li>';
+      el.querySelector("#dl_log").innerHTML = log.length ? log.map(x => `<li><span>${esc(yangTxt(x.s))}</span><span class="pme">${new Date(x.at).toLocaleString("pl-PL", {day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Brak wpisów.</li>';
     };
     draw(); const iv = setInterval(() => { if (!el.isConnected) return clearInterval(iv); draw(); }, 2000);
     el.addEventListener("click", e => {
@@ -2865,7 +2881,7 @@ function renderGame(){
   if (g.type === "coin" && GAME_AFTER_COIN) GAME_AFTER_COIN(g);
   if (done && g.state === "done" && !el.dataset.dinged) { el.dataset.dinged = 1; if (settings.sound) beep(settings.sound, false); }
 }
-const stakeLine = g => `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b> · ` : "Za darmo · "}gra ${esc(g.byn || "?")}</p>`;
+const stakeLine = g => `<p>${g.s ? `Stawka <b>${esc(yangTxt(g.s))}</b> · pula <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b> · ` : "Za darmo · "}gra ${esc(g.byn || "?")}</p>`;
 const resLine = g => `<p class="spinres done">${g.type === "rps" && g.w === "draw" ? "Remis!" : `Wygrywa <b>${esc(nickOf(g, g.w))}</b>${g.w === meId() ? " (ty!)" : ""}${g.s ? ` – zgarnia pulę <b>${esc(poolText(g.s, Object.keys(g.p || {}).length))}</b>` : ""}`}</p>`;
 
 const GAME_VIEW = {
@@ -3071,7 +3087,7 @@ GAME_VIEW_READY = g => {
   const ids = lobbyIds(g), ok = g.ok || {}, left = Math.max(0, Math.ceil((+g.okd - now()) / 1000)), mine = ids.includes(meId());
   clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 250);
   const label = id => isPool(g) && g.b && g.b[id] ? (isHorse(g) ? hname(+g.b[id].h) : WCOL[+g.b[id].h].n.toLowerCase()) + " · " : "";
-  return (isPool(g) ? `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · ` : ""}prowadzi ${esc(g.byn || "?")}</p>` : stakeLine(g))
+  return (isPool(g) ? `<p>${g.s ? `Stawka <b>${esc(yangTxt(g.s))}</b> · ` : ""}prowadzi ${esc(g.byn || "?")}</p>` : stakeLine(g))
     + `<p class="autoline">Potwierdźcie gotowość: <b>${left} s</b>. Kto nie potwierdzi, tylko ogląda.</p>`
     + ids.map(id => `<div class="gline"><span>${esc((g.p && g.p[id]) || (g.b && g.b[id] && g.b[id].n) || "?")}${id === meId() ? ' <span class="pme">(ty)</span>' : ""}</span><b>${label(id)}${ok[id] ? '<span class="pos">gotowy ✓</span>' : '<span class="pme">czeka…</span>'}</b></div>`).join("")
     + (mine && !ok[meId()] ? `<button class="btn primary dicebtn" data-gact="rdy">Gotowy!</button>` : mine ? `<p class="spinres">Czekam na pozostałych…</p>` : `<p class="pme">Oglądasz tę grę.</p>`);
@@ -3120,13 +3136,13 @@ function horseClick(g, act, b){
 GAME_VIEW.horse = g => {
   const bets = horseBets(g), host = g.by === meId(), mine = g.b && g.b[meId()];
   const byHorse = field(g).map(h => ({...h, bets: bets.filter(b => b.h === h.n)}));
-  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Za darmo · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
+  const head = `<p>${g.s ? `Stawka <b>${esc(yangTxt(g.s))}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Za darmo · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
   const slot = `<div class="htrack-slot"></div><p class="hlead spinres"></p>`;
   if (g.state === "cancel") return head + `<p class="spinres">Wyścig odwołany.</p>`;
   if (g.state === "bet") {
     const pick = hPick || (mine && +mine.h) || null;
     return head + autoLine(g) + slot + `<div class="hpick">${byHorse.map(h => `<button class="hbtn" data-gact="hpick" data-h="${h.n}" aria-pressed="${pick === h.n}" style="--hc:${h.c}" title="${h.name} – tor ${laneOrder(g).indexOf(h.n) + 1}"><b>${h.n}</b><i>${h.name}</i><span>${h.bets.length ? `${h.bets.length} os.` : "–"}</span></button>`).join("")}</div>
-      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${hname(pick)} (${pick})` : `Obstawiasz: ${hname(mine.h)} (${mine.h})`) : pick ? `Obstaw ${hname(pick)} (${pick})${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz konia"}</button>
+      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${hname(pick)} (${pick})` : `Obstawiasz: ${hname(mine.h)} (${mine.h})`) : pick ? `Obstaw ${hname(pick)} (${pick})${g.s ? ` za ${esc(yangTxt(g.s))}` : ""}` : "Wybierz konia"}</button>
 ${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
       ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === meId() ? " me" : ""}" style="--hc:${field(g)[b.h - 1].c}"><i class="hdot"></i>${esc(b.n)} <b>${hname(b.h)}</b>${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
@@ -3144,7 +3160,7 @@ function poolResult(g, bets, winners, noneText){
   const W = winners.length, L = bets.length - W;
   if (!W) return `<p>${noneText} Nikt nic nie wygrywa – każdy zostaje przy swojej stawce.</p>`;
   if (!L) return `<p>Wszyscy obstawili to samo – nikt nic nie wygrywa i nie przegrywa.</p>`;
-  const gain = g.s ? `+${esc(poolText(g.s, Math.round(L / W * 1000) / 1000))}` : "wygrywa", loss = g.s ? `−${esc(g.s)}` : "przegrywa";
+  const gain = g.s ? `+${esc(poolText(g.s, Math.round(L / W * 1000) / 1000))}` : "wygrywa", loss = g.s ? `−${esc(yangTxt(g.s))}` : "przegrywa";
   const wid = new Set(winners.map(w => w.id));
   return bets.slice().sort((a, b) => wid.has(b.id) - wid.has(a.id)).map(b => `<div class="gline"><span>${esc(b.n)}${b.id === meId() ? ' <span class="pme">(ty)</span>' : ""}</span><b class="${wid.has(b.id) ? "pos" : "neg"}">${wid.has(b.id) ? gain : loss}</b></div>`).join("");
 }
@@ -3288,14 +3304,14 @@ function wheelTick(g){
 }
 GAME_VIEW.wheel = g => {
   const bets = horseBets(g), host = g.by === meId(), mine = g.b && g.b[meId()];
-  const head = `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Za darmo · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
+  const head = `<p>${g.s ? `Stawka <b>${esc(yangTxt(g.s))}</b> · pula <b>${esc(poolText(g.s, bets.length))}</b> · ` : "Za darmo · "}${bets.length} ${bets.length === 1 ? "zakład" : "zakłady"} · otworzył ${esc(g.byn || "?")}</p>`;
   const slot = `<div class="htrack-slot"></div><p class="hlead spinres"></p>`;
   if (g.state === "cancel") return head + `<p class="spinres">Losowanie odwołane.</p>`;
   if (g.state === "bet") {
     const pick = hPick || (mine && +mine.h) || null, chance = {1: "18/37", 2: "18/37", 3: "1/37"};
     return head + autoLine(g) + slot + `<div class="wpick">${[1, 2, 3].map(k => { const n = bets.filter(b => b.h === k).length;
         return `<button class="wbtn" data-gact="hpick" data-h="${k}" aria-pressed="${pick === k}" style="--wc:${WCOL[k].c}"><b>${WCOL[k].n}</b><span>${chance[k]} · ${n ? `${n} os.` : "–"}</span></button>`; }).join("")}</div>
-      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(g.s)}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
+      <div class="hact"><button class="btn primary" data-gact="hbet"${!pick || (mine && pick === +mine.h) ? " disabled" : ""}>${mine ? (pick !== +mine.h ? `Zmień na ${WCOL[pick].n.toLowerCase()}` : `Obstawiasz: ${WCOL[mine.h].n.toLowerCase()}`) : pick ? `Obstaw ${WCOL[pick].n.toLowerCase()}${g.s ? ` za ${esc(yangTxt(g.s))}` : ""}` : "Wybierz kolor"}</button>${mine ? `<button class="linkbtn" data-gact="hunbet">wycofaj</button>` : ""}</div>
       <p class="pme hnote">Obstawianie jest dobrowolne – możesz też tylko oglądać.</p>
       ${bets.length ? `<div class="hbets">${bets.map(b => `<span class="hchip${b.id === meId() ? " me" : ""}" style="--hc:${b.h === 2 ? "#9aa0ad" : WCOL[b.h].c}"><i class="hdot"></i>${esc(b.n)}${kickBtn(g, b.id, "hkick")}</span>`).join("")}</div>` : ""}
       ${host ? `<div class="acts" style="justify-content:center"><button class="btn" data-gact="hcancel">Odwołaj</button><button class="btn primary" data-gact="hstart"${bets.length < 2 ? " disabled" : ""}>Zakręć</button></div>` : `<p class="pme">Ruletką zakręci ${esc(g.byn || "")}.</p>`}${ownerLine(g)}`;
@@ -3914,15 +3930,15 @@ function horseSheet(type = "horse"){
   const wheel = type === "wheel", h3 = type === "horse3d";
   sheet(`<h2>${GAMES[type].name}</h2>
     <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią to samo albo nikt nie trafi, nikt nic nie wygrywa."
-      : h3 ? "Eksperymentalny wyścig w 3D: 6 koni, jedno okrążenie owalnego toru (1000 m) z przeszkodami, trwa około minuty. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa."
+      : h3 ? "Wyścig w 3D: 6 koni, jedno okrążenie owalnego toru (1000 m) z przeszkodami, trwa około minuty. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa."
       : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
-    <div class="field"><label for="hs_s">Stawka od osoby (puste = gra za darmo, bez rozliczeń)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk"></div>
+    ${stakeField("hs_s")}
     ${busyHtml(busy)}
     <div class="acts"><button class="btn" data-close>Zamknij</button><button class="btn" data-free="hs_"${busy ? " disabled" : ""} title="Gra bez stawki – nikt nic nie wygrywa ani nie traci">Darmowa gra</button><button class="btn primary" id="hs_go"${busy ? " disabled" : ""}>Otwórz zakłady</button></div>
     <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
-    el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(x.s)}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
-    el.querySelector("#hs_go").onclick = () => { if (roomBusy()) { toast(roomBusy()); return; } const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type !== "wheel" ? {lanes: shuffleLanes(), hs: pickField()} : {}), state: "bet"}); };
+    el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(yangTxt(x.s))}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
+    el.querySelector("#hs_go").onclick = () => { if (roomBusy()) { toast(roomBusy()); return; } let st; try { st = stakeOf(el.querySelector("#hs_s")); } catch (x) { toast(x.message); return; } if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type !== "wheel" ? {lanes: shuffleLanes(), hs: pickField()} : {}), state: "bet"}); };
   });
 }
 /* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
@@ -4049,7 +4065,7 @@ async function gameClick(e){
 function gamesMenu(){
   sheet(`<h2>Gry</h2>${online ? "<p>Gry dla osób w twoim pokoju. Okno gry widzą wszyscy, grają ci, którzy dołączą.</p>" : "<p>Gry działają we wspólnym pokoju. Połącz się w Menu → Wspólny pokój.</p>"}
     <button class="btn primary dbtn" data-game="debts">Rozliczenia – kto komu ile wisi</button>
-    <div class="gamelist"><button class="btn" data-game="roul">Loteria</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button><button class="btn" data-game="horse3d">Wyścig konny 3D <span class="pme">(test)</span></button><button class="btn" data-game="wheel">Ruletka</button></div>
+    <div class="gamelist"><button class="btn" data-game="roul">Loteria</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button><button class="btn" data-game="horse3d">Wyścig konny 3D</button><button class="btn" data-game="wheel">Ruletka</button></div>
     <div class="field" style="margin-top:4px"><label>Gry innych osób w pokoju</label><div class="seg"><button data-sg="1" aria-pressed="${settings.showGames !== false}">Pokazuj</button><button data-sg="0" aria-pressed="${settings.showGames === false}">Nie pokazuj</button></div>
       <p class="pme" style="font-size:13px;margin:0">Gry, w których grasz albo które prowadzisz, zawsze się pokazują.</p></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>
@@ -4075,7 +4091,7 @@ function gameSheet(type){
           guess: "Losuje się liczba od 1 do 100. Każdy typuje, wygrywa najbliższy.",
           rps: "Wyzwij jedną osobę. Oboje wybieracie w ukryciu, wynik pokazuje się jednocześnie."}[type]}</p>
     ${busyHtml(busy)}
-    <div class="field"><label for="gm_s">Stawka od osoby (puste = gra za darmo, bez rozliczeń)</label><input id="gm_s" maxlength="30" autocomplete="off" placeholder="np. 10kk"></div>
+    ${stakeField("gm_s")}
     ${type === "coin" ? `<div class="field"><label>Twoja strona</label><div class="seg"><button data-side="orzel" aria-pressed="true">Orzeł</button><button data-side="reszka" aria-pressed="false">Reszka</button></div></div>` : ""}
     <div class="field"><label>${def.duel ? "Przeciwnik" : "Gracze"}</label><ul class="banlist" id="gm_p"></ul></div>
     <p id="gm_err" style="color:var(--danger)" hidden></p>
@@ -4100,7 +4116,8 @@ function gameSheet(type){
     el.querySelectorAll("[data-side]").forEach(b => b.onclick = () => { side = b.dataset.side; el.querySelectorAll("[data-side]").forEach(x => x.setAttribute("aria-pressed", x === b)); });
     el.querySelector("#gm_go").onclick = () => {
       if (roomBusy()) { toast(roomBusy()); return; }
-      const err = el.querySelector("#gm_err"), stake = el.querySelector("#gm_s").value.trim(); err.hidden = true;
+      const err = el.querySelector("#gm_err"), stakeIn = el.querySelector("#gm_s"); err.hidden = true;
+      let stake; try { stake = stakeOf(stakeIn); } catch (x) { err.textContent = x.message; err.hidden = false; return; }
       if (stake) store.set("rlStake", stake);
       const all = gamers();
       if (def.duel) {
