@@ -627,12 +627,23 @@ const DB_URL = "https://timermetin-default-rtdb.europe-west1.firebasedatabase.ap
    The nick is the name from the Discord server, so nick passwords are not needed. */
 const DISCORD = {worker: "https://metin-timer-auth.bartekwol97.workers.dev", apiKey: "AIzaSyCAhnxUAj98gRSPmtgWA3h8kubwwl12z70"};
 // test phase: only devices that opened the page with ?discord=1 use it (?discord=0 turns it off); LIVE = everyone
-const DISCORD_LIVE = false;
+const DISCORD_LIVE = true;
 { const q = /[?&]discord=([01])/.exec(location.search); if (q) { store.set("dtest", q[1] === "1"); history.replaceState(null, "", location.pathname + location.hash); } }
 const dOn = () => !!(DISCORD.worker && DISCORD.apiKey) && (DISCORD_LIVE || !!store.get("dtest", false));
 const DSESS_DAYS = 7;
 let dTok = null, dExp = 0, dBusy = null;
-const dSess = () => { const s = store.get("dsess", null); return s && s.rt && Date.now() - (+s.at || 0) < (DSESS_DAYS * 86400 - 3600) * 1000 ? s : null; };
+const dSess = () => { const s = store.get("dsess", null); return s && s.rt && Date.now() - (+s.at || 0) < (DSESS_DAYS * 86400 - 3600) * 1000 && (+s.at || 0) > (+store.get("authEpoch", 0) || 0) ? s : null; };
+const PAGE_AT = Date.now();
+setInterval(() => checkForce(), 300000);
+/* the admin can make every open page reload (config/reload) and log everyone out (config/authepoch); both are
+   public timestamps, checked when the page comes back to the front and with every presence heartbeat */
+async function checkForce(){
+  try {
+    const [rl, ae] = await Promise.all(["reload", "authepoch"].map(k => fetch(`${DB_URL}/config/${k}.json`).then(r => r.ok ? r.json() : null).catch(() => null)));
+    if (typeof ae === "number" && ae > (+store.get("authEpoch", 0) || 0)) { store.set("authEpoch", ae); if (dOn() && !dSess()) { dTok = null; if (online) disconnect(); gate(); } }
+    if (typeof rl === "number" && rl > PAGE_AT && rl > (+store.get("reloadAt", 0) || 0)) { store.set("reloadAt", rl); location.reload(); }
+  } catch {}
+}
 const jwtBody = t => { try { return JSON.parse(decodeURIComponent(escape(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))))); } catch { return {}; } };
 async function dToken(force){
   if (!dOn()) return null;
@@ -757,7 +768,7 @@ async function connect(db, room){
     es.addEventListener("put", handle("put"));
     es.addEventListener("patch", handle("patch"));
     es.addEventListener("keep-alive", () => { const t = Date.now(); if (lastKa) kaGap = t - lastKa; lastKa = t; lastEv = t; });
-    es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err");
+    es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err"); checkForce();
       if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); } });
     es.addEventListener("auth_revoked", async () => {               // the hourly token ran out: take a fresh one and reconnect
       if (dOn() && await dToken(true)) openStream(); else setMode("Brak dostępu", "err"); });
@@ -1654,7 +1665,7 @@ function gate(){
   const el = document.createElement("div"); el.id = "gate"; el.className = "gate";
   if (dOn()) {
     const old = store.get("dsess", null);
-    el.innerHTML = `<div class="gatebox"><h1>Metin Timer</h1><p>${old ? "Minęło 7 dni od ostatniego logowania – Discord musi jeszcze raz potwierdzić, że jesteś na naszym serwerze." : "Wejście tylko dla osób z naszego serwera Discord."}</p>
+    el.innerHTML = `<div class="gatebox"><h1>Metin Timer</h1><p>${!old ? "Wejście tylko dla osób z naszego serwera Discord." : (+old.at || 0) <= (+store.get("authEpoch", 0) || 0) ? "Admin wylogował wszystkich – zaloguj się ponownie." : "Minęło 7 dni od ostatniego logowania – Discord musi jeszcze raz potwierdzić, że jesteś na naszym serwerze."}</p>
       <button class="btn primary" id="g_dc" type="button">Zaloguj przez Discord</button><p id="g_msg" class="pme" hidden></p></div>`;
     document.body.appendChild(el);
     const msg = el.querySelector("#g_msg");
@@ -1687,7 +1698,7 @@ async function checkBan(){
   return banned;
 }
 async function loadConfig(){
-  checkBan();
+  checkBan(); checkForce();
   try {
     const r = await fetch(`${DB_URL}/config/sitepw.json`);
     if (r.ok) { const h = await r.json(); if (typeof h === "string" && /^[0-9a-f]{64}$/.test(h) && h !== sitepwHash) { sitepwHash = h; store.set("sitepwHash", h); gate(); } }
@@ -1740,6 +1751,8 @@ function adminSheet(){
     <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
     ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="field"><label>Wszyscy użytkownicy</label><div class="acts" style="justify-content:flex-start"><button class="btn" id="a_reload">Odśwież stronę u wszystkich</button><button class="btn danger" id="a_logout">Wyloguj wszystkich</button></div>
+      <p class="pme" style="font-size:13px;margin:0">„Wyloguj wszystkich” – każdy (ty też) musi się zalogować ponownie przez Discord; otwarte strony same się przeładują.</p></div>
     <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
       <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
@@ -1933,6 +1946,17 @@ function adminSheet(){
         drawReqs();
       } catch (x) { berr.textContent = x.message; berr.hidden = false; }
     });
+    const sure = (b, label) => { if (b.dataset.sure === "1") return true; b.dataset.sure = "1"; b.textContent = "Na pewno? Kliknij jeszcze raz"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = label; } }, 4000); return false; };
+    el.querySelector("#a_reload").onclick = async ev => {
+      const b = ev.target; berr.hidden = true; if (!sure(b, "Odśwież stronę u wszystkich")) return; b.disabled = true;
+      try { await adminPatch({reload: {".sv": "timestamp"}}, "Odświeżono stronę u wszystkich"); toast("Otwarte strony odświeżą się w ciągu kilku minut."); b.textContent = "Wysłano"; }
+      catch (x) { berr.textContent = x.message; berr.hidden = false; b.disabled = false; b.dataset.sure = ""; b.textContent = "Odśwież stronę u wszystkich"; }
+    };
+    el.querySelector("#a_logout").onclick = async ev => {
+      const b = ev.target; berr.hidden = true; if (!sure(b, "Wyloguj wszystkich")) return; b.disabled = true;
+      try { await adminPatch({authepoch: {".sv": "timestamp"}, reload: {".sv": "timestamp"}}, "Wylogowano wszystkich"); toast("Wylogowano wszystkich."); setTimeout(() => location.reload(), 1500); }
+      catch (x) { berr.textContent = x.message; berr.hidden = false; b.disabled = false; b.dataset.sure = ""; b.textContent = "Wyloguj wszystkich"; }
+    };
     el.querySelector("#a_wipe").onclick = async ev => {
       const b = ev.target; berr.hidden = true;
       if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Na pewno? Kliknij jeszcze raz"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Wyczyść wszystkie konta"; } }, 4000); return; }

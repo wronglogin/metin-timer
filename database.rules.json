@@ -627,6 +627,14 @@
       },
       "$other": {
         ".validate": false
+      },
+      "reload": {
+        ".read": true,
+        ".validate": "newData.isNumber()"
+      },
+      "authepoch": {
+        ".read": true,
+        ".validate": "newData.isNumber()"
       }
     }
   }
