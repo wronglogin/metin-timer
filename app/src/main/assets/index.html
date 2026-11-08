@@ -922,7 +922,7 @@ const myNick = () => String(store.get("nick", "") || "").trim();
 const presUrl = id => roomUrl("/presence/" + id);
 function heartbeat(){
   if (!online || !myNick()) return;
-  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {})})}).catch(() => {});
+  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {}), ...(dOn() && dSess() ? {u: dSess().uid} : {})})}).catch(() => {});
   // list of rooms with recent activity, so the admin can see who is online in every room
   fetch(`${online.db}/roomlist/${encodeURIComponent(online.room)}.json`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({".sv":"timestamp"})}).catch(() => {});
 }
@@ -1917,11 +1917,12 @@ async function loadConfig(){
 /* admin panel entry: only Discord accounts listed in the database under adminuids/<uid> (added by the owner in the
    Firebase console) see a "Panel admina" button in the menu; the address …/#admin opens it too. The database rules
    accept admin changes only from those accounts, and only with the admin password. */
-let amAdminAcct = false;
+let amAdminAcct = false, adminRole = null;               // adminRole: "owner" | "admin" | null
 async function checkAdminAcct(){
-  const s = dOn() ? dSess() : null; if (!s || !s.uid) { amAdminAcct = false; return false; }
-  const v = await fetch(`${DB_URL}/adminuids/${encodeURIComponent(s.uid)}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
-  amAdminAcct = v === true; return amAdminAcct;
+  const s = dOn() ? dSess() : null; if (!s || !s.uid) { amAdminAcct = false; adminRole = null; return false; }
+  const get = path => fetch(`${DB_URL}/${path}/${encodeURIComponent(s.uid)}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+  const [o, a] = await Promise.all([get("adminuids"), get("subadmins")]);
+  adminRole = o === true ? "owner" : a ? "admin" : null; amAdminAcct = !!adminRole; return amAdminAcct;
 }
 const openAdminFromHash = () => { if (location.hash === "#admin") { history.replaceState(null, "", location.pathname + location.search); adminSheet(); } };
 window.addEventListener("hashchange", openAdminFromHash);
@@ -1956,6 +1957,10 @@ function adminSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
+    <details class="alogd" id="a_admd" hidden><summary>Administratorzy (tylko właściciel)</summary>
+      <p class="pme" style="font-size:13px;margin:6px 0">Ty jesteś właścicielem – tego nikt nie zmieni ani nie usunie (ustawione w konsoli Firebase). Admini, których tu dodasz, mają panel admina z tym samym hasłem, ale nie mogą dodawać ani usuwać adminów. Identyfikator osoby jest w jej Menu → Twoje konto, albo dodaj ją przyciskiem „Daj admina” na liście zalogowanych.</p>
+      <ul class="banlist" id="a_admins"></ul>
+      <div class="raadd" style="margin-top:6px"><input id="a_admid" maxlength="30" placeholder="identyfikator, np. d1234567890" autocomplete="off" autocapitalize="off" spellcheck="false"><input id="a_admn" maxlength="20" placeholder="nick" autocomplete="off"><button class="btn" id="a_admadd">Dodaj admina</button></div></details>
     <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
     <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
       <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
@@ -2036,14 +2041,39 @@ function adminSheet(){
         const res = await Promise.all(rooms.map(room => fetch(`${DB_URL}/rooms/${encodeURIComponent(room)}/presence.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})).then(p => [room, p || {}])));
         const html = res.map(([room, pr]) => {
           const byNick = new Map();
-          for (const [id, v] of Object.entries(pr)) if (v && v.n && now() - (+v.t || 0) < 360000) { const k = pkey(v.n); if (!byNick.has(k)) byNick.set(k, {id, n: v.n}); }
+          for (const [id, v] of Object.entries(pr)) if (v && v.n && now() - (+v.t || 0) < 360000) { const k = pkey(v.n); if (!byNick.has(k)) byNick.set(k, {id, n: v.n, u: v.u}); else if (v.u && !byNick.get(k).u) byNick.get(k).u = v.u; }
           const ppl = [...byNick.values()].sort((a, b) => a.n.localeCompare(b.n));
-          return ppl.length ? `<li class="pme" style="font-weight:600">Pokój ${esc(room)} (${ppl.length})</li>` + ppl.map(p => `<li><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span>${p.id === deviceId ? "" : `<button class="btn danger" data-ban="${esc(p.id)}" data-nick="${esc(p.n)}">Zbanuj</button>`}</li>`).join("") : "";
+          return ppl.length ? `<li class="pme" style="font-weight:600">Pokój ${esc(room)} (${ppl.length})</li>` + ppl.map(p => `<li><span>${esc(p.n)}${p.id === deviceId ? ' <span class="pme">(ty)</span>' : ""}</span>${p.id === deviceId ? "" : `<span style="display:flex;gap:6px">${adminRole === "owner" && p.u ? `<button class="btn" data-mkadmin="${esc(p.u)}" data-nick="${esc(p.n)}">Daj admina</button>` : ""}<button class="btn danger" data-ban="${esc(p.id)}" data-nick="${esc(p.n)}">Zbanuj</button></span>`}</li>`).join("") : "";
         }).join("");
         ul.innerHTML = html || '<li class="pme">Nikogo nie ma teraz w żadnym pokoju.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
     el.querySelector("#a_alld").addEventListener("toggle", e => { if (e.target.open) drawAll(); });
+    // owner: add / remove admins (subadmins/<uid>); nobody can touch the owner, who is set in the Firebase console
+    const drawAdmins = async () => {
+      const ul = el.querySelector("#a_admins");
+      const all = await fetch(`${DB_URL}/subadmins.json`).then(r => r.ok ? r.json() : null).catch(() => null) || {};
+      const ks = Object.keys(all);
+      ul.innerHTML = ks.length ? ks.map(k => `<li><span>${esc(all[k].n || "?")} <span class="pme">${esc(k)}</span></span><button class="btn danger" data-unadmin="${esc(k)}">Odbierz admina</button></li>`).join("") : '<li class="pme">Nie ma innych adminów.</li>';
+    };
+    const addAdmin = async (uid, n) => {
+      uid = String(uid || "").trim(); n = String(n || "").trim().slice(0, 20) || uid;
+      if (!/^d[0-9]{5,25}$/.test(uid)) { berr.textContent = "Identyfikator wygląda tak: d i same cyfry (np. d1234567890)."; berr.hidden = false; return; }
+      if (uid === (dSess() || {}).uid) { berr.textContent = "Ty jesteś właścicielem – nie musisz się dodawać."; berr.hidden = false; return; }
+      const r = await fetch(`${DB_URL}/subadmins/${uid}.json`, {method: "PUT", body: JSON.stringify({n, at: {".sv": "timestamp"}})}).catch(() => null);
+      if (!r || !r.ok) { berr.textContent = "Baza nie pozwoliła dodać admina (" + (r ? r.status : "brak połączenia") + ")."; berr.hidden = false; return; }
+      adminPatch({}, `Dodano admina: ${n} (${uid})`).catch(() => {}); toast(`${n} jest teraz adminem`); drawAdmins();
+    };
+    el.querySelector("#a_admadd").onclick = () => { berr.hidden = true; addAdmin(el.querySelector("#a_admid").value, el.querySelector("#a_admn").value); el.querySelector("#a_admid").value = ""; el.querySelector("#a_admn").value = ""; };
+    el.querySelector("#a_admins").addEventListener("click", async e => {
+      const b = e.target.closest("[data-unadmin]"); if (!b) return;
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Na pewno?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Odbierz admina"; } }, 3000); return; }
+      const uid = b.dataset.unadmin, r = await fetch(`${DB_URL}/subadmins/${uid}.json`, {method: "DELETE"}).catch(() => null);
+      if (!r || !r.ok) { berr.textContent = "Baza nie pozwoliła odebrać admina."; berr.hidden = false; return; }
+      adminPatch({["admins/" + uid]: null}, `Odebrano admina: ${uid}`).catch(() => {}); toast("Odebrano admina"); drawAdmins();
+    });
+    el.addEventListener("click", e => { const b = e.target.closest("[data-mkadmin]"); if (b) addAdmin(b.dataset.mkadmin, b.dataset.nick); });
+    checkAdminAcct().then(() => { if (adminRole === "owner" && el.isConnected) { el.querySelector("#a_admd").hidden = false; drawAdmins(); } });
     // room management: zero timers, reset to the default respawn list, block / unblock a room
     const extraRooms = new Set();
     const drawRooms = async () => {

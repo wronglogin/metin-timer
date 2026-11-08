@@ -104,6 +104,9 @@
             },
             "$other": {
               ".validate": false
+            },
+            "u": {
+              ".validate": "newData.isString() && newData.val() === auth.uid"
             }
           }
         },
@@ -588,7 +591,7 @@
       ".write": false
     },
     "config": {
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val()) && root.child('adminuids/'+auth.uid).val() === true",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val()) && (root.child('adminuids/'+auth.uid).val() === true || root.child('subadmins/'+auth.uid).exists())",
       "channels": {
         ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
         ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10 && newData.val() % 1 === 0"
@@ -708,6 +711,23 @@
     "adminuids": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"
+      }
+    },
+    "subadmins": {
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && root.child('adminuids/'+auth.uid).val() === true",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && root.child('adminuids/'+auth.uid).val() === true",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".validate": "$uid.matches(/^d[0-9]{5,25}$/) && newData.hasChildren(['n'])",
+        "n": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+        },
+        "at": {
+          ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }

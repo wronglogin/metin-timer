@@ -104,6 +104,9 @@
             },
             "$other": {
               ".validate": false
+            },
+            "u": {
+              ".validate": "newData.isString() && newData.val().length <= 30"
             }
           }
         },
