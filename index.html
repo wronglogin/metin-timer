@@ -3192,7 +3192,30 @@ function clack(a, vol, freq){
    Same bets, payouts and seed as the 2D race, but a long race (about 50 s over 1000 m with hurdles) drawn in 3D
    with plain WebGL: a turf course at sunset, white rails, brush hurdles the horses jump, a grandstand at the finish,
    and horses with jockeys built from boxes. The camera rides behind the leaders and moves to the side for the finish. */
-const H3 = {L: 1000, HURDLES: [180, 360, 540, 720, 880], LANE: 1.75, W: 13};
+// an oval of exactly 1000 m (two 250 m straights, two half circles); start and finish are the same line in the middle
+// of the home straight, in front of the grandstand, so the race is one lap, run anticlockwise (left-hand turns)
+const H3 = {L: 1000, S: 250, R: 500 / (2 * Math.PI), HURDLES: [70, 440, 560, 915], LANE: 1.75, W: 13};
+// centreline point and running direction at distance s from the start line
+function h3Path(s){
+  const {S, R, L} = H3, arc = Math.PI * R;
+  s = ((s % L) + L) % L;
+  if (s < S / 2) return {x: 0, z: -S / 2 - s, hx: 0, hz: -1};
+  s -= S / 2;
+  if (s < arc) { const a = s / R; return {x: -R + R * Math.cos(a), z: -S - R * Math.sin(a), hx: -Math.sin(a), hz: -Math.cos(a)}; }
+  s -= arc;
+  if (s < S) return {x: -2 * R, z: -S + s, hx: 0, hz: 1};
+  s -= S;
+  if (s < arc) { const a = s / R; return {x: -R - R * Math.cos(a), z: R * Math.sin(a), hx: Math.sin(a), hz: Math.cos(a)}; }
+  s -= arc; return {x: 0, z: -s, hx: 0, hz: -1};
+}
+// a point w metres to the right of the centreline (right = outside of the turns)
+const h3At = (s, w = 0) => { const p = h3Path(s); return {x: p.x - p.hz * w, z: p.z + p.hx * w, yaw: Math.atan2(-p.hx, -p.hz), hx: p.hx, hz: p.hz}; };
+// how far a point is from the centreline (to keep trees off the course)
+function h3Dist(x, z){
+  const {S, R} = H3;
+  if (z <= 0 && z >= -S) return Math.min(Math.abs(x), Math.abs(x + 2 * R));
+  return Math.abs(Math.hypot(x + R, z < -S ? z + S : z) - R);
+}
 function raceModel3d(seed){
   const key = "3d:" + seed;
   if (raceCache.has(key)) return raceCache.get(key);
@@ -3255,37 +3278,43 @@ function h3Builder(){
   return {d, box, quad, at};
 }
 function h3Scene(){
-  const B = h3Builder(), {L, W, HURDLES} = H3, rnd = mulberry(77), half = W / 2;
-  const turfA = hexRgb("#4f8f3a"), turfB = hexRgb("#5a9c41"), field = hexRgb("#3f7432"), white = [.96, .96, .94];
-  // the turf with mowing stripes, the grass around it and a big field to the horizon
-  for (let z = 80; z > -L - 160; z -= 12) B.quad(-half, half, z, z - 12, 0, (Math.round(z / 12) & 1) ? turfA : turfB);
-  B.quad(-60, -half, 80, -L - 160, -0.04, field); B.quad(half, 60, 80, -L - 160, -0.04, field);
-  B.quad(-1500, 1500, 1500, -2600, -0.6, hexRgb("#36652c"));
-  // white rails with posts on both sides
-  for (const s of [-1, 1]) {
-    const x = s * (half + 0.25);
-    for (let z = 70; z > -L - 150; z -= 50) B.box(B.at(x, 1.0, z - 25, 0.08, 0.1, 50), white);
-    for (let z = 70; z > -L - 150; z -= 6) B.box(B.at(x, 0.5, z, 0.1, 1.0, 0.1), white);
+  const B = h3Builder(), {L, W, HURDLES, S, R} = H3, rnd = mulberry(77), half = W / 2;
+  const turfA = hexRgb("#4f8f3a"), turfB = hexRgb("#5a9c41"), white = [.96, .96, .94];
+  const q4 = (a, b, c, d, y, col) => { for (const p of [a, b, c, a, c, d]) B.d.push(p.x, y, p.z, 0, 1, 0, col[0], col[1], col[2]); };
+  // grass everywhere (field, infield) and a big plain to the horizon
+  B.quad(-700, 500, 500, -800, -0.04, hexRgb("#3f7432"));
+  B.quad(-2500, 2500, 2500, -2800, -0.6, hexRgb("#36652c"));
+  // the turf course with mowing stripes, followed around the oval in 4 m pieces
+  for (let x = 0; x < L; x += 4) {
+    const col = Math.floor(x / 12) & 1 ? turfA : turfB;
+    q4(h3At(x, -half), h3At(x, half), h3At(x + 4, half), h3At(x + 4, -half), 0, col);
   }
-  // start line and finish line; furlong poles every 200 m
-  B.box(B.at(0, 0.012, 0, W, 0.02, 0.25), white);
-  B.box(B.at(0, 0.012, -L, W, 0.02, 0.5), white);
-  for (let d = 200; d < L; d += 200) { B.box(B.at(half + 0.9, 1.5, -d, 0.16, 3, 0.16), white); B.box(B.at(half + 0.9, 2.8, -d, 0.5, 0.5, 0.06), hexRgb("#d6453a")); }
-  // finish post with a red disc, a judges' box
-  B.box(B.at(half + 1.2, 2.5, -L, 0.2, 5, 0.2), white); B.box(B.at(half + 1.2, 4.6, -L, 1.1, 1.1, 0.1), hexRgb("#d63a30"));
-  B.box(B.at(half + 5, 2, -L - 16, 3, 4, 3), hexRgb("#e9e4d6")); B.box(B.at(half + 5, 4.2, -L - 16, 3.4, 0.3, 3.4), hexRgb("#2e5b3a"));
+  // white rails on both sides with posts
+  for (const w of [-half - 0.25, half + 0.25]) {
+    for (let x = 0; x < L; x += 4) {
+      const p = h3At(x, w), q = h3At(x + 4, w), len = Math.hypot(q.x - p.x, q.z - p.z);
+      B.box(B.at((p.x + q.x) / 2, 1.0, (p.z + q.z) / 2, 0.08, 0.1, len + 0.05, Math.atan2(-(q.x - p.x), -(q.z - p.z))), white);
+      if (x % 8 === 0) B.box(B.at(p.x, 0.5, p.z, 0.1, 1.0, 0.1), white);
+    }
+  }
+  // start/finish line, the winning post with its red disc on the inside rail, a judges' box; furlong poles every 200 m
+  const f0 = h3At(0); B.box(B.at(f0.x, 0.012, f0.z, W, 0.02, 0.45, f0.yaw), white);
+  const fp = h3At(0, -half - 1.2); B.box(B.at(fp.x, 2.5, fp.z, 0.2, 5, 0.2), white); B.box(B.at(fp.x, 4.6, fp.z, 0.1, 1.1, 1.1), hexRgb("#d63a30"));
+  const jb = h3At(-18, -half - 13); B.box(B.at(jb.x, 2, jb.z, 3, 4, 3), hexRgb("#e9e4d6")); B.box(B.at(jb.x, 4.2, jb.z, 3.4, 0.3, 3.4), hexRgb("#2e5b3a"));
+  for (let d = 200; d < L; d += 200) { const p = h3At(d, -half - 0.9); B.box(B.at(p.x, 1.5, p.z, 0.16, 3, 0.16), white); B.box(B.at(p.x, 2.8, p.z, 0.5, 0.5, 0.06, p.yaw), hexRgb("#d6453a")); }
   // brush hurdles across the track, with white wings
-  for (const h of HURDLES) {
-    B.box(B.at(0, 0.45, -h, W - 0.8, 0.9, 0.7), hexRgb("#4a6b2a"));
-    B.box(B.at(0, 0.95, -h, W - 0.8, 0.12, 0.8), hexRgb("#6d8a3a"));
-    B.box(B.at(0, 0.12, -h + 0.45, W - 0.8, 0.24, 0.12), white);
-    for (const s of [-1, 1]) { B.box(B.at(s * (half - 0.3), 0.7, -h, 0.12, 1.4, 1.2), white); B.box(B.at(s * (half + 0.5), 0.9, -h + 0.9, 0.1, 1.5, 2.4, s * 0.5), white); }
+  for (const hd of HURDLES) {
+    const c = h3At(hd), at = (w, y, sx, sy, sz, dz = 0, r = 0) => { const p = h3At(hd + dz, w); return B.at(p.x, y, p.z, sx, sy, sz, c.yaw + r); };
+    B.box(at(0, 0.45, W - 0.8, 0.9, 0.7), hexRgb("#4a6b2a"));
+    B.box(at(0, 0.95, W - 0.8, 0.12, 0.8), hexRgb("#6d8a3a"));
+    B.box(at(0, 0.12, W - 0.8, 0.24, 0.12, -0.45), white);
+    for (const sg of [-1, 1]) { B.box(at(sg * (half - 0.3), 0.7, 0.12, 1.4, 1.2), white); B.box(at(sg * (half + 0.5), 0.9, 0.1, 1.5, 2.4, -0.9, sg * 0.5), white); }
   }
-  // grandstand on the left of the home straight: tiers full of people, a roof on pillars
-  const s0 = -L + 220, s1 = -L - 40, len = s0 - s1, mid = (s0 + s1) / 2;
+  // grandstand on the outside of the home straight (x > 0), facing the track: tiers of people, a roof on pillars
+  const s0 = -30, s1 = -220, len = s0 - s1, mid = (s0 + s1) / 2;
   const fans = ["#e9e3d5", "#d65a4a", "#4e8fd6", "#e8c24a", "#7a5fa0", "#2f3440", "#c98f6a", "#5fb36b", "#f0f0f0"].map(hexRgb), skin = [hexRgb("#e2b38f"), hexRgb("#b7835c"), hexRgb("#6e4a33")];
   for (let r = 0; r < 9; r++) {
-    const x = -half - 7 - r * 1.4, y = 0.6 + r * 0.8;
+    const x = half + 7 + r * 1.4, y = 0.6 + r * 0.8;
     B.box(B.at(x, y / 2, mid, 1.4, y, len), hexRgb(r & 1 ? "#8c8f96" : "#7d8088"));
     for (let z = s1 + 1; z < s0 - 1; z += 1.1 + rnd() * 0.5) {
       if (rnd() < 0.12) continue;
@@ -3294,25 +3323,30 @@ function h3Scene(){
       B.box(B.at(x, y + 0.85, zz, 0.26, 0.28, 0.26), skin[Math.floor(rnd() * 3)]);
     }
   }
-  B.box(B.at(-half - 13, 9.6, mid, 15, 0.4, len + 4), hexRgb("#cfd3d8"));
-  for (let z = s1; z <= s0; z += 25) B.box(B.at(-half - 19.5, 5, z, 0.4, 9.5, 0.4), hexRgb("#cfd3d8"));
-  B.box(B.at(-half - 20.5, 5, mid, 1, 10, len + 4), hexRgb("#6e7178"));
-  // people standing along the rail by the finish
-  for (let z = -L + 120; z > -L - 30; z -= 0.9 + rnd() * 0.6) {
-    const c = fans[Math.floor(rnd() * fans.length)], x = -half - 1.5 - rnd() * 3;
+  B.box(B.at(half + 13, 9.6, mid, 15, 0.4, len + 4), hexRgb("#cfd3d8"));
+  for (let z = s1; z <= s0; z += 25) B.box(B.at(half + 19.5, 5, z, 0.4, 9.5, 0.4), hexRgb("#cfd3d8"));
+  B.box(B.at(half + 20.5, 5, mid, 1, 10, len + 4), hexRgb("#6e7178"));
+  // people standing along the outside rail in front of the stand
+  for (let z = -70; z > -180; z -= 0.9 + rnd() * 0.6) {
+    const c = fans[Math.floor(rnd() * fans.length)], x = half + 1.5 + rnd() * 3;
     B.box(B.at(x, 0.75, z, 0.45, 1.5, 0.35), c); B.box(B.at(x, 1.65, z, 0.28, 0.3, 0.28), skin[Math.floor(rnd() * 3)]);
   }
-  // hedges and trees along the course, hills far away
-  for (const s of [-1, 1]) B.box(B.at(s * (half + 4), 0.6, -L / 2, 1.2, 1.2, L + 240), hexRgb("#2f5a28"));
-  for (let i = 0; i < 160; i++) {
-    const s = rnd() < 0.5 ? -1 : 1, x = s * (half + 9 + rnd() * 70), z = 60 - rnd() * (L + 260);
-    if (s < 0 && z < s0 + 10 && z > s1 - 10 && x > -half - 35) continue;            // not inside the grandstand
+  // a hedge around the outside of the course
+  for (let x = 0; x < L; x += 8) { const p = h3At(x, half + 4), q = h3At(x + 8, half + 4); if (p.x > half + 2 && p.z < s0 + 15 && p.z > s1 - 15) continue;
+    B.box(B.at((p.x + q.x) / 2, 0.6, (p.z + q.z) / 2, 1.2, 1.2, Math.hypot(q.x - p.x, q.z - p.z) + 0.3, Math.atan2(-(q.x - p.x), -(q.z - p.z))), hexRgb("#2f5a28")); }
+  // trees outside the course and a few in the infield, hills far away
+  for (let i = 0; i < 260; i++) {
+    const x = -2 * R - 160 + rnd() * (2 * R + 320), z = 150 - rnd() * (S + 2 * R + 300);
+    const dd = h3Dist(x, z), inside = x < 0 && x > -2 * R && (z <= 0 && z >= -S || Math.hypot(x + R, z < -S ? z + S : z) < R);
+    if (dd < half + 9 || (inside && (dd < half + 25 || rnd() < 0.6))) continue;
+    if (x > half && z < s0 + 20 && z > s1 - 20 && x < half + 40) continue;               // not inside the grandstand
     const h = 3 + rnd() * 4, tone = 0.75 + rnd() * 0.4;
     B.box(B.at(x, h / 3, z, 0.4, h / 1.5, 0.4), hexRgb("#4b3626"));
     B.box(B.at(x, h * 0.75, z, h * 0.55, h * 0.5, h * 0.55, rnd()), hexRgb("#2b5a2a").map(v => v * tone));
     B.box(B.at(x, h * 1.05, z, h * 0.35, h * 0.35, h * 0.35, rnd()), hexRgb("#336b30").map(v => v * tone));
   }
-  for (let i = 0; i < 14; i++) { const x = -900 + i * 140 + rnd() * 60, w = 160 + rnd() * 140, hh = 25 + rnd() * 45; B.box(B.at(x, hh / 2 - 5, -L - 650 - rnd() * 150, w, hh, 60, rnd() * 0.6 - 0.3), hexRgb("#4b4f6b")); }
+  for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2 + rnd() * 0.2, r = 950 + rnd() * 250, w = 180 + rnd() * 160, hh = 25 + rnd() * 50;
+    B.box(B.at(-R + Math.sin(a) * r, hh / 2 - 5, -S / 2 + Math.cos(a) * r, w, hh, 60, a + Math.PI / 2), hexRgb("#4b4f6b")); }
   return new Float32Array(B.d);
 }
 const H3VS = `attribute vec3 p;attribute vec3 n;attribute vec3 c;uniform mat4 uVP,uM;uniform vec3 uCol;varying vec3 vC,vN,vW;
@@ -3423,23 +3457,32 @@ function drawRace3d(cv, g, lead){
   const F = field(g);
   const H = F.map((h, i) => {
     const lane = order.indexOf(h.n), p = m ? h3HorseAt(m, i, tt) : {d: 0, y: 0, pitch: 0, v: 0};
-    return {...p, n: h.n, x: (lane - 2.5) * H3.LANE, z: -p.d};
+    const w = (lane - 2.5) * H3.LANE, at = h3At(p.d, w);
+    return {...p, n: h.n, w, x: at.x, z: at.z, yaw: at.yaw};
   });
   const leader = H.reduce((a, b) => b.d > a.d ? b : a, H[0]), L = H3.L;
   // camera: slowly circling the start while bets are open, behind the leaders during the race, beside the finish at the end
   let eye, tgt;
   const clock = Date.now() / 1000;
-  if (tt < 0.5) { const a = 0.9 + Math.sin(clock * 0.15) * 0.35; eye = [Math.sin(a) * 13, 3.2, -Math.cos(a) * 13 + 1]; tgt = [0, 1.3, 0]; }
-  else if (leader.d < L - 120) { const back = 12 + Math.min(8, (leader.d - Math.min(...H.map(h => h.d))) * 0.3); eye = [2.5, 4.8, leader.z + back]; tgt = [0, 1.2, leader.z - 14]; }
-  else if (leader.d < L) { eye = [H3.W / 2 + 9, 3.4, leader.z - 2]; tgt = [0, 1.3, leader.z + 3]; }
-  else { const z = -Math.min(leader.d, L + 24); eye = [H3.W / 2 + 10, 3.6, z - 3]; tgt = [-1, 1.2, z + 2]; }
+  const z0 = -H3.S / 2;
+  if (tt < 0.5) { const a = 0.9 + Math.sin(clock * 0.15) * 0.35; eye = [-Math.sin(a) * 13, 3.2, z0 - Math.cos(a) * 13 + 1]; tgt = [0, 1.3, z0]; }   // from the infield, the grandstand behind the horses
+  else if (leader.d < L - 120) {
+    // behind the leaders, following the bends
+    const back = 12 + Math.min(8, (leader.d - Math.min(...H.map(h => h.d))) * 0.3), e = h3At(leader.d - back, 2.5), f = h3At(leader.d + 14, 0);
+    eye = [e.x, 4.8, e.z]; tgt = [f.x, 1.2, f.z];
+  }
+  else if (leader.d < L) { eye = [-H3.W / 2 - 9, 3.4, leader.z - 2]; tgt = [0, 1.3, leader.z + 3]; }   // from the infield, the stand behind
+  else { const z = z0 - Math.min(leader.d - L, 24); eye = [-H3.W / 2 - 10, 3.6, z - 3]; tgt = [1, 1.2, z + 2]; }
   const now_ = performance.now(), dt = Math.min(0.1, (now_ - (st.last || now_)) / 1000); st.last = now_;
   if (!st.cam || tt < 0.5 || Math.hypot(eye[0] - st.cam.e[0], eye[2] - st.cam.e[2]) > 60) st.cam = {e: eye, t: tgt};
   else { const k = 1 - Math.exp(-dt * 3); st.cam.e = st.cam.e.map((v, i) => v + (eye[i] - v) * k); st.cam.t = st.cam.t.map((v, i) => v + (tgt[i] - v) * k); }
   const asp = pw / ph, P = M4.persp(0.95, asp, 0.8, 2400), V = M4.look(st.cam.e, st.cam.t, [0, 1, 0]), VP = M4.mul(P, V);
   gl.viewport(0, 0, pw, ph); gl.clearColor(0.93, 0.66, 0.45, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   // sky
-  const sunW = [st.cam.e[0] - 300, 40, st.cam.e[2] - 2000], sp = M4.app(VP, sunW), hz = M4.app(VP, [st.cam.e[0], 0, st.cam.e[2] - 3000]);
+  // the sun stays in one direction of the world; the horizon is taken straight ahead of the camera
+  const fx = st.cam.t[0] - st.cam.e[0], fz = st.cam.t[2] - st.cam.e[2], fl = Math.hypot(fx, fz) || 1;
+  const sp = M4.app(VP, [st.cam.e[0] - 300, 40, st.cam.e[2] - 2000]), hz = M4.app(VP, [st.cam.e[0] + fx / fl * 3000, 0, st.cam.e[2] + fz / fl * 3000]);
+  if (sp[3] <= 0) { sp[0] = 9; sp[1] = 9; sp[3] = 1; }
   gl.disable(gl.DEPTH_TEST); gl.useProgram(st.S);
   gl.uniform1f(u.uHz, hz[1] / hz[3]); gl.uniform1f(u.uAsp, asp); gl.uniform2f(u.uSunP, sp[0] / sp[3], sp[1] / sp[3]);
   gl.bindBuffer(gl.ARRAY_BUFFER, st.skyBuf); gl.enableVertexAttribArray(st.aQ); gl.vertexAttribPointer(st.aQ, 2, gl.FLOAT, false, 0, 0);
@@ -3457,12 +3500,12 @@ function drawRace3d(cv, g, lead){
   gl.bindBuffer(gl.ARRAY_BUFFER, st.boxBuf); gl.disableVertexAttribArray(st.aC); gl.vertexAttrib3f(st.aC, 1, 1, 1);
   gl.vertexAttribPointer(st.aP, 3, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(st.aN, 3, gl.FLOAT, false, 24, 12);
   for (const h of H) {
-    const base = M4.mul(M4.t(h.x, h.y, h.z), M4.rx(h.pitch));
+    const base = M4.mul(M4.mul(M4.t(h.x, h.y, h.z), M4.ry(h.yaw)), M4.rx(h.pitch));
     h3DrawHorse(st, base, hexRgb(F[h.n - 1].coat), hexRgb(F[h.n - 1].c), hexRgb(F[h.n - 1].c2), h.d / 6.2 * Math.PI * 2 + h.n, h.v);
   }
   // soft shadows under the horses
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.uniform1f(u.uA, 0.35); gl.uniform3fv(u.uCol, [0, 0, 0]);
-  for (const h of H) { gl.uniformMatrix4fv(u.uM, false, M4.mul(M4.t(h.x, 0.03, h.z), M4.s(0.8 - h.y * 0.2, 0.01, 2.3 - h.y * 0.4))); gl.drawArrays(gl.TRIANGLES, 0, 36); }
+  for (const h of H) { gl.uniformMatrix4fv(u.uM, false, M4.mul(M4.mul(M4.t(h.x, 0.03, h.z), M4.ry(h.yaw)), M4.s(0.8 - h.y * 0.2, 0.01, 2.3 - h.y * 0.4))); gl.drawArrays(gl.TRIANGLES, 0, 36); }
   gl.depthMask(true); gl.disable(gl.BLEND); gl.uniform1f(u.uA, 1);
   gl.disableVertexAttribArray(st.aP); gl.disableVertexAttribArray(st.aN);
   // --- HUD: number badges and backers above the horses, standings, distance to go ---
@@ -3693,7 +3736,7 @@ function horseSheet(type = "horse"){
   const wheel = type === "wheel", h3 = type === "horse3d";
   sheet(`<h2>${GAMES[type].name}</h2>
     <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią to samo albo nikt nie trafi, nikt nic nie wygrywa."
-      : h3 ? "Eksperymentalny wyścig w 3D: 6 koni, 1000 m z przeszkodami, trwa około minuty. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa."
+      : h3 ? "Eksperymentalny wyścig w 3D: 6 koni, jedno okrążenie owalnego toru (1000 m) z przeszkodami, trwa około minuty. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa."
       : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
     <div class="field"><label for="hs_s">Stawka od osoby (opcjonalnie)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     ${busyHtml(busy)}
