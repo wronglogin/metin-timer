@@ -765,6 +765,50 @@ async function syncClock(db){
     fetch(key, {method:"DELETE"}).catch(() => {});
   } catch {}
 }
+/* ---------- room passwords ----------
+   roompw/<room>/h = sha256(room + "\n" + password), set by whoever creates the room; config/roompw/<room> = the same,
+   set by the admin (overrides; "-" = no password). Knowing the password lets you write your Discord id into
+   roompw/<room>/m/<uid> (the rules compare the hash), and the rules let only those members into rooms/<room>.
+   Rooms that existed before passwords (no hash) stay open until the admin gives them one. */
+const roomHash = (room, pw) => sha256(room + "\n" + String(pw));
+function askRoomPw(room, create, wrong){
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    sheet(`<h2>${create ? "Nowy pokój" : "Hasło do pokoju"}</h2>
+      <p>${create ? `Pokój <b>${esc(room)}</b> jeszcze nie istnieje – zakładasz go. Ustaw hasło: będą go potrzebować wszyscy, którzy mają do niego wejść.` : `Pokój <b>${esc(room)}</b> ma hasło. Wpisz je, żeby wejść (wystarczy raz – potem wchodzisz już bez hasła na każdym urządzeniu).`}</p>
+      ${wrong ? '<p style="color:var(--danger)">Złe hasło. Spróbuj jeszcze raz.</p>' : ""}
+      <div class="field"><label for="rp_pw">Hasło do pokoju</label><input id="rp_pw" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="rp_ok">${create ? "Załóż pokój" : "Wejdź"}</button></div>`, (el, close) => {
+      const inp = el.querySelector("#rp_pw"), ok = () => { const v = inp.value.trim(); if (!v) { inp.focus(); return; } fin(v); close(); };
+      el.querySelector("#rp_ok").onclick = ok; inp.onkeydown = e => { if (e.key === "Enter") ok(); };
+      el.addEventListener("click", e => { if (e.target.closest("[data-close]")) fin(null); });
+      el.closest(".scrim").addEventListener("click", e => { if (e.target === e.currentTarget) fin(null); });
+      setTimeout(() => inp.focus(), 30);
+    });
+  });
+}
+async function roomAccess(db, room){
+  if (!dOn()) return;
+  const me = (dSess() || {}).uid; if (!me) return;
+  const base = `${db}/roompw/${encodeURIComponent(room)}`;
+  const r = await fetch(`${db}/rooms/${encodeURIComponent(room)}.json?shallow=true`).catch(() => null);
+  if (!r) return;
+  if (r.ok) {
+    if ((await r.json()) !== null) return;                       // an existing room: open (no password yet) or already a member
+    // an empty room: if nobody set a password yet, the one who opens it now sets it
+    const pw = await askRoomPw(room, true); if (pw === null) throw new Error("Pokój nie został założony.");
+    const h = await roomHash(room, pw);
+    await fetch(`${base}/h.json`, {method: "PUT", body: JSON.stringify(h)}).catch(() => {});
+    await fetch(`${base}/m/${me}.json`, {method: "PUT", body: JSON.stringify(h)}).catch(() => {});
+    return;
+  }
+  if (r.status !== 401 && r.status !== 403) return;
+  for (let wrong = false; ; wrong = true) {
+    const pw = await askRoomPw(room, false, wrong); if (pw === null) throw new Error(`Bez hasła nie wejdziesz do pokoju ${room}.`);
+    const w = await fetch(`${base}/m/${me}.json`, {method: "PUT", body: JSON.stringify(await roomHash(room, pw))}).catch(() => null);
+    if (w && w.ok) return;
+  }
+}
 async function connect(db, room){
   db = db.trim().replace(/\/+$/, ""); room = room.trim();
   if (await checkBan()) throw new Error("Admin zablokował ci dostęp do pokoi.");
@@ -772,6 +816,7 @@ async function connect(db, room){
   if (!/^[\w-]{3,40}$/.test(room)) throw new Error("Nazwa pokoju: 3–40 znaków, litery, cyfry, - lub _.");
   if (await roomBanned(db, room)) throw new Error("Ten pokój został zablokowany przez admina.");
   if (dOn() && !(await dToken())) { gate(); throw new Error("Zaloguj się przez Discord."); }
+  await roomAccess(db, room);
   disconnect(true);
   online = {db, room, es:null};
   setMode("Łączenie…");
@@ -1879,7 +1924,7 @@ function adminSheet(){
     <ul class="banlist" id="a_people">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć osoby.</li>'}</ul>
     <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
     <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
-      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
+      <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
       <div class="raadd"><input id="a_rname" maxlength="40" autocomplete="off" placeholder="albo wpisz nazwę pokoju"><button class="btn" id="a_radd">Pokaż</button></div>
       <ul class="banlist" id="a_rooms"><li class="pme">Wczytywanie…</li></ul></details>
     <h2 style="font-size:19px">Zbanowani</h2>
@@ -1977,7 +2022,7 @@ function adminSheet(){
           const ago = rl[n] ? Math.round((now() - rl[n]) / 60000) : null;
           const when = rb[n] ? '<span style="color:var(--danger)">zablokowany</span>' : ago == null ? "" : ago < 7 ? '<span style="color:var(--ok,#4ade80)">ktoś jest teraz</span>' : ago < 60 ? `${ago} min temu` : ago < 1440 ? `${Math.round(ago / 60)} h temu` : ago < 43200 ? `${Math.round(ago / 1440)} dni temu` : `<span style="color:var(--danger)">nieużywany ${Math.round(ago / 1440)} dni</span>`;
           return `<li style="flex-wrap:wrap;gap:6px"><span><b>${esc(n)}</b> <span class="pme">${when}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${esc(n)}">Odblokuj</button>`
-            : `<button class="btn" data-ract="zero" data-room="${esc(n)}">Zeruj timery</button><button class="btn" data-ract="reset" data-room="${esc(n)}">Reset</button><button class="btn danger" data-ract="ban" data-room="${esc(n)}">Zablokuj</button><button class="btn danger" data-ract="del" data-room="${esc(n)}">Usuń</button>`}</span></li>`;
+            : `<button class="btn" data-ract="zero" data-room="${esc(n)}">Zeruj timery</button><button class="btn" data-ract="reset" data-room="${esc(n)}">Reset</button><button class="btn danger" data-ract="ban" data-room="${esc(n)}">Zablokuj</button><button class="btn" data-ract="pw" data-room="${esc(n)}">Hasło</button><button class="btn danger" data-ract="del" data-room="${esc(n)}">Usuń</button>`}</span></li>`;
         }).join("") : '<li class="pme">Brak pokoi.</li>';
       } catch { ul.innerHTML = '<li class="pme">Nie udało się wczytać listy.</li>'; }
     };
@@ -1987,6 +2032,16 @@ function adminSheet(){
       const b = e.target.closest("[data-ract]"); if (!b) return;
       const act = b.dataset.ract, room = b.dataset.room, rurl = `${DB_URL}/rooms/${encodeURIComponent(room)}`;
       berr.hidden = true;
+      if (act === "pw") {
+        const li = b.closest("li");
+        li.innerHTML = `<span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%"><b>${esc(room)}</b><input class="rpwin" maxlength="40" placeholder="nowe hasło" autocomplete="off" style="flex:1;min-width:110px"><button class="btn primary" data-rpset>Ustaw</button><button class="btn" data-rpopen>Bez hasła</button><button class="btn" data-rpno>Anuluj</button></span>`;
+        const inp = li.querySelector(".rpwin"); inp.focus();
+        const save = async (val, msg) => { try { await adminPatch({["roompw/" + room]: val}, msg); toast(val === "-" ? `Pokój ${room} jest bez hasła` : `Ustawiono hasło pokoju ${room}`); drawRooms(); } catch (x) { berr.textContent = x.message; berr.hidden = false; } };
+        li.querySelector("[data-rpset]").onclick = async () => { const v = inp.value.trim(); if (!v) { inp.focus(); return; } save(await roomHash(room, v), "Ustawiono hasło pokoju: " + room); };
+        li.querySelector("[data-rpopen]").onclick = () => save("-", "Zdjęto hasło pokoju: " + room);
+        li.querySelector("[data-rpno]").onclick = () => drawRooms();
+        return;
+      }
       if (act !== "unban" && b.dataset.sure !== "1") { const t = b.textContent; b.dataset.sure = "1"; b.textContent = "Na pewno?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = t; } }, 3000); return; }
       b.disabled = true;
       try {
@@ -1998,6 +2053,8 @@ function adminSheet(){
           const r = await fetch(`${rurl}.json`, {method: "DELETE"});
           if (!r.ok) throw new Error("Baza nie pozwoliła usunąć pokoju (" + r.status + ").");
           await fetch(`${DB_URL}/roomlist/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
+          await fetch(`${DB_URL}/roompw/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
+          adminPatch({["roompw/" + room]: null}).catch(() => {});
           extraRooms.delete(room); toast(`Usunięto pokój ${room}`);
         }
         else if (act === "ban") { await adminPatch({["roombans/" + room]: {".sv": "timestamp"}}, "Zablokowano pokój: " + room); toast(`Zablokowano pokój ${room}`); }
@@ -2031,6 +2088,7 @@ function adminSheet(){
         const fresh = !savedPw;
         await adminPatch({}, fresh ? "Zalogowano do panelu" : "");
         if (fresh) { store.set("adminPw", el.querySelector("#a_pw").value); store.set("adminPwAt", Date.now()); }
+        if (dOn() && dSess()) adminPatch({["admins/" + dSess().uid]: true}).catch(() => {});      // the admin can open every room
         el.querySelector("#a_body").hidden = false; el.querySelector("#a_pwf").hidden = true; store.set("adminOk", true); renderGame();
         drawPeople(); drawBans(); drawDebts(); drawReqs();
         const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
