@@ -89,6 +89,9 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .kick:hover{color:var(--fg)}
 .autoline{color:var(--fg)!important;background:color-mix(in srgb,var(--accent) 18%,transparent);border:1px solid var(--accent);border-radius:8px;padding:5px 8px}
 .nwarn{color:var(--window)!important;border:1px solid var(--window);border-radius:8px;padding:6px 8px;font-size:14px!important;margin:4px 0 0!important}
+.loggedas{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:16px}
+.loggedas[hidden],#m_nickf[hidden]{display:none}
+#m_nickf{display:grid;gap:12px}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
 .gfloat.mid{width:min(400px,calc(100vw - 24px))}
 .wpick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
@@ -712,6 +715,8 @@ const meId = () => myNick() ? pkey(myNick()) : deviceId;
    others must give the same password, checked by the database itself (nickcheck only accepts the right hash).
    The hash is remembered on the device, so the password is typed once. The admin can reset a nick's password. */
 const nickSaved = n => !!(store.get("nickok", {}) || {})[pkey(n)];
+// the nick this device is logged in with (it has a password and the password is remembered here)
+const loggedNick = () => { const n = store.get("nickLock", null); return n && nickSaved(n) && n === myNick() ? n : null; };
 if (!store.get("nickLock", null) && myNick() && nickSaved(myNick())) { store.set("nickLock", myNick()); store.set("nickLockAt", Date.now()); }
 async function nickHashOk(k, h){
   const url = `${DB_URL}/nickcheck/${k}/${deviceId}.json`;
@@ -1198,11 +1203,14 @@ function menuSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
+    ${loggedNick() ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(loggedNick())}</b></span><button class="linkbtn" id="m_chnick">zmień nick</button></div>` : ""}
+    <div id="m_nickf"${loggedNick() ? " hidden" : ""}>
     <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}">
-      ${store.get("nickLock", null) ? '<p class="pme" style="font-size:13px;margin:0">Nick ma hasło – zmienić go możesz tylko za zgodą admina.</p>' : ""}</div>
+      ${loggedNick() ? '<p class="pme" style="font-size:13px;margin:0">Zmiana nicku wymaga zgody admina.</p>' : ""}</div>
     <div class="field"><label for="m_npw">Hasło do nicku</label><input id="m_npw" type="password" maxlength="40" autocomplete="off" placeholder="${nickSaved(myNick()) ? "zapamiętane na tym urządzeniu" : "pierwszy raz? wymyśl hasło"}">
       <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p>
       <p id="m_nwarn" class="nwarn" hidden></p></div>
+    </div>
     <div class="field"><label for="m_room">Nazwy pokoi (kilka oddziel średnikiem)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
     <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
@@ -1254,6 +1262,7 @@ function menuSheet(){
       applyGamesOff(); heartbeat();
     });
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
+    const chn = el.querySelector("#m_chnick"); if (chn) chn.onclick = () => { el.querySelector("#m_nickf").hidden = false; chn.closest(".loggedas").hidden = true; el.querySelector("#m_nick").focus(); };
     el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
     el.querySelector("#m_on").onclick = async ev => {
       const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
