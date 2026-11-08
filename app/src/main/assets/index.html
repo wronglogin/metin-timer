@@ -62,6 +62,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
 .people .plist{display:none;position:absolute;top:calc(100% + 6px);left:0;right:auto;max-width:calc(100vw - 24px);z-index:15;min-width:170px;max-height:60vh;overflow:auto;margin:0;padding:8px 0;list-style:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-family:var(--f-ui);font-weight:600;color:var(--fg)}
 .people .plist li{padding:5px 14px;white-space:nowrap}
+.people[hidden]{display:none}
 .people .nogame{color:var(--danger);font-weight:500;font-size:.85em}
 .people .pme{color:var(--muted);font-weight:500}
 .gfloat{position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:19;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow-y:auto;overflow-x:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.55);padding:0 14px 12px;display:grid;gap:8px;text-align:center}
@@ -672,7 +673,7 @@ function disconnect(silent){
   const was = !!online;
   online = null; clockOffset = 0; renderPresence();
   if (was && !silent) {
-    store.set("online", null);
+    store.set("online", null); store.set("stayOffline", true);
     spots = store.get("spots", null) || seedAll();
     H = {hist:{}, redo:{}};
     setMode("Prywatny"); render(); toast("Wylogowano z pokoi – działasz offline na prywatnym timerze.");
@@ -1178,9 +1179,89 @@ function editSheet(s){
     };
   });
 }
+/* "Wspólny pokój": nick, nick password and rooms. Used at the top of the Menu and in the welcome window shown
+   after the site password, so a new person sees right away that they still have to join a room. */
+function roomBlockHtml(welcome = false){
+  const saved = store.get("online", null) || store.get("lastRoom", {db:"", room:""});
+  return `
+    <h2 style="font-size:19px">${welcome ? "Wejdź do pokoju" : "Wspólny pokój"}</h2>
+    <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo. Po wylogowaniu wracasz do prywatnego timera tylko na tym urządzeniu.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
+    ${loggedNick() ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(loggedNick())}</b></span><button class="linkbtn" id="m_chnick">poproś o zmianę nicku</button></div>` : ""}
+    <div id="m_nickf"${loggedNick() ? " hidden" : ""}>
+    <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}">
+      ${loggedNick() ? '<p class="pme" style="font-size:13px;margin:0">Zmiana nicku wymaga zgody admina.</p>' : ""}</div>
+    <div class="field"><label for="m_npw">Hasło do nicku</label><input id="m_npw" type="password" maxlength="40" autocomplete="off" placeholder="${nickSaved(myNick()) ? "zapamiętane na tym urządzeniu" : "pierwszy raz? wymyśl hasło"}">
+      <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p>
+      <p id="m_nwarn" class="nwarn" hidden></p></div>
+    </div>
+    <div class="field"><label for="m_room">Nazwy pokoi (możesz być w kilku pokojach naraz – każdy pokój oddziel ;)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
+    <p id="m_err" style="color:var(--danger)" hidden></p>
+    <div class="acts">${online ? `<button class="btn danger" id="m_off">Wyloguj z pokoi (tryb offline)</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>`;
+}
+function bindRoomBlock(el, close){
+  // nick change: ask the admin; once accepted, the nick fields open here
+  const chn = el.querySelector("#m_chnick"), ln = loggedNick();
+  const openNickFields = () => { el.querySelector("#m_nickf").hidden = false; chn.closest(".loggedas").hidden = true; el.querySelector("#m_nick").focus(); };
+  if (chn && ln) {
+    nickChangeAllowed(ln).then(ok => { if (ok && chn.isConnected) { chn.textContent = "admin się zgodził – zmień nick"; chn.dataset.ok = "1"; } });
+    fetch(`${DB_URL}/nickreq/${pkey(ln)}.json`).then(r => r.ok ? r.json() : null).then(q => { if (q && !chn.dataset.ok && chn.isConnected) { chn.textContent = "prośba wysłana – czeka na admina"; chn.disabled = true; } }).catch(() => {});
+    chn.onclick = async () => {
+      if (chn.dataset.ok) return openNickFields();
+      chn.disabled = true;
+      const r = await fetch(`${DB_URL}/nickreq/${pkey(ln)}.json`, {method: "PUT", body: JSON.stringify({n: ln.slice(0, 20), at: {".sv": "timestamp"}})}).catch(() => null);
+      if (r && r.ok) { chn.textContent = "prośba wysłana – czeka na admina"; toast("Wysłano prośbę o zmianę nicku do admina."); }
+      else { chn.disabled = false; toast("Nie udało się wysłać prośby."); }
+    };
+  }
+  el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
+  el.querySelector("#m_on").onclick = async ev => {
+    const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
+    const rooms = parseRooms(el.querySelector("#m_room").value), nick = el.querySelector("#m_nick").value.trim();
+    try {
+      if (nick.length < 2) { el.querySelector("#m_nick").focus(); throw new Error("Wpisz swój nick (2–20 znaków), żeby wejść do pokoju."); }
+      if (!rooms.length) throw new Error("Wpisz nazwę pokoju.");
+      // a nick with a password stays on this device until the admin allows a change
+      const lock = store.get("nickLock", null), changing = lock && pkey(lock) !== pkey(nick);
+      if (changing && !(await nickChangeAllowed(lock))) throw new Error(`Masz już nick „${lock}”. Zmienić go możesz tylko za zgodą admina.`);
+      // a brand-new nick: warn once that it can't be changed later, the second click confirms
+      if (!lock || changing) {
+        const taken = await fetch(`${DB_URL}/nicknames.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
+        const warn = el.querySelector("#m_nwarn");
+        if (!taken[pkey(nick)] && warn.dataset.ok !== pkey(nick)) {
+          warn.dataset.ok = pkey(nick); warn.hidden = false;
+          warn.innerHTML = `Uwaga: zakładasz nick <b>${esc(nick)}</b>. Po ustawieniu hasła nie zmienisz go bez zgody admina. Sprawdź pisownię i kliknij jeszcze raz, żeby potwierdzić.`;
+          ev.target.disabled = false; ev.target.textContent = "Potwierdzam nick"; return;
+        }
+      }
+      await nickLogin(nick, el.querySelector("#m_npw").value);
+      if (!lock || changing) { store.set("nickLock", nick); store.set("nickLockAt", Math.round(now())); if (changing) fetch(`${DB_URL}/nickreq/${pkey(lock)}.json`, {method: "DELETE"}).catch(() => {}); }
+      const nickChanged = nick !== myNick(); store.set("nick", nick); if (nickChanged && online) heartbeat();
+      const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
+      if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
+      const room = online && rooms.includes(online.room) ? online.room : rooms[0];
+      if (!online || online.room !== room) await connect(DB_URL, room);
+      store.set("rooms", rooms); store.set("lastRoom", {room}); store.set("stayOffline", false); renderRoomSel(); close();
+      toast(rooms.length > 1 ? `Zapisano ${rooms.length} pokoje, aktywny: ${room}. Przełączasz u góry.` : "Połączono z pokojem " + room);
+    }
+    catch (x) { err.textContent = x.message; err.hidden = false; ev.target.disabled = false; }
+  };
+  const off = el.querySelector("#m_off"); if (off) off.onclick = () => { close(); disconnect(); };
+}
+function welcomeSheet(){
+  if (online) return;
+  sheet(`<h2>Witaj!</h2>
+    <p>Hasło do strony już masz. Teraz załóż swój <b>nick</b> i <b>hasło do nicku</b> (to drugie, osobne hasło – chroni twój nick, żeby nikt inny nie grał za ciebie), wpisz nazwę pokoju i kliknij Połącz.</p>
+    ${roomBlockHtml(true)}
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="w_off">Zostań offline (tylko prywatny timer)</button></div>`, (el, close) => {
+    bindRoomBlock(el, close);
+    el.querySelector("#w_off").onclick = () => { store.set("stayOffline", true); close(); toast("Działasz offline. Do pokoju wejdziesz w Menu → Wspólny pokój."); };
+  });
+}
 function menuSheet(){
   const saved = store.get("online", null) || store.get("lastRoom", {db:"", room:""});
   sheet(`<h2>Menu</h2>
+    ${roomBlockHtml()}
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="field"><label>Widok (tylko na tym urządzeniu)</label><div class="seg"><button id="compact" aria-pressed="${!!settings.compact}">Kompaktowy</button><button id="tablet" aria-pressed="${!!settings.tablet}">Tabletowy</button></div>
       <p style="font-size:13px">Kompaktowy zostawia tylko nazwę respu, ↶ ↷ i kanały z licznikami – dobre do małego okna obok gry. Tabletowy układa respy w kilku kolumnach na szerokim ekranie. Możesz włączyć oba.</p></div>
     <div class="field"><label for="zoom">Rozmiar respów (tylko na tym urządzeniu)</label>
@@ -1202,20 +1283,6 @@ function menuSheet(){
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
       <p class="pme" style="font-size:13px;margin:0">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
-    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <h2 style="font-size:19px">Wspólny pokój</h2>
-    <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo. Po wylogowaniu wracasz do prywatnego timera tylko na tym urządzeniu.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
-    ${loggedNick() ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(loggedNick())}</b></span><button class="linkbtn" id="m_chnick">poproś o zmianę nicku</button></div>` : ""}
-    <div id="m_nickf"${loggedNick() ? " hidden" : ""}>
-    <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}">
-      ${loggedNick() ? '<p class="pme" style="font-size:13px;margin:0">Zmiana nicku wymaga zgody admina.</p>' : ""}</div>
-    <div class="field"><label for="m_npw">Hasło do nicku</label><input id="m_npw" type="password" maxlength="40" autocomplete="off" placeholder="${nickSaved(myNick()) ? "zapamiętane na tym urządzeniu" : "pierwszy raz? wymyśl hasło"}">
-      <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p>
-      <p id="m_nwarn" class="nwarn" hidden></p></div>
-    </div>
-    <div class="field"><label for="m_room">Nazwy pokoi (możesz być w kilku pokojach naraz – każdy pokój oddziel ;)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
-    <p id="m_err" style="color:var(--danger)" hidden></p>
-    <div class="acts">${online ? `<button class="btn danger" id="m_off">Wyloguj z pokoi (tryb offline)</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">Globalny reset</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
@@ -1264,53 +1331,7 @@ function menuSheet(){
       applyGamesOff(); heartbeat();
     });
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
-    // nick change: ask the admin; once accepted, the nick fields open here
-    const chn = el.querySelector("#m_chnick"), ln = loggedNick();
-    const openNickFields = () => { el.querySelector("#m_nickf").hidden = false; chn.closest(".loggedas").hidden = true; el.querySelector("#m_nick").focus(); };
-    if (chn && ln) {
-      nickChangeAllowed(ln).then(ok => { if (ok && chn.isConnected) { chn.textContent = "admin się zgodził – zmień nick"; chn.dataset.ok = "1"; } });
-      fetch(`${DB_URL}/nickreq/${pkey(ln)}.json`).then(r => r.ok ? r.json() : null).then(q => { if (q && !chn.dataset.ok && chn.isConnected) { chn.textContent = "prośba wysłana – czeka na admina"; chn.disabled = true; } }).catch(() => {});
-      chn.onclick = async () => {
-        if (chn.dataset.ok) return openNickFields();
-        chn.disabled = true;
-        const r = await fetch(`${DB_URL}/nickreq/${pkey(ln)}.json`, {method: "PUT", body: JSON.stringify({n: ln.slice(0, 20), at: {".sv": "timestamp"}})}).catch(() => null);
-        if (r && r.ok) { chn.textContent = "prośba wysłana – czeka na admina"; toast("Wysłano prośbę o zmianę nicku do admina."); }
-        else { chn.disabled = false; toast("Nie udało się wysłać prośby."); }
-      };
-    }
-    el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
-    el.querySelector("#m_on").onclick = async ev => {
-      const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
-      const rooms = parseRooms(el.querySelector("#m_room").value), nick = el.querySelector("#m_nick").value.trim();
-      try {
-        if (nick.length < 2) { el.querySelector("#m_nick").focus(); throw new Error("Wpisz swój nick (2–20 znaków), żeby wejść do pokoju."); }
-        if (!rooms.length) throw new Error("Wpisz nazwę pokoju.");
-        // a nick with a password stays on this device until the admin allows a change
-        const lock = store.get("nickLock", null), changing = lock && pkey(lock) !== pkey(nick);
-        if (changing && !(await nickChangeAllowed(lock))) throw new Error(`Masz już nick „${lock}”. Zmienić go możesz tylko za zgodą admina.`);
-        // a brand-new nick: warn once that it can't be changed later, the second click confirms
-        if (!lock || changing) {
-          const taken = await fetch(`${DB_URL}/nicknames.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
-          const warn = el.querySelector("#m_nwarn");
-          if (!taken[pkey(nick)] && warn.dataset.ok !== pkey(nick)) {
-            warn.dataset.ok = pkey(nick); warn.hidden = false;
-            warn.innerHTML = `Uwaga: zakładasz nick <b>${esc(nick)}</b>. Po ustawieniu hasła nie zmienisz go bez zgody admina. Sprawdź pisownię i kliknij jeszcze raz, żeby potwierdzić.`;
-            ev.target.disabled = false; ev.target.textContent = "Potwierdzam nick"; return;
-          }
-        }
-        await nickLogin(nick, el.querySelector("#m_npw").value);
-        if (!lock || changing) { store.set("nickLock", nick); store.set("nickLockAt", Math.round(now())); if (changing) fetch(`${DB_URL}/nickreq/${pkey(lock)}.json`, {method: "DELETE"}).catch(() => {}); }
-        const nickChanged = nick !== myNick(); store.set("nick", nick); if (nickChanged && online) heartbeat();
-        const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
-        if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
-        const room = online && rooms.includes(online.room) ? online.room : rooms[0];
-        if (!online || online.room !== room) await connect(DB_URL, room);
-        store.set("rooms", rooms); store.set("lastRoom", {room}); renderRoomSel(); close();
-        toast(rooms.length > 1 ? `Zapisano ${rooms.length} pokoje, aktywny: ${room}. Przełączasz u góry.` : "Połączono z pokojem " + room);
-      }
-      catch (x) { err.textContent = x.message; err.hidden = false; ev.target.disabled = false; }
-    };
-    const off = el.querySelector("#m_off"); if (off) off.onclick = () => { close(); disconnect(); };
+    bindRoomBlock(el, close);
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
@@ -3277,12 +3298,14 @@ if (IN_APP) setTimeout(async () => {
 const auto = store.get("online", null);
 // rooms connect only after the site password was entered
 afterUnlock.push(() => {
-  if (!(auto && auto.room) || online) return;
+  if (online) return;
+  // not in a room yet: a welcome window explains the second step (nick + nick password + room)
+  if (!(auto && auto.room)) { if (!store.get("stayOffline", false)) setTimeout(welcomeSheet, 300); return; }
   // nick is required in rooms: ask for it once if this device joined before nicks existed
-  if (!myNick()) { store.set("online", null); setTimeout(() => { menuSheet(); toast("Wpisz swój nick, żeby wrócić do pokoju " + auto.room); }, 300); return; }
+  if (!myNick()) { store.set("online", null); setTimeout(() => { welcomeSheet(); toast("Wpisz swój nick, żeby wrócić do pokoju " + auto.room); }, 300); return; }
   nickLogin(myNick(), "").then(() => connect(DB_URL, auto.room)).catch(x => {
     setMode("Prywatny");
-    if (/hasło|Hasło/.test(x.message)) setTimeout(() => { menuSheet(); toast("Ustaw albo wpisz hasło do nicku, żeby wrócić do pokoju " + auto.room, 6000); }, 300);
+    if (/hasło|Hasło/.test(x.message)) setTimeout(() => { welcomeSheet(); toast("Ustaw albo wpisz hasło do nicku, żeby wrócić do pokoju " + auto.room, 6000); }, 300);
   });
 });
 gate();
