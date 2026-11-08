@@ -1936,7 +1936,7 @@ function adminSheet(){
     <div class="field" id="a_pwf"><label for="a_pw">Hasło admina</label><div class="raadd"><input id="a_pw" type="password" autocomplete="new-password" value="${esc(savedPw)}"><button class="btn primary" id="a_login">Zaloguj</button></div></div>
     <p id="a_lerr" style="color:var(--danger)" hidden></p>
     <div class="abody" id="a_body" hidden>
-    <div class="field"><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
+    <div class="field"${dOn() ? " hidden" : ""}><label for="a_site">Nowe hasło do strony</label><input id="a_site" type="text" autocomplete="off" placeholder="np. Smerfy">
       <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_sitego">Zmień hasło</button></div>
       <p id="a_serr" style="color:var(--danger);margin:0" hidden></p></div>
     <div class="field"><label for="a_ch">Liczba kanałów na serwerze (dla wszystkich)</label>
@@ -1948,11 +1948,11 @@ function adminSheet(){
       <p class="pme" style="font-size:13px;margin:0">Porównaj zegar w grze z zegarem obok tytułu: jeśli gra pokazuje o 25 s więcej, wpisz 25, jeśli o minutę mniej – -60. Przesuwa zegar przy tytule i codzienne zerowanie o 01:00 u wszystkich. Timery liczą czas od kliknięcia, więc same nie potrzebują przesunięcia.</p>
       <div class="acts" style="margin-top:6px"><button class="btn primary" id="a_goffok">Zapisz przesunięcie</button></div>
       <p id="a_gerr" style="color:var(--danger);margin:0" hidden></p></div>
-    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="field"><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
-    <div class="field"><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
+    ${dOn() ? "" : '<hr style="border:0;border-top:1px solid var(--rule);width:100%">'}
+    <div class="field"${dOn() ? " hidden" : ""}><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
+    <div class="field"${dOn() ? " hidden" : ""}><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
       <p class="pme" style="font-size:13px;margin:0">Ta osoba będzie mogła raz zmienić nick w Menu.</p></div>
-    <div class="field"><label for="a_nick">Reset hasła nicku (np. ktoś zapomniał hasła)</label><div class="raadd"><input id="a_nick" maxlength="20" autocomplete="off" placeholder="nick"><button class="btn" id="a_nreset">Resetuj</button></div>
+    <div class="field"${dOn() ? " hidden" : ""}><label for="a_nick">Reset hasła nicku (np. ktoś zapomniał hasła)</label><div class="raadd"><input id="a_nick" maxlength="20" autocomplete="off" placeholder="nick"><button class="btn" id="a_nreset">Resetuj</button></div>
       <p class="pme" style="font-size:13px;margin:0">Po resecie pierwsza osoba, która wejdzie tym nickiem, ustawi nowe hasło.</p></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Osoby w pokoju${online ? " " + esc(online.room) : ""}</h2>
@@ -1974,7 +1974,7 @@ function adminSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="field"><label>Wszyscy użytkownicy</label><div class="acts" style="justify-content:flex-start"><button class="btn" id="a_reload">Odśwież stronę u wszystkich</button><button class="btn danger" id="a_logout">Wyloguj wszystkich</button></div>
       <p class="pme" style="font-size:13px;margin:0">„Wyloguj wszystkich” – każdy (ty też) musi się zalogować ponownie przez Discord; otwarte strony same się przeładują.</p></div>
-    <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
+    <div class="field"${dOn() ? " hidden" : ""}><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
       <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <details class="alogd" id="a_logd"><summary>Dziennik akcji admina (ostatnie 48 h)</summary><ul class="banlist" id="a_log"><li class="pme">Wczytywanie…</li></ul></details>
