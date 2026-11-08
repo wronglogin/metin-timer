@@ -269,7 +269,7 @@
             ".validate": "newData.isString() && newData.val().length <= 40"
           },
           "type": {
-            ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps|horse|wheel)$/)"
+            ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps|horse|horse3d|wheel)$/)"
           },
           "by": {
             ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
@@ -431,7 +431,7 @@
           "$k": {
             ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{6,24}$/) && newData.hasChildren(['type', 'n', 'w', 'at'])",
             "type": {
-              ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps|horse|wheel)$/)"
+              ".validate": "newData.isString() && newData.val().matches(/^(dice|coin|reflex|guess|rps|horse|horse3d|wheel)$/)"
             },
             "s": {
               ".validate": "newData.isString() && newData.val().length <= 30"
