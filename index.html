@@ -2666,14 +2666,21 @@ const yangTxt = s => /\dk+\s*$/i.test(String(s || "")) ? String(s).trim() + " ya
 const stakeField = (id, label = "Stawka od osoby") => {
   const saved = parseStake(store.get("rlStake", "")) / 1e6;
   return `<div class="field"><label for="${id}">${label} (puste = gra za darmo, bez rozliczeń)</label>
-    <div class="stakein"><input id="${id}" inputmode="decimal" maxlength="9" autocomplete="off" placeholder="np. 10"${saved > 0 ? ` value="${String(Math.round(saved * 100) / 100).replace(".", ",")}"` : ""}><span>kk yang</span></div></div>`;
+    <div class="stakein"><input id="${id}" class="stakenum" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="1–1000"${saved >= 1 && saved <= 1000 && Number.isInteger(saved) ? ` value="${saved}"` : ""}><span>kk yang</span></div></div>`;
 };
+// stake fields take whole numbers 1–1000 only: anything else is removed while typing
+document.addEventListener("input", e => {
+  const el = e.target; if (!el.classList || !el.classList.contains("stakenum")) return;
+  let v = el.value.replace(/\D+/g, "").replace(/^0+/, "");
+  if (v && +v > 1000) v = "1000";
+  if (v !== el.value) el.value = v;
+});
 // the number typed in a stake field as a stake ("" = free); throws on anything that is not a number
 function stakeOf(inp){
-  const t = String(inp.value || "").trim().replace(/\s+/g, "").replace(/kk$/i, "");
+  const t = String(inp.value || "").trim();
   if (!t) return "";
-  if (!/^\d+([.,]\d{1,2})?$/.test(t) || parseFloat(t.replace(",", ".")) <= 0) throw new Error("Stawka: wpisz samą liczbę kk yang, np. 10 albo 2,5.");
-  return t.replace(".", ",") + "kk";
+  if (!/^\d{1,4}$/.test(t) || +t < 1 || +t > 1000) throw new Error("Stawka: wpisz liczbę od 1 do 1000 (kk yang).");
+  return String(+t) + "kk";
 }
 let rwaitTimer = null;
 // "don't show other people's games": the window only opens if this person plays, runs it, or asked to see it
