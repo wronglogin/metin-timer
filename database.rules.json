@@ -684,6 +684,20 @@
         "$room": {
           ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isNumber()"
         }
+      },
+      "ubans": {
+        "$uid": {
+          ".validate": "$uid.matches(/^d[0-9]{5,25}$/) && newData.hasChildren(['n'])",
+          "n": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
       }
     }
   }

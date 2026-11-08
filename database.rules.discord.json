@@ -2,8 +2,8 @@
   "rules": {
     "rooms": {
       "$room": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && ($room.matches(/^[A-Za-z0-9_-]{3,40}$/) && !root.child('config/roombans').child($room).exists()) && (!((root.child('config/roompw/'+$room).exists() && root.child('config/roompw/'+$room).val() !== '-') || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/h').exists())) || (root.child('roompw/'+$room+'/m/'+auth.uid).exists() && ((root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('config/roompw/'+$room).val()) || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('roompw/'+$room+'/h').val()))) || root.child('config/admins/'+auth.uid).val() === true)",
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && ($room.matches(/^[A-Za-z0-9_-]{3,40}$/) && !root.child('config/roombans').child($room).exists()) && (!((root.child('config/roompw/'+$room).exists() && root.child('config/roompw/'+$room).val() !== '-') || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/h').exists())) || (root.child('roompw/'+$room+'/m/'+auth.uid).exists() && ((root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('config/roompw/'+$room).val()) || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('roompw/'+$room+'/h').val()))) || root.child('config/admins/'+auth.uid).val() === true)",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && ($room.matches(/^[A-Za-z0-9_-]{3,40}$/) && !root.child('config/roombans').child($room).exists()) && (!((root.child('config/roompw/'+$room).exists() && root.child('config/roompw/'+$room).val() !== '-') || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/h').exists())) || (root.child('roompw/'+$room+'/m/'+auth.uid).exists() && ((root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('config/roompw/'+$room).val()) || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('roompw/'+$room+'/h').val()))) || root.child('config/admins/'+auth.uid).val() === true)",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && ($room.matches(/^[A-Za-z0-9_-]{3,40}$/) && !root.child('config/roombans').child($room).exists()) && (!((root.child('config/roompw/'+$room).exists() && root.child('config/roompw/'+$room).val() !== '-') || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/h').exists())) || (root.child('roompw/'+$room+'/m/'+auth.uid).exists() && ((root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('config/roompw/'+$room).val()) || (!root.child('config/roompw/'+$room).exists() && root.child('roompw/'+$room+'/m/'+auth.uid).val() === root.child('roompw/'+$room+'/h').val()))) || root.child('config/admins/'+auth.uid).val() === true)",
         "spots": {
           "$id": {
             ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['id', 'map', 'name', 'min', 'max'])",
@@ -520,9 +520,9 @@
     },
     "nicks": {
       ".read": false,
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (!newData.exists() && root.child('config/acctepoch').val() > now - 60000)",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (!newData.exists() && root.child('config/acctepoch').val() > now - 60000)",
       "$k": {
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (!data.exists() || (root.child('config/nickreset/' + $k).exists() && root.child('config/nickreset/' + $k).val() > data.child('at').val()))",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (!data.exists() || (root.child('config/nickreset/' + $k).exists() && root.child('config/nickreset/' + $k).val() > data.child('at').val()))",
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.hasChildren(['h', 'at'])",
         "h": {
           ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
@@ -542,24 +542,24 @@
       "$k": {
         "$dev": {
           ".read": false,
-          ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+          ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
           ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && $dev.matches(/^[a-z0-9]{6,24}$/) && newData.isString() && newData.val() === root.child('nicks').child($k).child('h').val()"
         }
       }
     },
     "nicknames": {
-      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (!newData.exists() && root.child('config/acctepoch').val() > now - 60000)",
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (!newData.exists() && root.child('config/acctepoch').val() > now - 60000)",
       "$k": {
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (!data.exists())",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (!data.exists())",
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && root.child('nicks').child($k).exists() && newData.isString() && newData.val().length >= 2 && newData.val().length <= 20"
       }
     },
     "nickreq": {
-      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (!newData.exists() && root.child('config/acctepoch').val() > now - 60000)",
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (!newData.exists() && root.child('config/acctepoch').val() > now - 60000)",
       "$k": {
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.hasChildren(['n', 'at'])",
         "n": {
           ".validate": "newData.isString() && newData.val().length <= 20"
@@ -573,16 +573,16 @@
       }
     },
     "roomlist": {
-      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
       "$room": {
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && ($room.matches(/^[A-Za-z0-9_-]{3,40}$/))",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && ($room.matches(/^[A-Za-z0-9_-]{3,40}$/))",
         ".validate": "newData.isNumber() && newData.val() <= now + 60000"
       }
     },
     "clock": {
       "$c": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         ".validate": "newData.val() === now"
       }
     },
@@ -591,20 +591,20 @@
       ".write": false
     },
     "config": {
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val()) && (root.child('adminuids/'+auth.uid).val() === true || root.child('subadmins/'+auth.uid).exists())",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val()) && (root.child('adminuids/'+auth.uid).val() === true || root.child('subadmins/'+auth.uid).exists())",
       "channels": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10 && newData.val() % 1 === 0"
       },
       "pw": {
         ".validate": "newData.isString()"
       },
       "sitepw": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         ".validate": "newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
       },
       "bans": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         "$id": {
           ".validate": "$id.matches(/^[a-z0-9]{6,24}$/) && newData.hasChildren(['n', 'at'])",
           "n": {
@@ -624,7 +624,7 @@
         }
       },
       "nickchange": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         "$k": {
           ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.isNumber()"
         }
@@ -634,13 +634,13 @@
         ".validate": "newData.isNumber()"
       },
       "roombans": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         "$room": {
           ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isNumber()"
         }
       },
       "alog": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         "$k": {
           ".validate": "$k.matches(/^[0-9]{14}-[a-z0-9]{1,24}$/) && newData.hasChildren(['s', 'at'])",
           "s": {
@@ -666,7 +666,7 @@
         ".validate": "newData.isNumber()"
       },
       "gameoff": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         ".validate": "newData.isNumber() && newData.val() >= -3600 && newData.val() <= 3600"
       },
       "roompw": {
@@ -680,10 +680,26 @@
         }
       },
       "roomdel": {
-        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists()",
         "$room": {
           ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isNumber()"
         }
+      },
+      "ubans": {
+        "$uid": {
+          ".validate": "$uid.matches(/^d[0-9]{5,25}$/) && newData.hasChildren(['n'])",
+          "n": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "at": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          },
+          ".read": "auth != null && auth.uid === $uid"
+        },
+        ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (root.child('adminuids/'+auth.uid).val() === true || root.child('subadmins/'+auth.uid).exists())"
       }
     },
     "authpending": {
@@ -695,14 +711,14 @@
     },
     "roompw": {
       "$room": {
-        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && root.child('config/admins/'+auth.uid).val() === true",
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && root.child('config/admins/'+auth.uid).val() === true",
         "h": {
-          ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !data.exists() && !root.child('rooms/'+$room).exists()",
+          ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && !data.exists() && !root.child('rooms/'+$room).exists()",
           ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isString() && newData.val().matches(/^[0-9a-f]{64}$/)"
         },
         "m": {
           "$uid": {
-            ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && auth.uid === $uid",
+            ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && auth.uid === $uid",
             ".validate": "newData.isString() && (newData.val() === root.child('config/roompw/'+$room).val() || (!root.child('config/roompw/'+$room).exists() && newData.val() === root.child('roompw/'+$room+'/h').val()))"
           }
         }
@@ -714,8 +730,8 @@
       }
     },
     "subadmins": {
-      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && root.child('adminuids/'+auth.uid).val() === true",
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && root.child('adminuids/'+auth.uid).val() === true",
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && root.child('adminuids/'+auth.uid).val() === true",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && root.child('adminuids/'+auth.uid).val() === true",
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
         ".validate": "$uid.matches(/^d[0-9]{5,25}$/) && newData.hasChildren(['n'])",
@@ -724,6 +740,22 @@
         },
         "at": {
           ".validate": "newData.isNumber()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "users": {
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (root.child('adminuids/'+auth.uid).val() === true || root.child('subadmins/'+auth.uid).exists())",
+      "$uid": {
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['n', 'at'])",
+        "n": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+        },
+        "at": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000"
         },
         "$other": {
           ".validate": false
