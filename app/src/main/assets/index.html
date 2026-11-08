@@ -722,7 +722,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794160982";
+const BUILD = "1794161293";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -736,8 +736,9 @@ const reloadSafe = () => {
 };
 function goNewBuild(){
   if (!newBuild) return;
-  store.set("buildTry", {v: newBuild, at: Date.now()});
-  const u = new URL(location.href); u.searchParams.set("v", newBuild);
+  const u = new URL(location.href);
+  if (u.searchParams.get("v") === newBuild) u.searchParams.set("r", Date.now().toString(36)); else u.searchParams.delete("r");
+  u.searchParams.set("v", newBuild);
   location.replace(u.toString());
 }
 function showNewBuildBar(){
@@ -752,16 +753,18 @@ async function checkBuild(){
   try {
     const t = (await fetch(`version.txt?t=${Date.now()}`, {cache: "no-store"}).then(r => r.ok ? r.text() : "")).trim();
     if (!/^\d+$/.test(t) || +t <= +BUILD) return;
-    const tried = store.get("buildTry", null);
-    // already reloaded for this version and still got the old page (the site's cache lags a few minutes): wait a bit
-    if (tried && tried.v === t && Date.now() - (+tried.at || 0) < 600e3) { newBuild = t; showNewBuildBar(); return; }
     newBuild = t;
+    // this page was already loaded with ?v=<that version> and is still old: the site itself lags a few minutes
+    // behind (GitHub Pages), so only offer the button. Otherwise the phone/browser just showed a cached copy,
+    // and a reload with ?v= always fetches the fresh one.
+    if (new URL(location.href).searchParams.get("v") === t) { showNewBuildBar(); return; }
     if (reloadSafe()) goNewBuild(); else showNewBuildBar();
   } catch {}
 }
 setInterval(checkBuild, 180e3);
 // a refresh is waiting: do it as soon as the window/game is closed (unless we just tried and the cache was still old)
-setInterval(() => { const tr = store.get("buildTry", null) || {}; if (newBuild && reloadSafe() && !(tr.v === newBuild && Date.now() - (+tr.at || 0) < 600e3)) goNewBuild(); }, 15e3);
+// (while the site still lags, try again at most every 2 minutes)
+setInterval(() => { if (newBuild && reloadSafe() && (new URL(location.href).searchParams.get("v") !== newBuild || Date.now() - PAGE_AT > 120e3)) goNewBuild(); }, 15e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkBuild(); });
 window.addEventListener("online", checkBuild);
 setTimeout(checkBuild, 5000);
