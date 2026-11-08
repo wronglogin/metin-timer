@@ -106,7 +106,14 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .loggedas[hidden],#m_nickf[hidden]{display:none}
 #m_nickf{display:grid;gap:12px}
 .acct{display:grid;gap:10px;border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
-.acct h3{margin:0;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.acct h3{margin:0;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
+/* Menu: every option is its own box with a bold title, so the options are easy to tell apart */
+.menusheet{gap:14px}
+.menusheet > .field,.menusheet > .acct{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.025);gap:8px}
+.menusheet > .field > label,.menusheet > .acct > h3{font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
+.menusheet > .field > label .opt,.menusheet .acct h3 .opt{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+.menusheet > hr{margin:4px 0}
+.menusheet > h2 + h2,.menusheet > hr + h2{margin-top:2px}
 .nickf{display:grid;gap:10px}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
 .gfloat.mid{width:min(400px,calc(100vw - 24px))}
@@ -350,7 +357,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .acts .grow{margin-right:auto}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .field .fhint{margin:2px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}
-.seg .addmap{border-style:dashed}
+.tab.addtab{color:var(--accent);opacity:.85}.tab.addtab:hover{opacity:1}
 .seg button{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:6px 12px;min-height:38px}
 .seg button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
 .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:8px 14px;z-index:30;font-size:15px;max-width:90vw}
@@ -1159,7 +1166,8 @@ function renderTabs(){
     let r = 0; for (const m of visibleMaps()) for (const sp of mapSpots(m.id)) for (const c of CHS()) if (status(sp, c).cls === "ready") r++;
     mine = `<button class="tab mine" role="tab" data-tab="mine" aria-selected="${view === "maps" && tab === "mine"}">Twoje mapy${r ? `<span class="badge ready" title="Na minusie">${r}</span>` : ""}</button>`;
   }
-  const out = mine + html;
+  // "+ Mapa": the room's own maps are added from the map bar, where everyone in the room sees them
+  const out = mine + html + `<button class="tab addtab" data-addmap title="Dodaj własną mapę – w pokoju zobaczą ją wszyscy (tu też zmienisz nazwę lub usuniesz)">+ Mapa</button>`;
   if (out !== renderTabs.last) { $("#tabs").innerHTML = out; renderTabs.last = out; }
   updateHistButtons();
   $("#wikiBtn").setAttribute("aria-pressed", view === "wiki");
@@ -1317,6 +1325,7 @@ setTimeout(applyGamesOff, 0);
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
+document.addEventListener("click", e => { if (e.target.closest("[data-addmap]")) mapsSheet(); });
 // "Darmowa gra": empties the stake and starts the game straight away (no stake = nothing is settled in Rozliczenia)
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-free]"); if (!b || b.disabled) return;
@@ -1476,9 +1485,9 @@ function menuSheet(){
   sheet(`<h2>Menu</h2>
     ${roomBlockHtml()}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="field"><label>Widok (tylko na tym urządzeniu)</label><div class="seg"><button id="compact" aria-pressed="${!!settings.compact}">Kompaktowy</button><button id="tablet" aria-pressed="${!!settings.tablet}">Tabletowy</button></div>
+    <div class="field"><label>Widok <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg"><button id="compact" aria-pressed="${!!settings.compact}">Kompaktowy</button><button id="tablet" aria-pressed="${!!settings.tablet}">Tabletowy</button></div>
       <p style="font-size:13px">Kompaktowy zostawia tylko nazwę respu, ↶ ↷ i kanały z licznikami – dobre do małego okna obok gry. Tabletowy układa respy w kilku kolumnach na szerokim ekranie. Możesz włączyć oba.</p></div>
-    <div class="field"><label for="zoom">Rozmiar respów (tylko na tym urządzeniu)</label>
+    <div class="field"><label for="zoom">Rozmiar respów <span class="opt">· tylko na tym urządzeniu</span></label>
       <div class="zoomrow"><input id="zoom" type="range" min="60" max="150" step="5" value="${Math.round(settings.zoom * 100)}"><output id="zoomv">${Math.round(settings.zoom * 100)}%</output><button class="btn" id="zoom0">100%</button></div></div>
     <div class="field"><label>Dźwięk alarmu</label><div class="seg">${["Wyciszony","Dźwięk 1","Dźwięk 2","Dźwięk 3","Trąbka","Własny dźwięk"].map((t, i) => `<button data-s="${i}" aria-pressed="${settings.sound === i}">${t}</button>`).join("")}</div>
       <div id="customf" ${settings.sound === 5 ? "" : "hidden"} style="display:grid;gap:6px;margin-top:6px">
@@ -1487,13 +1496,13 @@ function menuSheet(){
         <input id="customfile" type="file" accept="audio/*" hidden>
         <p style="font-size:13px">Najlepiej krótki plik (do kilku sekund, maks. 1 MB). Zostaje tylko na tym urządzeniu.</p>
       </div></div>
-    <div class="field"><label>Komunikaty głosowe (tylko na tym urządzeniu)</label>
+    <div class="field"><label>Komunikaty głosowe <span class="opt">· tylko na tym urządzeniu</span></label>
       <div class="seg"><button id="voice" aria-pressed="${!!settings.voice}">Czytaj na głos</button><button id="voicetest">Posłuchaj</button></div>
       <p class="fhint">${canSpeak() ? "Np. „Czerwony Las 2, kanał 3, stoi”. Używa głosu telefonu albo komputera." : "To urządzenie nie ma syntezatora mowy. Zaktualizuj aplikację albo otwórz timer w Chrome."}</p></div>
     <div class="field"><label for="vol">Głośność alarmu</label>
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
-    <div class="field"><label>Widoczne mapy (tylko na tym urządzeniu)</label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}<button class="addmap" id="m_maps">+ Dodaj mapę</button></div>
-      <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. „+ Dodaj mapę” tworzy własną mapę (w pokoju widzą ją wszyscy), tam też zmienisz jej nazwę albo ją usuniesz. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+    <div class="field"><label>Widoczne mapy <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
+      <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. Własną mapę dla całego pokoju dodasz przyciskiem „+ Mapa” na końcu paska map. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
@@ -1505,6 +1514,7 @@ function menuSheet(){
     <div class="acts" style="justify-content:flex-start"><a class="btn primary" style="text-decoration:none;display:inline-flex;align-items:center" href="${APK_URL}" target="_blank" rel="noopener">Pobierz MetinTimer.apk</a></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>`,
   (el, close) => {
+    el.classList.add("menusheet");
     latestRelease().then(rel => { const box = el.querySelector("#appinfo"); if (box && box.isConnected) box.innerHTML = appInfoHtml(rel); });
     const vr = el.querySelector("#vol"), vv = el.querySelector("#volv");
     vr.oninput = () => { settings.volume = vr.value / 100; vv.textContent = vr.value + "%"; store.set("settings", settings); audio(); };
@@ -1546,7 +1556,6 @@ function menuSheet(){
     });
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
     bindRoomBlock(el, close);
-    el.querySelector("#m_maps").onclick = () => { close(); mapsSheet(); };
     el.querySelector("#m_exp").onclick = () => { close(); exportSheet(); };
     el.querySelector("#m_imp").onclick = () => { close(); importSheet(); };
     el.querySelector("#m_reset").onclick = () => { close(); resetSheet(); };
