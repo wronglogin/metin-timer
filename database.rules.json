@@ -489,7 +489,7 @@
         },
         "maps": {
           "$id": {
-            ".validate": "$id.matches(/^x[a-z0-9]{3,9}$/) && newData.hasChildren(['n', 'mn', 'mx'])",
+            ".validate": "$id.matches(/^x[a-z0-9]{3,9}$/) && newData.hasChildren(['n'])",
             "n": {
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
             },
