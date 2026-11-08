@@ -562,6 +562,12 @@
           ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.isNumber()"
         }
       },
+      "nickchange": {
+        ".read": true,
+        "$k": {
+          ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.isNumber()"
+        }
+      },
       "$other": {
         ".validate": false
       }
