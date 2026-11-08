@@ -675,6 +675,12 @@
         "$uid": {
           ".validate": "newData.isBoolean()"
         }
+      },
+      "roomdel": {
+        ".read": true,
+        "$room": {
+          ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.isNumber()"
+        }
       }
     }
   }
