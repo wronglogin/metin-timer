@@ -85,6 +85,9 @@ header{grid-template-columns:minmax(0,1fr)}
 .ghead .gx:hover{color:var(--fg);border-color:var(--muted)}
 .gfloat.wide{width:min(520px,calc(100vw - 24px))}
 canvas.htrack{width:100%;display:block;border-radius:8px}
+.h3wrap{position:relative}
+.h3wrap .h3hud{position:absolute;left:0;top:0;width:100%;pointer-events:none}
+.gfloat.wide3d{width:min(760px,calc(100vw - 24px))}
 .hpick{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
 .hbtn{display:grid;gap:0;justify-items:center;padding:3px 2px;border:2px solid var(--rule);border-radius:8px;background:var(--surface-2);color:var(--fg);cursor:pointer;min-height:40px}
 .hbtn b{width:22px;height:22px;border-radius:50%;background:var(--hc);color:#111;display:grid;place-items:center;font-size:13px}
@@ -2330,7 +2333,9 @@ document.addEventListener("click", e => {
 function roomBusy(fromLottery = false){
   const g = G(), r = remoteRoot && remoteRoot.roulette, t = now(), hereNow = presentSet();
   const involved = (by, ids) => [by, ...ids].some(id => id && hereNow.has(id));
-  const gameOn = g && g.id && !["done", "declined", "cancel"].includes(g.state) && t - (+g.la || +g.at || 0) < IDLE_FREE
+  // a running race or spin always blocks until it ends (the 3D race takes about a minute without any clicks)
+  const running = g && g.state === "race" && g.go && t < +g.go + 75000;
+  const gameOn = g && g.id && !["done", "declined", "cancel"].includes(g.state) && (running || t - (+g.la || +g.at || 0) < IDLE_FREE)
     && involved(g.by, Object.keys(g.p || {}));
   const lotOn = r && r.id && (r.wait ? t - (+r.la || +r.at || 0) < IDLE_FREE && involved(r.bd, Object.keys(r.p || {})) : t - (+r.at || 0) < 9000);
   if (gameOn && !g.oc) return `W pokoju trwa już gra „${GAMES[g.type].name}”. Poczekajcie, aż się skończy.`;
@@ -2514,6 +2519,7 @@ const GAMES = {
   guess:  {name: "Zgadnij liczbę",         min: 2, duel: false},
   rps:    {name: "Kamień, papier, nożyce", min: 2, duel: true},
   horse:  {name: "Wyścig konny",           min: 2, duel: false},
+  horse3d:{name: "Wyścig konny 3D",        min: 2, duel: false},
   wheel:  {name: "Ruletka",                min: 2, duel: false},
 };
 const DIE = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
@@ -2543,7 +2549,7 @@ function logGame(g, winnerNick, stake = g.s, force = false){
   const old = sortedKeys(remoteRoot.glog || {}); for (const x of old.slice(0, Math.max(0, old.length + 1 - 30))) rc[`glog/${x}`] = null;
   // who owes whom: losers pay their stake to the winner(s)
   let win = [], lose = [];
-  if (g.type === "horse" || g.type === "wheel") { const wh = +g.wh, bets = horseBets(g); win = bets.filter(b => b.h === wh).map(b => b.id); lose = win.length ? bets.filter(b => b.h !== wh).map(b => b.id) : []; }
+  if (isPool(g)) { const wh = +g.wh, bets = horseBets(g); win = bets.filter(b => b.h === wh).map(b => b.id); lose = win.length ? bets.filter(b => b.h !== wh).map(b => b.id) : []; }
   else if (g.w && g.w !== "draw" && g.w !== "none") { win = [g.w]; lose = Object.keys(g.p || {}).filter(id => id !== g.w); }
   Object.assign(rc, debtChanges(GAMES[g.type].name, g.p || {}, win, lose, g.s));
   gamePatch(rc);
@@ -2552,10 +2558,10 @@ const gameLocked = g => !!g && ["invite", "ready", "play", "race"].includes(g.st
 /* the owner closed the window of a game that was still going: the room is free for the next game. A race or a
    roulette spin already has its result (it follows from the seed), so it is written to the results and debts first. */
 function finishPrevious(){
-  const g = G(); if (!g || !g.id || g.logged || !(g.type === "horse" || g.type === "wheel") || g.state !== "race" || !g.seed) return;
-  const wh = g.type === "horse" ? raceModel(+g.seed).wh : wheelModel(+g.seed).wh, done = {...g, wh, state: "done"};
+  const g = G(); if (!g || !g.id || g.logged || !isPool(g) || g.state !== "race" || !g.seed) return;
+  const wh = isHorse(g) ? raceModelFor(g).wh : wheelModel(+g.seed).wh, done = {...g, wh, state: "done"};
   const {winners, pool} = horsePayout(done, wh), who = winners.length ? winners.map(w => w.n).join(", ") : "nikt";
-  logGame(done, `${g.type === "horse" ? hname(wh) : WCOL[wh].n}: ${who}`, g.s ? poolText(g.s, pool) : "", true);
+  logGame(done, `${isHorse(g) ? hname(wh) : WCOL[wh].n}: ${who}`, g.s ? poolText(g.s, pool) : "", true);
 }
 function startGame(type, players, stake, extra = {}, id = hkey()){
   finishPrevious();
@@ -2646,7 +2652,7 @@ async function gameTick(){
   if (!host) poolHandover(g);
   dropAbsent(g);
   readyTick(g);
-  if (g.type === "horse" && host) horseTick(g);
+  if (isHorse(g) && host) horseTick(g);
   if (g.type === "wheel" && host) wheelTick(g);
   if (g.type === "dice" && g.state === "play" && host) {
     const r = +g.rd || 0, left = diceLeft(g, r), rolled = diceRoll(g, r);
@@ -2674,7 +2680,7 @@ async function gameTick(){
     if (c[a] && c[b] && sec && !rv[meId()]) gamePatch({[`game/rv/${meId()}`]: {ch: sec.ch, salt: sec.salt}});
     if (host && rv[a] && rv[b] && settling !== g.id + (g.round || 0)) { settling = g.id + (g.round || 0); rpsSettle(g); }
   }
-  if (g.type !== "horse" && g.state === "done" && host && !g.logged && g.w && g.w !== "draw") logGame(g, nickOf(g, g.w));
+  if (!isHorse(g) && g.state === "done" && host && !g.logged && g.w && g.w !== "draw") logGame(g, nickOf(g, g.w));
 }
 setInterval(gameTick, 1000);
 const rpsPair = g => [g.by, Object.keys(g.p || {}).find(id => id !== g.by)];
@@ -2711,9 +2717,9 @@ function renderGame(){
   let el = document.getElementById("gamewin");
   if (!el || el.dataset.gid !== g.id) {
     closeGame();
-    el = document.createElement("div"); el.id = "gamewin"; el.className = "gfloat gamebox" + (g.type === "horse" ? " wide" : g.type === "wheel" ? " mid" : ""); el.dataset.gid = g.id;
+    el = document.createElement("div"); el.id = "gamewin"; el.className = "gfloat gamebox" + (g.type === "horse" ? " wide" : g.type === "horse3d" ? " wide3d" : g.type === "wheel" ? " mid" : ""); el.dataset.gid = g.id;
     el.setAttribute("role", "dialog"); el.setAttribute("aria-label", GAMES[g.type].name);
-    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${["wheel", "horse", "dice", "coin"].includes(g.type) ? `<button class="gx" data-gsnd aria-label="Dźwięk gry">${gameSnd ? "🔊" : "🔇"}</button>` : ""}${amIn(g) || g.type === "horse" || g.type === "wheel" ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
+    el.innerHTML = `<div class="ghead" data-drag><h2>${GAMES[g.type].name}</h2>${["wheel", "horse", "horse3d", "dice", "coin"].includes(g.type) ? `<button class="gx" data-gsnd aria-label="Dźwięk gry">${gameSnd ? "🔊" : "🔇"}</button>` : ""}${amIn(g) || isPool(g) ? "" : '<span class="pme">oglądasz</span>'}<button class="gx" data-gclose aria-label="Zamknij">✕</button></div><div class="gbody"></div>`;
     document.body.appendChild(el);
     floatPanel(el, g.type); hPick = null;
     el.addEventListener("click", gameClick);
@@ -2726,7 +2732,7 @@ function renderGame(){
   if (body.dataset.html !== html) {
     // someone else's move re-draws the window: keep what this person is typing
     const keep = [...body.querySelectorAll("input[id]")].map(i => [i.id, i.value]), focus = document.activeElement && body.contains(document.activeElement) ? document.activeElement.id : null;
-    const canvas = body.querySelector("canvas.htrack");
+    const canvas = body.querySelector(".h3wrap") || body.querySelector("canvas.htrack");
     body.innerHTML = html; body.dataset.html = html;
     for (const [id, v] of keep) { const i = body.querySelector("#" + id); if (i) i.value = v; }
     if (focus) { const f = body.querySelector("#" + focus); if (f) f.focus(); }
@@ -2828,6 +2834,7 @@ const HORSES = [
   {n: 4, c: "#4fd39b", name: "Wicher"}, {n: 5, c: "#b57ee8", name: "Kometa"}, {n: 6, c: "#f29a4a", name: "Burza"},
 ];
 const hname = n => HORSES[n - 1] ? HORSES[n - 1].name : "?";
+const isHorse = g => !!g && (g.type === "horse" || g.type === "horse3d");
 // every race the horses start from different lanes: game.lanes = "352164" means lane 1 has horse 3, lane 2 horse 5, …
 function shuffleLanes(){ const a = [1, 2, 3, 4, 5, 6]; for (let i = 5; i > 0; i--) { const j = randInt(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a.join(""); }
 const laneOrder = g => /^[1-6]{6}$/.test(g.lanes || "") ? [...g.lanes].map(Number) : [1, 2, 3, 4, 5, 6];
@@ -2867,7 +2874,7 @@ function poolStart(){
    happened), the start passes to another bettor who is in the room: the one with the lowest id, the same choice
    on every screen. That person gets the start button; 30 s later it can move on again. */
 const START_WAIT = 30000;
-const isPool = g => g.type === "horse" || g.type === "wheel";
+const isPool = g => g.type === "horse" || g.type === "horse3d" || g.type === "wheel";
 const lobbyIds = g => isPool(g) ? horseBets(g).map(b => b.id) : Object.keys(g.p || {});
 const poolDeadline = g => (+g.os || +g.at || 0) + START_WAIT;
 // the owner left the room, or did not start for 30 s: the present player with the lowest id takes over
@@ -2910,7 +2917,7 @@ function readyTick(g){
 GAME_VIEW_READY = g => {
   const ids = lobbyIds(g), ok = g.ok || {}, left = Math.max(0, Math.ceil((+g.okd - now()) / 1000)), mine = ids.includes(meId());
   clearTimeout(gameTimer); gameTimer = setTimeout(renderGame, 250);
-  const label = id => isPool(g) && g.b && g.b[id] ? (g.type === "horse" ? hname(+g.b[id].h) : WCOL[+g.b[id].h].n.toLowerCase()) + " · " : "";
+  const label = id => isPool(g) && g.b && g.b[id] ? (isHorse(g) ? hname(+g.b[id].h) : WCOL[+g.b[id].h].n.toLowerCase()) + " · " : "";
   return (isPool(g) ? `<p>${g.s ? `Stawka <b>${esc(g.s)}</b> · ` : ""}prowadzi ${esc(g.byn || "?")}</p>` : stakeLine(g))
     + `<p class="autoline">Potwierdźcie gotowość: <b>${left} s</b>. Kto nie potwierdzi, tylko ogląda.</p>`
     + ids.map(id => `<div class="gline"><span>${esc((g.p && g.p[id]) || (g.b && g.b[id] && g.b[id].n) || "?")}${id === meId() ? ' <span class="pme">(ty)</span>' : ""}</span><b>${label(id)}${ok[id] ? '<span class="pos">gotowy ✓</span>' : '<span class="pme">czeka…</span>'}</b></div>`).join("")
@@ -2918,7 +2925,7 @@ GAME_VIEW_READY = g => {
 };
 function horseTick(g){
   if (g.state === "race" && g.seed) {
-    const m = raceModel(+g.seed);
+    const m = raceModelFor(g);
     if (now() > +g.go + (m.horses[m.wh - 1].T + 1.2) * 1000) {
       const {winners, pool} = horsePayout(g, m.wh);
       gamePatch({"game/state": "done", "game/wh": m.wh, "game/w": winners.length ? winners[0].id : "none"});
@@ -3147,6 +3154,338 @@ function clack(a, vol, freq){
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
   s.connect(f).connect(g).connect(master); s.start(t, Math.random() * 0.5); s.stop(t + 0.06);
 }
+/* ---------- 3D horse race (experimental) ----------
+   Same bets, payouts and seed as the 2D race, but a long race (about 50 s over 1000 m with hurdles) drawn in 3D
+   with plain WebGL: a turf course at sunset, white rails, brush hurdles the horses jump, a grandstand at the finish,
+   and horses with jockeys built from boxes. The camera rides behind the leaders and moves to the side for the finish. */
+const H3 = {L: 1000, HURDLES: [180, 360, 540, 720, 880], LANE: 1.75, W: 13};
+function raceModel3d(seed){
+  const key = "3d:" + seed;
+  if (raceCache.has(key)) return raceCache.get(key);
+  const rnd = mulberry(seed ^ 0x3d3d3d), SEG = 20;
+  const horses = HORSES.map(() => {
+    const T = 49.5 + rnd() * 3;                                    // finish time in seconds (about 50 s); the field stays close
+    const w = Array.from({length: SEG}, () => 0.9 + rnd() * 0.2);   // how long each twentieth takes: the order keeps changing
+    const sum = w.reduce((x, y) => x + y, 0), cum = [0];
+    for (const x of w) cum.push(cum[cum.length - 1] + x / sum * T);
+    return {T, cum};
+  });
+  const wh = horses.reduce((bi, h, i) => h.T < horses[bi].T ? i : bi, 0) + 1;
+  const m = {horses, wh, end: Math.max(...horses.map(h => h.T))};
+  raceCache.set(key, m); return m;
+}
+const raceModelFor = g => g.type === "horse3d" ? raceModel3d(+g.seed) : raceModel(+g.seed);
+
+// --- tiny matrix helpers (column-major, like WebGL) ---
+const M4 = {
+  id: () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  mul(a, b){ const r = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[i + 4 * k] * b[k + 4 * j]; r[i + 4 * j] = s; } return r; },
+  t: (x, y, z) => [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1],
+  s: (x, y, z) => [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1],
+  rx: a => { const c = Math.cos(a), s = Math.sin(a); return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]; },
+  ry: a => { const c = Math.cos(a), s = Math.sin(a); return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]; },
+  rz: a => { const c = Math.cos(a), s = Math.sin(a); return [c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1]; },
+  persp(f, a, n, fr){ const t = 1 / Math.tan(f / 2); return [t / a,0,0,0, 0,t,0,0, 0,0,(fr + n) / (n - fr),-1, 0,0,2 * fr * n / (n - fr),0]; },
+  look(e, c, u){
+    const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], nrm = v => { const l = Math.hypot(...v) || 1; return v.map(x => x / l); };
+    const cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], dt = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const z = nrm(sub(e, c)), x = nrm(cr(u, z)), y = cr(z, x);
+    return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dt(x, e),-dt(y, e),-dt(z, e),1];
+  },
+  app: (m, p) => { const x = p[0], y = p[1], z = p[2]; return [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14], m[3] * x + m[7] * y + m[11] * z + m[15]]; },
+};
+const hexRgb = h => { h = h.replace("#", ""); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255); };
+// unit box (−0.5…0.5) as 36 vertices: position, normal
+const BOX = (() => {
+  const f = [[0,0,1],[0,0,-1],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0]], out = [];
+  for (const n of f) {
+    const u = n[1] ? [1,0,0] : [0,1,0], v = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+    const c = (a, b) => [0, 1, 2].map(i => n[i] * .5 + u[i] * a * .5 + v[i] * b * .5);
+    for (const [a, b] of [[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]]) out.push(...c(a, b), ...n);
+  }
+  return new Float32Array(out);
+})();
+// static scenery is merged into one buffer: x,y,z, nx,ny,nz, r,g,b per vertex
+function h3Builder(){
+  const d = [];
+  const box = (m, col) => {
+    for (let i = 0; i < 36; i++) {
+      const p = M4.app(m, [BOX[i * 6], BOX[i * 6 + 1], BOX[i * 6 + 2]]), n = [BOX[i * 6 + 3], BOX[i * 6 + 4], BOX[i * 6 + 5]];
+      const nn = [m[0] * n[0] + m[4] * n[1] + m[8] * n[2], m[1] * n[0] + m[5] * n[1] + m[9] * n[2], m[2] * n[0] + m[6] * n[1] + m[10] * n[2]], l = Math.hypot(...nn) || 1;
+      d.push(p[0], p[1], p[2], nn[0] / l, nn[1] / l, nn[2] / l, col[0], col[1], col[2]);
+    }
+  };
+  // flat quad on the ground (y), from x0..x1, z0..z1
+  const quad = (x0, x1, z0, z1, y, col) => { for (const [x, z] of [[x0,z0],[x1,z0],[x1,z1],[x0,z0],[x1,z1],[x0,z1]]) d.push(x, y, z, 0, 1, 0, col[0], col[1], col[2]); };
+  const at = (x, y, z, sx, sy, sz, r = 0) => M4.mul(M4.mul(M4.t(x, y, z), M4.ry(r)), M4.s(sx, sy, sz));
+  return {d, box, quad, at};
+}
+function h3Scene(){
+  const B = h3Builder(), {L, W, HURDLES} = H3, rnd = mulberry(77), half = W / 2;
+  const turfA = hexRgb("#4f8f3a"), turfB = hexRgb("#5a9c41"), field = hexRgb("#3f7432"), white = [.96, .96, .94];
+  // the turf with mowing stripes, the grass around it and a big field to the horizon
+  for (let z = 80; z > -L - 160; z -= 12) B.quad(-half, half, z, z - 12, 0, (Math.round(z / 12) & 1) ? turfA : turfB);
+  B.quad(-60, -half, 80, -L - 160, -0.04, field); B.quad(half, 60, 80, -L - 160, -0.04, field);
+  B.quad(-1500, 1500, 1500, -2600, -0.6, hexRgb("#36652c"));
+  // white rails with posts on both sides
+  for (const s of [-1, 1]) {
+    const x = s * (half + 0.25);
+    for (let z = 70; z > -L - 150; z -= 50) B.box(B.at(x, 1.0, z - 25, 0.08, 0.1, 50), white);
+    for (let z = 70; z > -L - 150; z -= 6) B.box(B.at(x, 0.5, z, 0.1, 1.0, 0.1), white);
+  }
+  // start line and finish line; furlong poles every 200 m
+  B.box(B.at(0, 0.012, 0, W, 0.02, 0.25), white);
+  B.box(B.at(0, 0.012, -L, W, 0.02, 0.5), white);
+  for (let d = 200; d < L; d += 200) { B.box(B.at(half + 0.9, 1.5, -d, 0.16, 3, 0.16), white); B.box(B.at(half + 0.9, 2.8, -d, 0.5, 0.5, 0.06), hexRgb("#d6453a")); }
+  // finish post with a red disc, a judges' box
+  B.box(B.at(half + 1.2, 2.5, -L, 0.2, 5, 0.2), white); B.box(B.at(half + 1.2, 4.6, -L, 1.1, 1.1, 0.1), hexRgb("#d63a30"));
+  B.box(B.at(half + 5, 2, -L - 16, 3, 4, 3), hexRgb("#e9e4d6")); B.box(B.at(half + 5, 4.2, -L - 16, 3.4, 0.3, 3.4), hexRgb("#2e5b3a"));
+  // brush hurdles across the track, with white wings
+  for (const h of HURDLES) {
+    B.box(B.at(0, 0.45, -h, W - 0.8, 0.9, 0.7), hexRgb("#4a6b2a"));
+    B.box(B.at(0, 0.95, -h, W - 0.8, 0.12, 0.8), hexRgb("#6d8a3a"));
+    B.box(B.at(0, 0.12, -h + 0.45, W - 0.8, 0.24, 0.12), white);
+    for (const s of [-1, 1]) { B.box(B.at(s * (half - 0.3), 0.7, -h, 0.12, 1.4, 1.2), white); B.box(B.at(s * (half + 0.5), 0.9, -h + 0.9, 0.1, 1.5, 2.4, s * 0.5), white); }
+  }
+  // grandstand on the left of the home straight: tiers full of people, a roof on pillars
+  const s0 = -L + 220, s1 = -L - 40, len = s0 - s1, mid = (s0 + s1) / 2;
+  const fans = ["#e9e3d5", "#d65a4a", "#4e8fd6", "#e8c24a", "#7a5fa0", "#2f3440", "#c98f6a", "#5fb36b", "#f0f0f0"].map(hexRgb), skin = [hexRgb("#e2b38f"), hexRgb("#b7835c"), hexRgb("#6e4a33")];
+  for (let r = 0; r < 9; r++) {
+    const x = -half - 7 - r * 1.4, y = 0.6 + r * 0.8;
+    B.box(B.at(x, y / 2, mid, 1.4, y, len), hexRgb(r & 1 ? "#8c8f96" : "#7d8088"));
+    for (let z = s1 + 1; z < s0 - 1; z += 1.1 + rnd() * 0.5) {
+      if (rnd() < 0.12) continue;
+      const c = fans[Math.floor(rnd() * fans.length)], zz = z + rnd() * 0.3;
+      B.box(B.at(x, y + 0.35, zz, 0.42, 0.7, 0.5), c);
+      B.box(B.at(x, y + 0.85, zz, 0.26, 0.28, 0.26), skin[Math.floor(rnd() * 3)]);
+    }
+  }
+  B.box(B.at(-half - 13, 9.6, mid, 15, 0.4, len + 4), hexRgb("#cfd3d8"));
+  for (let z = s1; z <= s0; z += 25) B.box(B.at(-half - 19.5, 5, z, 0.4, 9.5, 0.4), hexRgb("#cfd3d8"));
+  B.box(B.at(-half - 20.5, 5, mid, 1, 10, len + 4), hexRgb("#6e7178"));
+  // people standing along the rail by the finish
+  for (let z = -L + 120; z > -L - 30; z -= 0.9 + rnd() * 0.6) {
+    const c = fans[Math.floor(rnd() * fans.length)], x = -half - 1.5 - rnd() * 3;
+    B.box(B.at(x, 0.75, z, 0.45, 1.5, 0.35), c); B.box(B.at(x, 1.65, z, 0.28, 0.3, 0.28), skin[Math.floor(rnd() * 3)]);
+  }
+  // hedges and trees along the course, hills far away
+  for (const s of [-1, 1]) B.box(B.at(s * (half + 4), 0.6, -L / 2, 1.2, 1.2, L + 240), hexRgb("#2f5a28"));
+  for (let i = 0; i < 160; i++) {
+    const s = rnd() < 0.5 ? -1 : 1, x = s * (half + 9 + rnd() * 70), z = 60 - rnd() * (L + 260);
+    if (s < 0 && z < s0 + 10 && z > s1 - 10 && x > -half - 35) continue;            // not inside the grandstand
+    const h = 3 + rnd() * 4, tone = 0.75 + rnd() * 0.4;
+    B.box(B.at(x, h / 3, z, 0.4, h / 1.5, 0.4), hexRgb("#4b3626"));
+    B.box(B.at(x, h * 0.75, z, h * 0.55, h * 0.5, h * 0.55, rnd()), hexRgb("#2b5a2a").map(v => v * tone));
+    B.box(B.at(x, h * 1.05, z, h * 0.35, h * 0.35, h * 0.35, rnd()), hexRgb("#336b30").map(v => v * tone));
+  }
+  for (let i = 0; i < 14; i++) { const x = -900 + i * 140 + rnd() * 60, w = 160 + rnd() * 140, hh = 25 + rnd() * 45; B.box(B.at(x, hh / 2 - 5, -L - 650 - rnd() * 150, w, hh, 60, rnd() * 0.6 - 0.3), hexRgb("#4b4f6b")); }
+  return new Float32Array(B.d);
+}
+const H3VS = `attribute vec3 p;attribute vec3 n;attribute vec3 c;uniform mat4 uVP,uM;uniform vec3 uCol;varying vec3 vC,vN,vW;
+void main(){vec4 w=uM*vec4(p,1.0);gl_Position=uVP*w;vN=mat3(uM)*n;vC=c*uCol;vW=w.xyz;}`;
+const H3FS = `precision highp float;varying vec3 vC,vN,vW;uniform vec3 uSun,uFog,uEye;uniform float uA;
+void main(){vec3 N=normalize(vN);float d=max(dot(N,uSun),0.0);vec3 amb=mix(vec3(.30,.27,.32),vec3(.55,.52,.62),N.y*.5+.5);
+float f=clamp((length(vW-uEye)-250.0)/1100.0,0.0,1.0);vec3 col=vC*(amb+vec3(1.0,.78,.55)*d*.85);gl_FragColor=vec4(mix(col,uFog,f*f*(3.0-2.0*f)),uA);}`;
+// the sky: a sunset gradient with the sun low over the far end of the course
+const H3SKY_VS = `attribute vec2 q;varying vec2 v;void main(){v=q;gl_Position=vec4(q,0.999,1.0);}`;
+const H3SKY_FS = `precision mediump float;varying vec2 v;uniform float uHz,uAsp;uniform vec2 uSunP;
+void main(){float h=v.y-uHz;vec3 top=vec3(.20,.24,.45),mid=vec3(.86,.48,.42),low=vec3(1.0,.74,.42);
+vec3 c=h<0.0?vec3(.93,.66,.45):mix(low,mix(mid,top,smoothstep(.25,1.1,h)),smoothstep(0.0,.3,h));
+vec2 d=(v-uSunP)*vec2(uAsp,1.0);float r=length(d);c+=vec3(1.0,.75,.4)*exp(-r*5.0)*.55;c=mix(c,vec3(1.0,.93,.75),smoothstep(.075,.06,r));
+gl_FragColor=vec4(c,1.0);}`;
+function h3Init(cv){
+  const gl = cv.getContext("webgl", {antialias: true, alpha: false, depth: true}) || cv.getContext("experimental-webgl");
+  if (!gl) return null;
+  const prog = (vs, fs) => {
+    const p = gl.createProgram();
+    for (const [t, s] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); gl.attachShader(p, sh); }
+    gl.linkProgram(p); return p;
+  };
+  const P = prog(H3VS, H3FS), S = prog(H3SKY_VS, H3SKY_FS);
+  const loc = (p, n) => gl.getUniformLocation(p, n);
+  const st = {gl, P, S, u: {}, cam: null};
+  for (const n of ["uVP", "uM", "uCol", "uEye", "uSun", "uFog", "uA"]) st.u[n] = loc(P, n);
+  for (const n of ["uHz", "uAsp", "uSunP"]) st.u[n] = loc(S, n);
+  st.aP = gl.getAttribLocation(P, "p"); st.aN = gl.getAttribLocation(P, "n"); st.aC = gl.getAttribLocation(P, "c"); st.aQ = gl.getAttribLocation(S, "q");
+  const scene = h3Scene();
+  st.sceneBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.sceneBuf); gl.bufferData(gl.ARRAY_BUFFER, scene, gl.STATIC_DRAW); st.sceneN = scene.length / 9;
+  st.boxBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.boxBuf); gl.bufferData(gl.ARRAY_BUFFER, BOX, gl.STATIC_DRAW);
+  st.skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  return st;
+}
+// where a horse is: distance run (m), height (jumping) and nose-up/down pitch
+function h3HorseAt(m, i, t){
+  const h = m.horses[i]; let d;
+  if (t <= 0) d = 0;
+  else if (t < h.T) d = horsePos(h, t) * H3.L;
+  else { const o = Math.min(t - h.T, 3.2); d = H3.L + 20 * o - 3.1 * o * o; }     // runs on past the line and slows down
+  let y = 0, pitch = 0;
+  for (const hz of H3.HURDLES) { const k = (d - hz + 3.6) / 7.2; if (k > 0 && k < 1) { y = Math.sin(Math.PI * k) * 1.15; pitch = Math.cos(Math.PI * k) * 0.32; } }
+  const v = t <= 0 ? 0 : t < h.T ? H3.L / h.T : Math.max(0, 20 - 6.2 * Math.min(t - h.T, 3.2));
+  return {d, y, pitch, v};
+}
+function h3DrawHorse(st, base, coat, silk, ph, v){
+  const {gl, u} = st, go = v > 0.5, amp = Math.min(1, v / 14);
+  const draw = (m, col) => { gl.uniformMatrix4fv(u.uM, false, m); gl.uniform3fv(u.uCol, col); gl.drawArrays(gl.TRIANGLES, 0, 36); };
+  const part = (parent, px, py, pz, rx, ox, oy, oz, sx, sy, sz, col) => {
+    const j = M4.mul(M4.mul(parent, M4.t(px, py, pz)), M4.rx(rx));
+    draw(M4.mul(M4.mul(j, M4.t(ox, oy, oz)), M4.s(sx, sy, sz)), col); return j;
+  };
+  const bob = go ? Math.sin(ph * 2) * 0.07 * amp : 0, B = M4.mul(base, M4.t(0, bob, 0));
+  const dark = coat.map(x => x * 0.55), hoof = [.12, .11, .1], white = [.95, .95, .95], skin = hexRgb("#e2b38f");
+  // body
+  part(B, 0, 1.28, 0, 0, 0, 0, 0, 0.56, 0.64, 1.5, coat);
+  part(B, 0, 1.25, -0.72, 0, 0, 0, 0, 0.5, 0.6, 0.42, coat);
+  part(B, 0, 1.32, 0.66, 0, 0, 0, 0, 0.6, 0.66, 0.48, coat);
+  // legs: rotary gallop, each leg has its own moment in the stride
+  const legs = [[-0.17, 1.02, -0.62, 1.7, 1], [0.17, 1.02, -0.62, 2.15, 1], [-0.18, 1.08, 0.62, 0, 0], [0.18, 1.08, 0.62, 0.45, 0]];
+  for (const [x, y, z, o, front] of legs) {
+    const a = go ? Math.sin(ph + o) * 0.75 * amp : 0, lift = go ? Math.max(0, Math.sin(ph + o + 1.4)) * amp : 0;
+    const j = part(B, x, y, z, a, 0, -0.27, 0, 0.17, 0.56, 0.2, coat);
+    const kj = part(j, 0, -0.52, 0, front ? -lift * 1.3 : lift * 1.1, 0, -0.26, 0, 0.12, 0.54, 0.12, dark);
+    part(kj, 0, -0.52, 0, 0, 0, -0.04, -0.02, 0.15, 0.1, 0.18, hoof);
+  }
+  // neck, head, ears, mane
+  const nk = go ? -0.95 + Math.sin(ph * 2 + 0.5) * 0.08 * amp : -0.7;
+  const nj = part(B, 0, 1.45, -0.85, nk, 0, 0.42, 0, 0.3, 0.9, 0.36, coat);
+  part(nj, 0, 0.45, 0.17, 0, 0, 0, 0, 0.08, 0.9, 0.06, dark);
+  const hj = M4.mul(M4.mul(nj, M4.t(0, 0.86, 0)), M4.rx(-nk - 0.75));
+  draw(M4.mul(M4.mul(hj, M4.t(0, 0, -0.26)), M4.s(0.26, 0.28, 0.62)), coat);
+  draw(M4.mul(M4.mul(hj, M4.t(0, -0.03, -0.55)), M4.s(0.22, 0.22, 0.12)), dark);
+  for (const s of [-1, 1]) draw(M4.mul(M4.mul(hj, M4.t(s * 0.08, 0.2, 0.02)), M4.s(0.06, 0.16, 0.06)), coat);
+  // tail
+  part(B, 0, 1.5, 0.9, 0.9 + (go ? Math.sin(ph * 2) * 0.15 : 0.3), 0, -0.35, 0, 0.12, 0.75, 0.1, dark);
+  // saddle cloth in the horse's colour, the jockey crouched over the withers in the same silks
+  part(B, 0, 1.56, -0.05, 0, 0, 0, 0, 0.62, 0.2, 0.62, silk);
+  part(B, 0, 1.6, -0.05, 0, 0, 0, 0, 0.64, 0.07, 0.3, white);
+  const jb = go ? Math.sin(ph * 2 + 1) * 0.05 * amp : 0;
+  const J = M4.mul(B, M4.t(0, jb, 0));
+  for (const s of [-1, 1]) { part(J, s * 0.22, 1.75, -0.05, 0.3, 0, 0, 0, 0.13, 0.32, 0.45, white); }
+  const tj = part(J, 0, 1.9, -0.15, -1.0, 0, 0.27, 0, 0.42, 0.56, 0.3, silk);
+  for (const s of [-1, 1]) part(tj, s * 0.24, 0.42, 0, 1.8, 0, -0.25, 0, 0.11, 0.5, 0.11, white);
+  const hd = M4.mul(M4.mul(tj, M4.t(0, 0.66, 0.02)), M4.rx(1.0));
+  draw(M4.mul(hd, M4.s(0.22, 0.25, 0.24)), skin);
+  draw(M4.mul(M4.mul(hd, M4.t(0, 0.09, -0.02)), M4.s(0.26, 0.14, 0.29)), silk);
+  draw(M4.mul(M4.mul(hd, M4.t(0, 0.04, -0.17)), M4.s(0.24, 0.04, 0.12)), silk);
+}
+function drawRace3d(cv, g, lead){
+  let st = cv._h3;
+  if (st === undefined) {
+    // the 3D view sits in a box with a second canvas on top for numbers, names and the standings
+    const wrap = document.createElement("div"); wrap.className = "h3wrap";
+    cv.replaceWith(wrap); wrap.appendChild(cv);
+    const hud = document.createElement("canvas"); hud.className = "h3hud"; wrap.appendChild(hud);
+    st = cv._h3 = h3Init(cv);
+    if (st) st.hud = hud;
+    else { hud.remove(); wrap.insertAdjacentHTML("beforeend", '<p class="pme">Ta przeglądarka nie obsługuje grafiki 3D – pokazuję zwykły wyścig.</p>'); }
+  }
+  const m = g.seed ? raceModel3d(+g.seed) : null, t = m ? (now() - +g.go) / 1000 : -1;
+  if (!st) { horseSound(cv, g, t, 0, m); return; }
+  const {gl, u, hud} = st;
+  const realW = cv.clientWidth || 300, cssH = Math.round(Math.min(realW * 0.56, 420)), dpr = Math.min(2, devicePixelRatio || 1);
+  const pw = Math.round(realW * dpr), ph = Math.round(cssH * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; cv.style.height = cssH + "px"; hud.width = pw; hud.height = ph; hud.style.height = cssH + "px"; }
+  const order = laneOrder(g), tt = g.state === "bet" || !m ? -1 : t;
+  const H = HORSES.map((h, i) => {
+    const lane = order.indexOf(h.n), p = m ? h3HorseAt(m, i, tt) : {d: 0, y: 0, pitch: 0, v: 0};
+    return {...p, n: h.n, x: (lane - 2.5) * H3.LANE, z: -p.d};
+  });
+  const leader = H.reduce((a, b) => b.d > a.d ? b : a, H[0]), L = H3.L;
+  // camera: slowly circling the start while bets are open, behind the leaders during the race, beside the finish at the end
+  let eye, tgt;
+  const clock = Date.now() / 1000;
+  if (tt < 0.5) { const a = 0.9 + Math.sin(clock * 0.15) * 0.35; eye = [Math.sin(a) * 13, 3.2, -Math.cos(a) * 13 + 1]; tgt = [0, 1.3, 0]; }
+  else if (leader.d < L - 120) { const back = 12 + Math.min(8, (leader.d - Math.min(...H.map(h => h.d))) * 0.3); eye = [2.5, 4.8, leader.z + back]; tgt = [0, 1.2, leader.z - 14]; }
+  else if (leader.d < L) { eye = [H3.W / 2 + 9, 3.4, leader.z - 2]; tgt = [0, 1.3, leader.z + 3]; }
+  else { const z = -Math.min(leader.d, L + 24); eye = [H3.W / 2 + 10, 3.6, z - 3]; tgt = [-1, 1.2, z + 2]; }
+  const now_ = performance.now(), dt = Math.min(0.1, (now_ - (st.last || now_)) / 1000); st.last = now_;
+  if (!st.cam || tt < 0.5 || Math.hypot(eye[0] - st.cam.e[0], eye[2] - st.cam.e[2]) > 60) st.cam = {e: eye, t: tgt};
+  else { const k = 1 - Math.exp(-dt * 3); st.cam.e = st.cam.e.map((v, i) => v + (eye[i] - v) * k); st.cam.t = st.cam.t.map((v, i) => v + (tgt[i] - v) * k); }
+  const asp = pw / ph, P = M4.persp(0.95, asp, 0.8, 2400), V = M4.look(st.cam.e, st.cam.t, [0, 1, 0]), VP = M4.mul(P, V);
+  gl.viewport(0, 0, pw, ph); gl.clearColor(0.93, 0.66, 0.45, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  // sky
+  const sunW = [st.cam.e[0] - 300, 40, st.cam.e[2] - 2000], sp = M4.app(VP, sunW), hz = M4.app(VP, [st.cam.e[0], 0, st.cam.e[2] - 3000]);
+  gl.disable(gl.DEPTH_TEST); gl.useProgram(st.S);
+  gl.uniform1f(u.uHz, hz[1] / hz[3]); gl.uniform1f(u.uAsp, asp); gl.uniform2f(u.uSunP, sp[0] / sp[3], sp[1] / sp[3]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, st.skyBuf); gl.enableVertexAttribArray(st.aQ); gl.vertexAttribPointer(st.aQ, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disableVertexAttribArray(st.aQ);
+  // scenery
+  gl.enable(gl.DEPTH_TEST); gl.useProgram(st.P);
+  gl.uniformMatrix4fv(u.uVP, false, VP); gl.uniform3fv(u.uEye, st.cam.e);
+  const sl = [-0.35, 0.5, -0.8], sn = Math.hypot(...sl); gl.uniform3fv(u.uSun, sl.map(x => x / sn)); gl.uniform3fv(u.uFog, [0.93, 0.68, 0.5]); gl.uniform1f(u.uA, 1);
+  gl.bindBuffer(gl.ARRAY_BUFFER, st.sceneBuf);
+  gl.enableVertexAttribArray(st.aP); gl.enableVertexAttribArray(st.aN); gl.enableVertexAttribArray(st.aC);
+  gl.vertexAttribPointer(st.aP, 3, gl.FLOAT, false, 36, 0); gl.vertexAttribPointer(st.aN, 3, gl.FLOAT, false, 36, 12); gl.vertexAttribPointer(st.aC, 3, gl.FLOAT, false, 36, 24);
+  gl.uniformMatrix4fv(u.uM, false, M4.id()); gl.uniform3fv(u.uCol, [1, 1, 1]);
+  gl.drawArrays(gl.TRIANGLES, 0, st.sceneN);
+  // horses (one box buffer, colour per part)
+  gl.bindBuffer(gl.ARRAY_BUFFER, st.boxBuf); gl.disableVertexAttribArray(st.aC); gl.vertexAttrib3f(st.aC, 1, 1, 1);
+  gl.vertexAttribPointer(st.aP, 3, gl.FLOAT, false, 24, 0); gl.vertexAttribPointer(st.aN, 3, gl.FLOAT, false, 24, 12);
+  for (const h of H) {
+    const base = M4.mul(M4.t(h.x, h.y, h.z), M4.rx(h.pitch));
+    h3DrawHorse(st, base, hexRgb(COATS[h.n - 1]), hexRgb(HORSES[h.n - 1].c), h.d / 6.2 * Math.PI * 2 + h.n, h.v);
+  }
+  // soft shadows under the horses
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.uniform1f(u.uA, 0.35); gl.uniform3fv(u.uCol, [0, 0, 0]);
+  for (const h of H) { gl.uniformMatrix4fv(u.uM, false, M4.mul(M4.t(h.x, 0.03, h.z), M4.s(0.8 - h.y * 0.2, 0.01, 2.3 - h.y * 0.4))); gl.drawArrays(gl.TRIANGLES, 0, 36); }
+  gl.depthMask(true); gl.disable(gl.BLEND); gl.uniform1f(u.uA, 1);
+  gl.disableVertexAttribArray(st.aP); gl.disableVertexAttribArray(st.aN);
+  // --- HUD: number badges and backers above the horses, standings, distance to go ---
+  const c = hud.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, realW, cssH);
+  const backers = {}; for (const b of horseBets(g)) (backers[b.h] = backers[b.h] || []).push(b.n);
+  const tags = [];
+  for (const h of H) {
+    const q = M4.app(VP, [h.x, h.y + 2.75, h.z - 0.3]); if (q[3] <= 0.5) continue;
+    const sx = (q[0] / q[3] * 0.5 + 0.5) * realW, sy = (1 - (q[1] / q[3] * 0.5 + 0.5)) * cssH; if (sx < -40 || sx > realW + 40 || sy < -30 || sy > cssH + 30) continue;
+    tags.push({h, sx, sy, dist: q[3]});
+  }
+  tags.sort((a, b) => b.dist - a.dist);
+  for (const {h, sx, sy, dist} of tags) {
+    const r = Math.max(7, Math.min(13, 130 / dist)), col = HORSES[h.n - 1].c;
+    c.fillStyle = col; c.strokeStyle = "#fff"; c.lineWidth = 2; c.beginPath(); c.arc(sx, sy, r, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = "#111"; c.font = `bold ${Math.round(r * 1.2)}px system-ui,sans-serif`; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(h.n), sx, sy + 0.5);
+    const who = backers[h.n]; if (who && dist < 70) {
+      const txt = who.join(", "); c.font = "600 11px system-ui,sans-serif"; const w = c.measureText(txt).width + 8;
+      c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(sx - w / 2, sy - r - 18, w, 15); c.fillStyle = col; c.fillText(txt, sx, sy - r - 10);
+    }
+  }
+  // standings (finished horses in finishing order, the others by distance)
+  const fin = h => m && tt >= m.horses[h.n - 1].T ? m.horses[h.n - 1].T : Infinity;
+  const ranks = H.slice().sort((a, b) => fin(a) - fin(b) || b.d - a.d);
+  if (tt >= 0) {
+    c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(8, 8, 128, 6 + 17 * 6);
+    ranks.forEach((h, i) => {
+      const y = 14 + i * 17; c.fillStyle = HORSES[h.n - 1].c; c.fillRect(14, y, 14, 13);
+      c.fillStyle = "#111"; c.font = "bold 10px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(h.n), 21, y + 7);
+      c.fillStyle = "#fff"; c.textAlign = "left"; c.font = "600 12px system-ui,sans-serif"; c.fillText(`${i + 1}. ${hname(h.n)}`, 33, y + 7);
+    });
+    // distance bar along the top with a dot for every horse
+    const bx = 148, bw = Math.max(60, realW - bx - 14), by = 16;
+    c.fillStyle = "rgba(10,12,18,.55)"; c.fillRect(bx - 6, 8, bw + 12, 30);
+    c.fillStyle = "rgba(255,255,255,.35)"; c.fillRect(bx, by + 4, bw, 3);
+    for (const hz of H3.HURDLES) { c.fillStyle = "#9fd27a"; c.fillRect(bx + hz / L * bw - 1, by + 1, 2, 9); }
+    for (const h of H) { c.fillStyle = HORSES[h.n - 1].c; c.beginPath(); c.arc(bx + Math.min(1, h.d / L) * bw, by + 5.5, 4.5, 0, 7); c.fill(); }
+    c.fillStyle = "#fff"; c.font = "600 11px system-ui,sans-serif"; c.textAlign = "left"; c.textBaseline = "alphabetic";
+    c.fillText(leader.d < L ? `Do mety: ${Math.max(0, Math.round(L - leader.d))} m` : "Meta!", bx, by + 20);
+    c.textAlign = "right"; c.fillText(`${Math.max(0, tt).toFixed(1)} s`, bx + bw, by + 20);
+  }
+  if (g.state === "race" && t < 0) {
+    c.fillStyle = "rgba(0,0,0,.35)"; c.fillRect(0, 0, realW, cssH);
+    c.fillStyle = "#fff"; c.font = "bold 54px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(String(Math.ceil(-t)), realW / 2, cssH / 2);
+  }
+  if (m && tt > m.horses[m.wh - 1].T && tt < m.horses[m.wh - 1].T + 6) {
+    const txt = `${hname(m.wh)} (${m.wh}) wygrywa!`; c.font = "bold 22px system-ui,sans-serif"; c.textAlign = "center"; c.textBaseline = "middle";
+    const w = c.measureText(txt).width + 28; c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(realW / 2 - w / 2, cssH - 54, w, 36);
+    c.fillStyle = HORSES[m.wh - 1].c; c.fillText(txt, realW / 2, cssH - 36);
+  }
+  horseSound(cv, g, t, m ? Math.min(1, leader.d / L) : 0, m);
+  if (lead) {
+    const txt = g.state === "race" ? (t < 0 ? "Start za chwilę…" : `Prowadzi ${hname(ranks[0].n)} (${ranks[0].n})`) : "";
+    if (lead.textContent !== txt) lead.textContent = txt;
+  }
+}
+GAME_VIEW.horse3d = g => GAME_VIEW.horse(g);
+GAME_AFTER.horse3d = (g, body) => GAME_AFTER.horse(g, body, drawRace3d);
 /* horse race sounds: the crowd in the stands (a murmur while betting, louder during the race, a roar at the finish)
    and galloping hooves while the horses run */
 function thump(a, when, vol){
@@ -3316,9 +3655,10 @@ function drawWheel(cv, g, lead){
 }
 function horseSheet(type = "horse"){
   const busy = roomBusy();
-  const wheel = type === "wheel";
+  const wheel = type === "wheel", h3 = type === "horse3d";
   sheet(`<h2>${GAMES[type].name}</h2>
     <p>${wheel ? "Ruletka europejska: 37 pól – 18 czerwonych, 18 czarnych i 1 zielone. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia kolor. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią to samo albo nikt nie trafi, nikt nic nie wygrywa."
+      : h3 ? "Eksperymentalny wyścig w 3D: 6 koni, 1000 m z przeszkodami, trwa około minuty. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa."
       : "6 koni. Ustawiasz jedną stawkę dla wszystkich, a każdy w pokoju obstawia wybranego konia. Nie ma banku: stawki osób, które nie trafiły, dzielą się po równo między tych, którzy trafili. Jeśli wszyscy obstawią tego samego konia albo nikt nie trafi, nikt nic nie wygrywa. Wyścig trwa około 10 sekund i wszyscy oglądają go na żywo."}</p>
     <div class="field"><label for="hs_s">Stawka od osoby (opcjonalnie)</label><input id="hs_s" maxlength="30" autocomplete="off" placeholder="np. 10kk" value="${esc(store.get("rlStake", ""))}"></div>
     ${busyHtml(busy)}
@@ -3326,24 +3666,24 @@ function horseSheet(type = "horse"){
     <div class="field"><label>${wheel ? "Ostatnie losowania" : "Ostatnie wyścigi"}</label><ul class="banlist" id="gm_h"></ul></div>`, (el, close) => {
     const h = Object.values(remoteRoot.glog || {}).filter(x => x.type === type).sort((a, b) => b.at - a.at).slice(0, 5);
     el.querySelector("#gm_h").innerHTML = h.length ? h.map(x => `<li><span><b>${esc(x.w)}</b>${x.s ? ` <span class="pme">· pula ${esc(x.s)}</span>` : ""}</span><span class="pme">${new Date(x.at).toLocaleTimeString("pl-PL", {hour: "2-digit", minute: "2-digit"})}</span></li>`).join("") : '<li class="pme">Jeszcze nie było wyścigu.</li>';
-    el.querySelector("#hs_go").onclick = () => { if (roomBusy()) { toast(roomBusy()); return; } const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type === "horse" ? {lanes: shuffleLanes()} : {}), state: "bet"}); };
+    el.querySelector("#hs_go").onclick = () => { if (roomBusy()) { toast(roomBusy()); return; } const st = el.querySelector("#hs_s").value.trim(); if (st) store.set("rlStake", st); close(); hPick = null; startGame(type, [], st, {...(type !== "wheel" ? {lanes: shuffleLanes()} : {}), state: "bet"}); };
   });
 }
 /* rematch: the same people play the same game again (same stake, same sides, horse bets copied) */
-const canRematch = g => amIn(g) || ((g.type === "horse" || g.type === "wheel") && g.by === meId());
+const canRematch = g => amIn(g) || (isPool(g) && g.by === meId());
 function rematch(g){
   const hereNow = presentSet(), ps = gPlayers(g).filter(p => hereNow.has(p.id)), stake = g.s || "";
   if (ps.length < 2) { toast("Do rewanżu potrzeba co najmniej dwóch graczy."); return; }
   if (roomBusy()) { toast(roomBusy()); return; }
   // whoever clicks Rewanż, the game stays with the person who started it (if they are still in the room)
   const owner = hereNow.has(g.by) && (!GAMES[g.type].duel || ps.some(p => p.id === g.by)) ? {by: g.by, byn: g.byn} : {};
-  if (g.type !== "horse" && g.type !== "wheel") {
+  if (!isPool(g)) {
     // 10 s for everyone to leave (or, in group games, join) before the rematch starts by itself
     const extra = {state: "wait", ...owner};
     if (g.type === "coin") extra.oz = g.side === "orzel" ? g.by : ps.find(p => p.id !== g.by).id;   // who has "orzeł"
     startGame(g.type, ps, stake, extra);
   }
-  else if (g.type === "horse" || g.type === "wheel") { hPick = null; startGame(g.type, ps, stake, {...owner, state: "bet", b: Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), ...(g.type === "horse" ? {lanes: shuffleLanes()} : {})}); }
+  else { hPick = null; startGame(g.type, ps, stake, {...owner, state: "bet", b: Object.fromEntries(Object.entries(g.b || {}).filter(([id]) => hereNow.has(id))), ...(isHorse(g) ? {lanes: shuffleLanes()} : {})}); }
 }
 /* people who closed the page are dropped: absent players are not copied into a rematch, and while bets are open
    or a rematch is waiting, the person running the game removes anyone who is no longer in the room.
@@ -3406,7 +3746,7 @@ async function gameClick(e){
     if (act === "rdy" && lobbyIds(g).includes(meId())) gamePatch({[`game/ok/${meId()}`]: true});
     return;
   }
-  if (g.type === "horse" || g.type === "wheel") { horseClick(g, act, b); return; }
+  if (isPool(g)) { horseClick(g, act, b); return; }
   if (g.state === "wait") {
     if (act === "lstart" && g.by === meId()) readyStart(g);
     if (act === "cancel" && g.by === meId()) gamePatch({"game/state": "cancel"});
@@ -3452,7 +3792,7 @@ async function gameClick(e){
 function gamesMenu(){
   sheet(`<h2>Gry</h2>${online ? "<p>Gry dla osób w twoim pokoju. Okno gry widzą wszyscy, grają ci, którzy dołączą.</p>" : "<p>Gry działają we wspólnym pokoju. Połącz się w Menu → Wspólny pokój.</p>"}
     <button class="btn primary dbtn" data-game="debts">Rozliczenia – kto komu ile wisi</button>
-    <div class="gamelist"><button class="btn" data-game="roul">Loteria</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button><button class="btn" data-game="wheel">Ruletka</button></div>
+    <div class="gamelist"><button class="btn" data-game="roul">Loteria</button><button class="btn" data-game="dice">Kości</button><button class="btn" data-game="coin">Rzut monetą</button><button class="btn" data-game="reflex">Refleks</button><button class="btn" data-game="guess">Zgadnij liczbę</button><button class="btn" data-game="rps">Kamień, papier, nożyce</button><button class="btn" data-game="horse">Wyścig konny</button><button class="btn" data-game="horse3d">Wyścig konny 3D <span class="pme">(test)</span></button><button class="btn" data-game="wheel">Ruletka</button></div>
     <div class="field" style="margin-top:4px"><label>Gry innych osób w pokoju</label><div class="seg"><button data-sg="1" aria-pressed="${settings.showGames !== false}">Pokazuj</button><button data-sg="0" aria-pressed="${settings.showGames === false}">Nie pokazuj</button></div>
       <p class="pme" style="font-size:13px;margin:0">Gry, w których grasz albo które prowadzisz, zawsze się pokazują.</p></div>
     <div class="acts"><button class="btn" data-close>Zamknij</button></div>
@@ -3468,7 +3808,7 @@ function gamesMenu(){
 }
 function gameSheet(type){
   if (!online) { toast("Gry działają we wspólnym pokoju. Połącz się w Menu."); return; }
-  if (type === "horse" || type === "wheel") return horseSheet(type);
+  if (type === "horse" || type === "horse3d" || type === "wheel") return horseSheet(type);
   const def = GAMES[type];
   const busy = roomBusy();
   sheet(`<h2>${def.name}</h2>
