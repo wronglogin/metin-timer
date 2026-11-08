@@ -108,11 +108,25 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .acct{display:grid;gap:10px;border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
 .acct h3{margin:0;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
 /* Menu: every option is its own box with a bold title, so the options are easy to tell apart */
-.menusheet{gap:14px}
-.menusheet > .field,.menusheet > .acct{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.025);gap:8px}
-.menusheet > .field > label,.menusheet > .acct > h3{font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
-.menusheet > .field > label .opt,.menusheet .acct h3 .opt{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
-.menusheet > hr{margin:4px 0}
+.menusheet,.adminsheet #a_body{gap:14px}
+.adminsheet #a_body{display:grid;grid-template-columns:minmax(0,1fr);min-width:0}
+.adminsheet #a_body[hidden]{display:none}
+:is(.menusheet, .adminsheet #a_body) > .field,:is(.menusheet, .adminsheet #a_body) > .acct{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.025);gap:8px}
+:is(.menusheet, .adminsheet #a_body) > .field > label,:is(.menusheet, .adminsheet #a_body) > .acct > h3{font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
+:is(.menusheet, .adminsheet #a_body) > .field > label .opt,.menusheet .acct h3 .opt{font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+:is(.menusheet, .adminsheet #a_body) > hr{margin:4px 0}
+:is(.menusheet, .adminsheet #a_body) > details.alogd{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;background:rgba(255,255,255,.025)}
+:is(.menusheet, .adminsheet #a_body) > details.alogd > summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;padding:0;
+  font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
+:is(.menusheet, .adminsheet #a_body) > details.alogd > summary::-webkit-details-marker{display:none}
+:is(.menusheet, .adminsheet #a_body) > details.alogd > summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translate(-2px,-2px);transition:transform .15s;flex:0 0 auto}
+:is(.menusheet, .adminsheet #a_body) > details.alogd:not([open]) > summary::after{transform:rotate(-45deg)}
+:is(.menusheet, .adminsheet #a_body) > details.alogd[open] > summary{margin-bottom:10px}
+:is(.menusheet, .adminsheet #a_body) > details.alogd > p{font-size:13px;line-height:1.45}
+.adminsheet #a_body > h2{font-size:14px!important;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
+.adminsheet .banlist li{font-weight:500}
+.adminsheet .banlist li > span:first-child{font-weight:700}
+.adminsheet .banlist li .pme{font-weight:400}
 .menusheet > h2 + h2,.menusheet > hr + h2{margin-top:2px}
 .nickf{display:grid;gap:10px}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
@@ -1980,7 +1994,7 @@ function adminSheet(){
     <details class="alogd" id="a_admd" hidden><summary>Administratorzy (tylko właściciel)</summary>
       <p class="pme" style="font-size:13px;margin:6px 0">Ty jesteś właścicielem – tego nikt nie zmieni ani nie usunie (ustawione w konsoli Firebase). Admini, których tu dodasz, mają panel admina z tym samym hasłem, ale nie mogą dodawać ani usuwać adminów. Identyfikator osoby jest w jej Menu → Twoje konto, albo dodaj ją przyciskiem „Daj admina” na liście zalogowanych.</p>
       <ul class="banlist" id="a_admins"></ul>
-      <div class="raadd" style="margin-top:6px"><input id="a_admid" maxlength="30" placeholder="identyfikator, np. d1234567890" autocomplete="off" autocapitalize="off" spellcheck="false"><input id="a_admn" maxlength="20" placeholder="nick" autocomplete="off"><button class="btn" id="a_admadd">Dodaj admina</button></div></details>
+      <div class="raadd" style="margin-top:6px"><input id="a_admid" maxlength="30" placeholder="identyfikator, np. d1234567890" autocomplete="off" autocapitalize="off" spellcheck="false"><input id="a_admn" maxlength="20" placeholder="nick (opcjonalnie)" autocomplete="off"><button class="btn" id="a_admadd">Dodaj admina</button></div></details>
     <details class="alogd" id="a_alld"><summary>Zalogowani we wszystkich pokojach</summary><ul class="banlist" id="a_all"><li class="pme">Wczytywanie…</li></ul></details>
     <details class="alogd" id="a_roomsd"><summary>Zarządzanie pokojami</summary>
       <p class="pme" style="font-size:13px;margin:6px 0">Wszystkie pokoje, od ostatnio używanych. <b>Zeruj timery</b> czyści wszystkie odliczania. <b>Reset</b> przywraca domyślną listę respów (długi i wyniki gier zostają). <b>Zablokuj</b> odcina pokój od bazy. <b>Hasło</b> ustawia albo zdejmuje hasło pokoju (osoby, które już w nim są, będą musiały wpisać nowe). <b>Usuń</b> kasuje pokój razem z długami i wynikami gier (nie blokuje – można go założyć od nowa); działa tylko, gdy nikogo w nim nie ma.</p>
@@ -2005,6 +2019,7 @@ function adminSheet(){
     <p id="a_berr" style="color:var(--danger)" hidden></p>
     </div>`,
   (el, close) => {
+    el.classList.add("menusheet", "adminsheet");
     const berr = el.querySelector("#a_berr");
     const alogEntry = msg => ({["alog/" + hkey()]: {s: (msg + " · " + (myNick() || "bez nicku")).slice(0, 200), at: {".sv": "timestamp"}}});
     const adminPatch = async (body, msg) => {
@@ -2094,12 +2109,15 @@ function adminSheet(){
     // owner: add / remove admins (subadmins/<uid>); nobody can touch the owner, who is set in the Firebase console
     const drawAdmins = async () => {
       const ul = el.querySelector("#a_admins");
-      const all = await fetch(`${DB_URL}/subadmins.json`).then(r => r.ok ? r.json() : null).catch(() => null) || {};
+      const [all, users] = await Promise.all([`${DB_URL}/subadmins.json`, `${DB_URL}/users.json`].map(x => fetch(x).then(r => r.ok ? r.json() : null).catch(() => null).then(v => v || {})));
       const ks = Object.keys(all);
-      ul.innerHTML = ks.length ? ks.map(k => `<li><span>${esc(all[k].n || "?")} <span class="pme">${esc(k)}</span></span><button class="btn danger" data-unadmin="${esc(k)}">Odbierz admina</button></li>`).join("") : '<li class="pme">Nie ma innych adminów.</li>';
+      // the Discord nick comes from the sign-in list (users/<uid>), so it is right even if the admin was added by id only
+      const nameOf = k => (users[k] && users[k].n) || (all[k].n && all[k].n !== k ? all[k].n : "") || "nie logował się jeszcze";
+      ul.innerHTML = ks.length ? ks.map(k => `<li><span>${esc(nameOf(k))} <span class="pme">${esc(k)}</span></span><button class="btn danger" data-unadmin="${esc(k)}">Odbierz admina</button></li>`).join("") : '<li class="pme">Nie ma innych adminów.</li>';
     };
     const addAdmin = async (uid, n) => {
-      uid = String(uid || "").trim(); n = String(n || "").trim().slice(0, 20) || uid;
+      uid = String(uid || "").trim(); n = String(n || "").trim().slice(0, 20);
+      if (!n) { const u = await fetch(`${DB_URL}/users/${encodeURIComponent(uid)}.json`).then(r => r.ok ? r.json() : null).catch(() => null); n = (u && u.n) || uid; }
       if (!/^d[0-9]{5,25}$/.test(uid)) { berr.textContent = "Identyfikator wygląda tak: d i same cyfry (np. d1234567890)."; berr.hidden = false; return; }
       if (uid === (dSess() || {}).uid) { berr.textContent = "Ty jesteś właścicielem – nie musisz się dodawać."; berr.hidden = false; return; }
       const r = await fetch(`${DB_URL}/subadmins/${uid}.json`, {method: "PUT", body: JSON.stringify({n, at: {".sv": "timestamp"}})}).catch(() => null);
@@ -2116,6 +2134,7 @@ function adminSheet(){
     });
     el.addEventListener("click", e => { const b = e.target.closest("[data-mkadmin]"); if (b) addAdmin(b.dataset.mkadmin, b.dataset.nick); });
     checkAdminAcct().then(() => { if (adminRole === "owner" && el.isConnected) { el.querySelector("#a_admd").hidden = false; drawAdmins(); } });
+    el.querySelector("#a_admd").addEventListener("toggle", e => { if (e.target.open) drawAdmins(); });
     // room management: zero timers, reset to the default respawn list, block / unblock a room
     const extraRooms = new Set();
     const drawRooms = async () => {
