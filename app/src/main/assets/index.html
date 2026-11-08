@@ -3271,6 +3271,12 @@ const BOX = (() => {
   }
   return new Float32Array(out);
 })();
+// unit sphere (radius 0.5), same layout as the box: position, normal
+const SPHERE = (() => {
+  const out = [], LA = 10, LO = 16, pt = (i, j) => { const t = i / LA * Math.PI, f = j / LO * Math.PI * 2; const n = [Math.sin(t) * Math.cos(f), Math.cos(t), Math.sin(t) * Math.sin(f)]; return [n[0] * .5, n[1] * .5, n[2] * .5, ...n]; };
+  for (let i = 0; i < LA; i++) for (let j = 0; j < LO; j++) { const a = pt(i, j), b = pt(i + 1, j), c = pt(i + 1, j + 1), d = pt(i, j + 1); out.push(...a, ...c, ...b, ...a, ...d, ...c); }
+  return new Float32Array(out);
+})();
 // static scenery is merged into one buffer: x,y,z, nx,ny,nz, r,g,b per vertex
 function h3Builder(){
   const d = [];
@@ -3386,7 +3392,9 @@ function h3Init(cv){
   st.aP = gl.getAttribLocation(P, "p"); st.aN = gl.getAttribLocation(P, "n"); st.aC = gl.getAttribLocation(P, "c"); st.aQ = gl.getAttribLocation(S, "q");
   const scene = h3Scene();
   st.sceneBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.sceneBuf); gl.bufferData(gl.ARRAY_BUFFER, scene, gl.STATIC_DRAW); st.sceneN = scene.length / 9;
-  st.boxBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.boxBuf); gl.bufferData(gl.ARRAY_BUFFER, BOX, gl.STATIC_DRAW);
+  // one buffer for the moving parts: the unit box (36 vertices), then a unit sphere for rounded parts
+  const mesh = new Float32Array(BOX.length + SPHERE.length); mesh.set(BOX); mesh.set(SPHERE, BOX.length);
+  st.boxBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.boxBuf); gl.bufferData(gl.ARRAY_BUFFER, mesh, gl.STATIC_DRAW);
   st.skyBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, st.skyBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   return st;
 }
@@ -3403,17 +3411,18 @@ function h3HorseAt(m, i, t){
 }
 function h3DrawHorse(st, base, coat, silk, silk2, ph, v){
   const {gl, u} = st, go = v > 0.5, amp = Math.min(1, v / 14);
-  const draw = (m, col) => { gl.uniformMatrix4fv(u.uM, false, m); gl.uniform3fv(u.uCol, col); gl.drawArrays(gl.TRIANGLES, 0, 36); };
-  const part = (parent, px, py, pz, rx, ox, oy, oz, sx, sy, sz, col) => {
+  const draw = (m, col, round) => { gl.uniformMatrix4fv(u.uM, false, m); gl.uniform3fv(u.uCol, col); round ? gl.drawArrays(gl.TRIANGLES, 36, SPHERE.length / 6) : gl.drawArrays(gl.TRIANGLES, 0, 36); };
+  const part = (parent, px, py, pz, rx, ox, oy, oz, sx, sy, sz, col, round) => {
     const j = M4.mul(M4.mul(parent, M4.t(px, py, pz)), M4.rx(rx));
-    draw(M4.mul(M4.mul(j, M4.t(ox, oy, oz)), M4.s(sx, sy, sz)), col); return j;
+    draw(M4.mul(M4.mul(j, M4.t(ox, oy, oz)), M4.s(sx, sy, sz)), col, round); return j;
   };
   const bob = go ? Math.sin(ph * 2) * 0.07 * amp : 0, B = M4.mul(base, M4.t(0, bob, 0));
   const dark = coat.map(x => x * 0.55), hoof = [.12, .11, .1], white = [.95, .95, .95], skin = hexRgb("#e2b38f");
-  // body
-  part(B, 0, 1.28, 0, 0, 0, 0, 0, 0.56, 0.64, 1.5, coat);
-  part(B, 0, 1.25, -0.72, 0, 0, 0, 0, 0.5, 0.6, 0.42, coat);
-  part(B, 0, 1.32, 0.66, 0, 0, 0, 0, 0.6, 0.66, 0.48, coat);
+  // rounded body: barrel, chest and a round rump
+  part(B, 0, 1.28, 0, 0, 0, 0, 0, 0.62, 0.7, 1.75, coat, 1);
+  part(B, 0, 1.27, -0.62, 0, 0, 0, 0, 0.56, 0.7, 0.8, coat, 1);
+  part(B, 0, 1.34, 0.6, 0, 0, 0, 0, 0.66, 0.74, 0.85, coat, 1);
+  for (const s of [-1, 1]) part(B, s * 0.13, 1.2, 0.68, 0, 0, 0, 0, 0.4, 0.62, 0.62, coat, 1);
   // legs: rotary gallop, each leg has its own moment in the stride
   const legs = [[-0.17, 1.02, -0.62, 1.7, 1], [0.17, 1.02, -0.62, 2.15, 1], [-0.18, 1.08, 0.62, 0, 0], [0.18, 1.08, 0.62, 0.45, 0]];
   for (const [x, y, z, o, front] of legs) {
@@ -3424,14 +3433,20 @@ function h3DrawHorse(st, base, coat, silk, silk2, ph, v){
   }
   // neck, head, ears, mane
   const nk = go ? -0.95 + Math.sin(ph * 2 + 0.5) * 0.08 * amp : -0.7;
-  const nj = part(B, 0, 1.45, -0.85, nk, 0, 0.42, 0, 0.3, 0.9, 0.36, coat);
+  const nj = part(B, 0, 1.45, -0.85, nk, 0, 0.42, 0, 0.34, 1.05, 0.46, coat, 1);
   part(nj, 0, 0.45, 0.17, 0, 0, 0, 0, 0.08, 0.9, 0.06, dark);
   const hj = M4.mul(M4.mul(nj, M4.t(0, 0.86, 0)), M4.rx(-nk - 0.75));
   draw(M4.mul(M4.mul(hj, M4.t(0, 0, -0.26)), M4.s(0.26, 0.28, 0.62)), coat);
   draw(M4.mul(M4.mul(hj, M4.t(0, -0.03, -0.55)), M4.s(0.22, 0.22, 0.12)), dark);
   for (const s of [-1, 1]) draw(M4.mul(M4.mul(hj, M4.t(s * 0.08, 0.2, 0.02)), M4.s(0.06, 0.16, 0.06)), coat);
-  // tail
-  part(B, 0, 1.5, 0.9, 0.9 + (go ? Math.sin(ph * 2) * 0.15 : 0.3), 0, -0.35, 0, 0.12, 0.75, 0.1, dark);
+  // tail: three pieces from the top of the rump, streaming out behind at the gallop, hanging down when standing
+  const tw = go ? Math.sin(ph * 2 + 1) * 0.18 * amp : 0;
+  let tl = M4.mul(B, M4.t(0, 1.62, 0.98));
+  [[go ? -2.0 + amp * 0.1 : -0.55, 0.36, 0.17], [go ? 0.25 + tw : 0.25, 0.4, 0.15], [go ? 0.25 + tw : 0.15, 0.42, 0.12]].forEach(([a, l, th]) => {
+    tl = M4.mul(tl, M4.rx(a));
+    draw(M4.mul(M4.mul(tl, M4.t(0, -l / 2, 0)), M4.s(th, l + 0.12, th * 1.2)), dark, 1);
+    tl = M4.mul(tl, M4.t(0, -l, 0));
+  });
   // saddle cloth in the horse's colour, the jockey crouched over the withers in the same silks
   part(B, 0, 1.56, -0.05, 0, 0, 0, 0, 0.62, 0.2, 0.62, silk);
   part(B, 0, 1.6, -0.05, 0, 0, 0, 0, 0.64, 0.07, 0.3, white);
