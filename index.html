@@ -620,6 +620,77 @@ function appInfoHtml(rel){
 }
 const APK_URL = "https://github.com/wronglogin/metin-timer/releases/latest/download/MetinTimer.apk";
 const DB_URL = "https://timermetin-default-rtdb.europe-west1.firebasedatabase.app";
+/* ---------- Discord login (switched on when both values are filled in) ----------
+   "Zaloguj przez Discord" goes to our small Cloudflare Worker, which asks Discord whether you are on our server and,
+   if so, gives a Firebase sign-in ticket. The page trades it for a Firebase ID token and adds it to every database
+   request (?auth=…); the database rules then let in only signed-in people whose Discord check is under 7 days old.
+   The nick is the name from the Discord server, so nick passwords are not needed. */
+const DISCORD = {worker: "", apiKey: ""};
+const dOn = () => !!(DISCORD.worker && DISCORD.apiKey);
+const DSESS_DAYS = 7;
+let dTok = null, dExp = 0, dBusy = null;
+const dSess = () => { const s = store.get("dsess", null); return s && s.rt && Date.now() - (+s.at || 0) < (DSESS_DAYS * 86400 - 3600) * 1000 ? s : null; };
+const jwtBody = t => { try { return JSON.parse(decodeURIComponent(escape(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))))); } catch { return {}; } };
+async function dToken(force){
+  if (!dOn()) return null;
+  if (!force && dTok && Date.now() < dExp - 300e3) return dTok;
+  const s = dSess(); if (!s) return null;
+  if (!dBusy) dBusy = (async () => {
+    try {
+      const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${DISCORD.apiKey}`, {method: "POST", headers: {"Content-Type": "application/x-www-form-urlencoded"}, body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(s.rt)});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.id_token) { if (r.status === 400) { store.set("dsess", null); gate(); } return null; }
+      dTok = j.id_token; dExp = Date.now() + (+j.expires_in || 3600) * 1000;
+      if (j.refresh_token && j.refresh_token !== s.rt) store.set("dsess", {...s, rt: j.refresh_token});
+      return dTok;
+    } catch { return null; } finally { dBusy = null; }
+  })();
+  return dBusy;
+}
+async function dSignIn(ct){
+  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${DISCORD.apiKey}`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({token: ct, returnSecureToken: true})});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.idToken) throw new Error("Firebase nie przyjął logowania.");
+  const b = jwtBody(j.idToken), n = String(b.dn || "").trim().slice(0, 20) || "Discord";
+  dTok = j.idToken; dExp = Date.now() + (+j.expiresIn || 3600) * 1000;
+  store.set("dsess", {rt: j.refreshToken, n, uid: b.user_id || b.sub, at: Date.now()});
+  store.set("nick", n); store.set("nickLock", n); store.set("nickLockAt", Date.now());
+}
+function dLogout(){ store.set("dsess", null); dTok = null; dExp = 0; if (typeof disconnect === "function" && online) disconnect(); gate(); }
+// every request to our database gets the token; requests elsewhere are untouched
+const isDb = u => typeof u === "string" && /^https:\/\/[\w.-]+\.(firebasedatabase\.app|firebaseio\.com)\//.test(u) && !/\/authpending\//.test(u);
+{
+  const f0 = window.fetch.bind(window);
+  window.fetch = async (u, o) => { if (dOn() && isDb(u)) { const t = await dToken(); if (t) u += (u.includes("?") ? "&" : "?") + "auth=" + encodeURIComponent(t); } return f0(u, o); };
+  const ES = window.EventSource;
+  window.EventSource = function(u, o){ if (dOn() && isDb(u) && dTok) u += (u.includes("?") ? "&" : "?") + "auth=" + encodeURIComponent(dTok); return new ES(u, o); };
+}
+// back from Discord in the browser: #dct=<ticket>&dst=<state>
+const dReturn = (() => {
+  const m = /[#&]dct=([^&]+)&dst=([\w-]+)/.exec(location.hash || "");
+  if (!m) return null;
+  history.replaceState(null, "", location.pathname + location.search);
+  let st = ""; try { st = sessionStorage.getItem("dst") || ""; sessionStorage.removeItem("dst"); } catch {}
+  return st && st === m[2] ? decodeURIComponent(m[1]) : null;
+})();
+const dState = () => { const a = new Uint8Array(18); crypto.getRandomValues(a); return [...a].map(x => x.toString(16).padStart(2, "0")).join(""); };
+async function dLogin(msgEl){
+  const st = dState();
+  if (!IN_APP) { try { sessionStorage.setItem("dst", st); } catch {} location.href = `${DISCORD.worker}/login?state=${st}`; return; }
+  // in the app Discord opens in the phone's browser; the Worker leaves the ticket at authpending/<state> and we pick it up
+  location.href = `${DISCORD.worker}/login?app=1&state=${st}`;
+  if (msgEl) { msgEl.hidden = false; msgEl.textContent = "Zaloguj się w przeglądarce, która się otworzyła, i wróć tutaj…"; }
+  const until = Date.now() + 10 * 60e3;
+  while (Date.now() < until) {
+    await new Promise(r => setTimeout(r, 2500));
+    const v = await fetch(`${DB_URL}/authpending/${st}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (v && v.ct) {
+      fetch(`${DB_URL}/authpending/${st}.json`, {method: "DELETE"}).catch(() => {});
+      await dSignIn(v.ct); gate(); return;
+    }
+  }
+  if (msgEl) msgEl.textContent = "Nie doczekałem się logowania. Spróbuj jeszcze raz.";
+}
 let remoteRoot = {};
 function roomUrl(sub = ""){ return `${online.db}/rooms/${encodeURIComponent(online.room)}${sub}.json`; }
 async function push(changes){
@@ -644,6 +715,7 @@ async function connect(db, room){
   if (!/^https:\/\/[\w.-]+$/.test(db)) throw new Error("Adres bazy musi zaczynać się od https:// i nie mieć ścieżki.");
   if (!/^[\w-]{3,40}$/.test(room)) throw new Error("Nazwa pokoju: 3–40 znaków, litery, cyfry, - lub _.");
   if (await roomBanned(db, room)) throw new Error("Ten pokój został zablokowany przez admina.");
+  if (dOn() && !(await dToken())) { gate(); throw new Error("Zaloguj się przez Discord."); }
   disconnect(true);
   online = {db, room, es:null};
   setMode("Łączenie…");
@@ -684,7 +756,8 @@ async function connect(db, room){
     es.addEventListener("keep-alive", () => { const t = Date.now(); if (lastKa) kaGap = t - lastKa; lastKa = t; lastEv = t; });
     es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err");
       if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); } });
-    es.addEventListener("auth_revoked", () => setMode("Brak dostępu", "err"));
+    es.addEventListener("auth_revoked", async () => {               // the hourly token ran out: take a fresh one and reconnect
+      if (dOn() && await dToken(true)) openStream(); else setMode("Brak dostępu", "err"); });
     es.onerror = () => setMode("Wznawianie…", "err");
     es.onopen = () => setMode(room, "on");
   };
@@ -757,7 +830,7 @@ const meId = () => myNick() ? pkey(myNick()) : deviceId;
    The hash is remembered on the device, so the password is typed once. The admin can reset a nick's password. */
 const nickSaved = n => !!(store.get("nickok", {}) || {})[pkey(n)];
 // the nick this device is logged in with (it has a password and the password is remembered here)
-const loggedNick = () => { const n = store.get("nickLock", null); return n && nickSaved(n) && n === myNick() ? n : null; };
+const loggedNick = () => { if (dOn()) { const s = dSess(); return s ? s.n : null; } const n = store.get("nickLock", null); return n && nickSaved(n) && n === myNick() ? n : null; };
 if (!store.get("nickLock", null) && myNick() && nickSaved(myNick())) { store.set("nickLock", myNick()); store.set("nickLockAt", Date.now()); }
 async function nickHashOk(k, h){
   const url = `${DB_URL}/nickcheck/${k}/${deviceId}.json`;
@@ -1231,6 +1304,9 @@ function editSheet(s){
    Used at the top of the Menu and in the welcome window shown after the site password. */
 function accountHtml(){
   const ln = loggedNick();
+  if (dOn()) return `<div id="m_acct" class="acct"><h3>Twoje konto</h3>
+    <div class="field loggedas"><span>Zalogowany przez Discord jako <b>${esc(ln || "?")}</b></span><button class="linkbtn" id="m_dout">wyloguj</button></div>
+    <p class="pme" style="font-size:13px;margin:0">Nick to Twoja nazwa z naszego serwera Discord. Zmienisz ją na Discordzie, a tutaj po ponownym zalogowaniu.</p></div>`;
   return `<div id="m_acct" class="acct">
     <h3>Twoje konto</h3>
     ${ln ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(ln)}</b></span><button class="linkbtn" id="m_chnick">poproś o zmianę nicku</button></div>` : ""}
@@ -1257,7 +1333,8 @@ function roomBlockHtml(welcome = false){
     <div class="acts" style="justify-content:flex-start"><button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button>${online ? `<button class="btn danger" id="m_off">Wyloguj z pokoi (tryb offline)</button>` : ""}</div>
     </div>`;
 }
-function bindAccount(el){
+function bindAccount(el, close){
+  if (dOn()) { const b = el.querySelector("#m_dout"); if (b) b.onclick = () => { if (close) close(); dLogout(); }; return; }
   const ln = loggedNick(), chn = el.querySelector("#m_chnick");
   const openNickFields = () => { el.querySelector("#m_nickf").hidden = false; chn.closest(".loggedas").hidden = true; el.querySelector("#m_nick").focus(); };
   // nick change: ask the admin; once accepted, the nick fields open here
@@ -1302,7 +1379,7 @@ function bindAccount(el){
   };
 }
 function bindRoomBlock(el, close){
-  bindAccount(el);
+  bindAccount(el, close);
   el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
   el.querySelector("#m_on").onclick = async ev => {
     const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
@@ -1324,7 +1401,7 @@ function bindRoomBlock(el, close){
 function welcomeSheet(){
   if (online) return;
   sheet(`<h2>Witaj!</h2>
-    <p>Hasło do strony już masz. Teraz załóż swój <b>nick</b> i <b>hasło do nicku</b> (to drugie, osobne hasło – chroni twój nick, żeby nikt inny nie grał za ciebie), a potem wpisz nazwę pokoju i kliknij Połącz.</p>
+    <p>${dOn() ? "Jesteś zalogowany przez Discord. Wpisz teraz nazwę pokoju i kliknij Połącz." : "Hasło do strony już masz. Teraz załóż swój <b>nick</b> i <b>hasło do nicku</b> (to drugie, osobne hasło – chroni twój nick, żeby nikt inny nie grał za ciebie), a potem wpisz nazwę pokoju i kliknij Połącz."}</p>
     ${roomBlockHtml(true)}
     <div class="acts" style="justify-content:flex-start"><button class="btn" id="w_off">Zostań offline (tylko prywatny timer)</button></div>`, (el, close) => {
     bindRoomBlock(el, close);
@@ -1565,13 +1642,23 @@ async function sha256(t){
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 const pwKey = t => sha256(String(t).trim().toLowerCase());
-const unlocked = () => store.get("sitepwOk", "") === sitepwHash;
+const unlocked = () => dOn() ? !!dSess() : store.get("sitepwOk", "") === sitepwHash;
 let afterUnlock = [];
 function gate(){
   const g = document.getElementById("gate");
   if (unlocked()) { if (g) g.remove(); const run = afterUnlock; afterUnlock = []; run.forEach(f => f()); return; }
   if (g) return;
   const el = document.createElement("div"); el.id = "gate"; el.className = "gate";
+  if (dOn()) {
+    const old = store.get("dsess", null);
+    el.innerHTML = `<div class="gatebox"><h1>Metin Timer</h1><p>${old ? "Minęło 7 dni od ostatniego logowania – Discord musi jeszcze raz potwierdzić, że jesteś na naszym serwerze." : "Wejście tylko dla osób z naszego serwera Discord."}</p>
+      <button class="btn primary" id="g_dc" type="button">Zaloguj przez Discord</button><p id="g_msg" class="pme" hidden></p></div>`;
+    document.body.appendChild(el);
+    const msg = el.querySelector("#g_msg");
+    el.querySelector("#g_dc").onclick = () => dLogin(msg).catch(x => { msg.hidden = false; msg.textContent = x.message; });
+    if (dReturn) { msg.hidden = false; msg.textContent = "Logowanie…"; dSignIn(dReturn).then(gate).catch(x => { msg.textContent = x.message; }); }
+    return;
+  }
   el.innerHTML = `<form class="gatebox" autocomplete="off"><h1>Metin Timer</h1><p>Podaj hasło, żeby wejść.</p>
     <input id="g_pw" type="password" aria-label="Hasło" autofocus><p id="g_err" class="gerr" hidden>Złe hasło.</p>
     <button class="btn primary" type="submit">Wejdź</button></form>`;
@@ -3995,7 +4082,7 @@ afterUnlock.push(() => {
   if (!(auto && auto.room)) { if (!store.get("stayOffline", false)) setTimeout(welcomeSheet, 300); return; }
   // nick is required in rooms: ask for it once if this device joined before nicks existed
   if (!myNick()) { store.set("online", null); setTimeout(() => { welcomeSheet(); toast("Wpisz swój nick, żeby wrócić do pokoju " + auto.room); }, 300); return; }
-  checkAccountWipe().then(wiped => { if (wiped) throw new Error("Admin wyczyścił konta – załóż swoje konto (nick i hasło) od nowa."); return nickLogin(myNick(), ""); }).then(() => connect(DB_URL, auto.room)).catch(x => {
+  (dOn() ? Promise.resolve() : checkAccountWipe().then(wiped => { if (wiped) throw new Error("Admin wyczyścił konta – załóż swoje konto (nick i hasło) od nowa."); return nickLogin(myNick(), ""); })).then(() => connect(DB_URL, auto.room)).catch(x => {
     setMode("Prywatny");
     if (/hasło|Hasło|konto/.test(x.message)) setTimeout(() => { welcomeSheet(); toast("Ustaw albo wpisz hasło do nicku, żeby wrócić do pokoju " + auto.room, 6000); }, 300);
   });
