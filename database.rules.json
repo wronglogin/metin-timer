@@ -518,6 +518,22 @@
         ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && root.child('nicks').child($k).exists() && newData.isString() && newData.val().length >= 2 && newData.val().length <= 20"
       }
     },
+    "nickreq": {
+      ".read": true,
+      "$k": {
+        ".write": true,
+        ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && newData.hasChildren(['n', 'at'])",
+        "n": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "at": {
+          ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "clock": {
       "$c": {
         ".read": true,
