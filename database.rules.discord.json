@@ -588,7 +588,7 @@
       ".write": false
     },
     "config": {
-      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val())",
+      ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && (root.child('admin/secret').exists() && newData.child('pw').val() === root.child('admin/secret').val()) && root.child('adminuids/'+auth.uid).val() === true",
       "channels": {
         ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val())",
         ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 10 && newData.val() % 1 === 0"
@@ -703,6 +703,11 @@
             ".validate": "newData.isString() && (newData.val() === root.child('config/roompw/'+$room).val() || (!root.child('config/roompw/'+$room).exists() && newData.val() === root.child('roompw/'+$room+'/h').val()))"
           }
         }
+      }
+    },
+    "adminuids": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid"
       }
     }
   }
