@@ -89,7 +89,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .kick:hover{color:var(--fg)}
 .autoline{color:var(--fg)!important;background:color-mix(in srgb,var(--accent) 18%,transparent);border:1px solid var(--accent);border-radius:8px;padding:5px 8px}
 .nwarn{color:var(--window)!important;border:1px solid var(--window);border-radius:8px;padding:6px 8px;font-size:14px!important;margin:4px 0 0!important}
-.loggedas{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:16px}
+.field.loggedas{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:16px}
+.loggedas .linkbtn:disabled{color:var(--muted);text-decoration:none;cursor:default}
 .loggedas[hidden],#m_nickf[hidden]{display:none}
 #m_nickf{display:grid;gap:12px}
 .abody{display:grid;gap:12px}.abody[hidden]{display:none}
@@ -1203,7 +1204,7 @@ function menuSheet(){
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Wspólny pokój</h2>
     <p>${online ? `Połączono z pokojem <b>${esc(online.room)}</b>. Każdy w tym pokoju widzi te same respy i czasy na żywo.` : "Wpisz nazwę pokoju. Wszyscy z tą samą nazwą widzą te same respy i liczniki na żywo. Wybierz nazwę trudną do zgadnięcia, bo działa jak hasło."}</p>
-    ${loggedNick() ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(loggedNick())}</b></span><button class="linkbtn" id="m_chnick">zmień nick</button></div>` : ""}
+    ${loggedNick() ? `<div class="field loggedas"><span>Zalogowany jako <b>${esc(loggedNick())}</b></span><button class="linkbtn" id="m_chnick">poproś o zmianę nicku</button></div>` : ""}
     <div id="m_nickf"${loggedNick() ? " hidden" : ""}>
     <div class="field"><label for="m_nick">Twój nick (widoczny dla osób w pokoju)</label><input id="m_nick" maxlength="20" autocomplete="off" spellcheck="false" placeholder="np. Smerf123" value="${esc(myNick())}">
       ${loggedNick() ? '<p class="pme" style="font-size:13px;margin:0">Zmiana nicku wymaga zgody admina.</p>' : ""}</div>
@@ -1262,7 +1263,20 @@ function menuSheet(){
       applyGamesOff(); heartbeat();
     });
     const wk = el.querySelector("#wake"); if (wk) wk.onclick = ev => { settings.wake = !settings.wake; store.set("settings", settings); ev.target.setAttribute("aria-pressed", settings.wake); wake(); };
-    const chn = el.querySelector("#m_chnick"); if (chn) chn.onclick = () => { el.querySelector("#m_nickf").hidden = false; chn.closest(".loggedas").hidden = true; el.querySelector("#m_nick").focus(); };
+    // nick change: ask the admin; once accepted, the nick fields open here
+    const chn = el.querySelector("#m_chnick"), ln = loggedNick();
+    const openNickFields = () => { el.querySelector("#m_nickf").hidden = false; chn.closest(".loggedas").hidden = true; el.querySelector("#m_nick").focus(); };
+    if (chn && ln) {
+      nickChangeAllowed(ln).then(ok => { if (ok && chn.isConnected) { chn.textContent = "admin się zgodził – zmień nick"; chn.dataset.ok = "1"; } });
+      fetch(`${DB_URL}/nickreq/${pkey(ln)}.json`).then(r => r.ok ? r.json() : null).then(q => { if (q && !chn.dataset.ok && chn.isConnected) { chn.textContent = "prośba wysłana – czeka na admina"; chn.disabled = true; } }).catch(() => {});
+      chn.onclick = async () => {
+        if (chn.dataset.ok) return openNickFields();
+        chn.disabled = true;
+        const r = await fetch(`${DB_URL}/nickreq/${pkey(ln)}.json`, {method: "PUT", body: JSON.stringify({n: ln.slice(0, 20), at: {".sv": "timestamp"}})}).catch(() => null);
+        if (r && r.ok) { chn.textContent = "prośba wysłana – czeka na admina"; toast("Wysłano prośbę o zmianę nicku do admina."); }
+        else { chn.disabled = false; toast("Nie udało się wysłać prośby."); }
+      };
+    }
     el.querySelector("#m_room").addEventListener("keydown", ev => { if (ev.key === "Enter") el.querySelector("#m_on").click(); });
     el.querySelector("#m_on").onclick = async ev => {
       const err = el.querySelector("#m_err"); err.hidden = true; ev.target.disabled = true;
@@ -1284,7 +1298,7 @@ function menuSheet(){
           }
         }
         await nickLogin(nick, el.querySelector("#m_npw").value);
-        if (!lock || changing) { store.set("nickLock", nick); store.set("nickLockAt", Math.round(now())); }
+        if (!lock || changing) { store.set("nickLock", nick); store.set("nickLockAt", Math.round(now())); if (changing) fetch(`${DB_URL}/nickreq/${pkey(lock)}.json`, {method: "DELETE"}).catch(() => {}); }
         const nickChanged = nick !== myNick(); store.set("nick", nick); if (nickChanged && online) heartbeat();
         const bad = rooms.find(r => !/^[\w-]{3,40}$/.test(r));
         if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
@@ -1516,6 +1530,7 @@ function adminSheet(){
     <p id="a_err" style="color:var(--danger)" hidden></p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="a_ok">Zapisz</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <div class="field"><label>Prośby o zmianę nicku</label><ul class="banlist" id="a_nreqs"><li class="pme">Wczytywanie…</li></ul></div>
     <div class="field"><label for="a_nch">Zgoda na zmianę nicku</label><div class="raadd"><input id="a_nch" maxlength="20" autocomplete="off" placeholder="obecny nick osoby"><button class="btn" id="a_nchok">Pozwól</button></div>
       <p class="pme" style="font-size:13px;margin:0">Ta osoba będzie mogła raz zmienić nick w Menu.</p></div>
     <div class="field"><label for="a_nick">Reset hasła nicku (np. ktoś zapomniał hasła)</label><div class="raadd"><input id="a_nick" maxlength="20" autocomplete="off" placeholder="nick"><button class="btn" id="a_nreset">Resetuj</button></div>
@@ -1576,7 +1591,7 @@ function adminSheet(){
       try {
         await adminPatch({});
         el.querySelector("#a_body").hidden = false; el.querySelector("#a_pw").readOnly = true; lb.hidden = true; store.set("adminOk", true); renderGame();
-        drawPeople(); drawBans(); drawDebts();
+        drawPeople(); drawBans(); drawDebts(); drawReqs();
         const dIv = setInterval(() => { if (!el.isConnected) return clearInterval(dIv); drawDebts(); }, 3000);
       } catch (x) {
         store.set("adminPw", ""); store.set("adminOk", false);
@@ -1620,6 +1635,22 @@ function adminSheet(){
         }
         drawBans(); setTimeout(drawPeople, 400);
       } catch (x) { berr.textContent = x.message === "Failed to fetch" ? "Brak połączenia z bazą." : x.message; berr.hidden = false; b.disabled = false; }
+    });
+    async function drawReqs(){
+      const ul = el.querySelector("#a_nreqs");
+      const q = await fetch(`${DB_URL}/nickreq.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
+      const rows = Object.entries(q).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+      ul.innerHTML = rows.length ? rows.map(([k, v]) => `<li><span>${esc(v.n || "?")} <span class="pme">${v.at ? fmtDate(v.at) : ""}</span></span><span style="display:flex;gap:6px"><button class="btn" data-nrno="${esc(k)}">Odrzuć</button><button class="btn primary" data-nrok="${esc(k)}">Zaakceptuj</button></span></li>`).join("")
+        : '<li class="pme">Brak próśb.</li>';
+    }
+    el.addEventListener("click", async e => {
+      const ok = e.target.closest("[data-nrok]"), no = e.target.closest("[data-nrno]"); if (!ok && !no) return;
+      const k = (ok || no).dataset[ok ? "nrok" : "nrno"]; berr.hidden = true;
+      try {
+        if (ok) { await adminPatch({["nickchange/" + k]: {".sv": "timestamp"}}); toast("Zaakceptowano – ta osoba może zmienić nick"); }
+        await fetch(`${DB_URL}/nickreq/${k}.json`, {method: "DELETE"});
+        drawReqs();
+      } catch (x) { berr.textContent = x.message; berr.hidden = false; }
     });
     el.querySelector("#a_nchok").onclick = async () => {
       const n = el.querySelector("#a_nch").value.trim(); berr.hidden = true; if (n.length < 2) return;
