@@ -1625,10 +1625,11 @@ function adminSheet(){
     <h2 style="font-size:19px">Długi${online ? " w pokoju " + esc(online.room) : ""}</h2>
     <ul class="banlist" id="a_debts">${online ? "" : '<li class="pme">Połącz się z pokojem, żeby zobaczyć długi.</li>'}</ul>
     ${online ? '<div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_dreset">Resetuj wszystkie długi</button></div>' : ""}
-    <details class="alogd" id="a_logd"><summary>Dziennik akcji admina (ostatnie 48 h)</summary><ul class="banlist" id="a_log"><li class="pme">Wczytywanie…</li></ul></details>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <div class="field"><label>Konta (nicki z hasłami)</label><div class="acts" style="justify-content:flex-start"><button class="btn danger" id="a_wipe">Wyczyść wszystkie konta</button></div>
       <p class="pme" style="font-size:13px;margin:0">Usuwa wszystkie nicki i hasła. Każdy będzie mógł od nowa założyć konto z dowolnym nickiem. Długi i wyniki gier zostają.</p></div>
+    <hr style="border:0;border-top:1px solid var(--rule);width:100%">
+    <details class="alogd" id="a_logd"><summary>Dziennik akcji admina (ostatnie 48 h)</summary><ul class="banlist" id="a_log"><li class="pme">Wczytywanie…</li></ul></details>
     <p id="a_berr" style="color:var(--danger)" hidden></p>
     </div>`,
   (el, close) => {
