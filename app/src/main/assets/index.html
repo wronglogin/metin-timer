@@ -718,9 +718,38 @@ async function nickHashOk(k, h){
   if (r.ok) fetch(url, {method: "DELETE"}).catch(() => {});
   return r.ok;
 }
+/* look-alike nicks are refused: "Bartek", "Bartęk", "B4rtek", "Bartekk" or "Barttek" all reduce to (almost) the same
+   skeleton. nicknames/<id> = nick is a public list of taken nicks used for this check. */
+function nickSkeleton(n){
+  let t = String(n).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ł/g, "l");
+  t = t.replace(/rn/g, "m").replace(/vv/g, "w").replace(/[0]/g, "o").replace(/[1!|l]/g, "i").replace(/3/g, "e").replace(/[4@]/g, "a")
+       .replace(/[5$]/g, "s").replace(/7/g, "t").replace(/8/g, "b").replace(/9/g, "g").replace(/[^a-z0-9]/g, "").replace(/(.)\1+/g, "$1");
+  return t;
+}
+function editDist(a, b){
+  if (Math.abs(a.length - b.length) > 1) return 2;
+  const d = Array.from({length: a.length + 1}, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+function tooSimilar(nick, taken){
+  const s1 = nickSkeleton(nick), k = pkey(nick);
+  for (const [id, other] of Object.entries(taken || {})) {
+    if (id === k || typeof other !== "string") continue;
+    const s2 = nickSkeleton(other);
+    if (s1 === s2 || (Math.min(s1.length, s2.length) >= 5 && editDist(s1, s2) <= 1)) return other;
+  }
+  return null;
+}
 async function nickLogin(nick, pw){
   const k = pkey(nick), saved = store.get("nickok", {}) || {};
-  if (!pw && saved[k]) { if (await nickHashOk(k, saved[k])) return; throw new Error("Hasło do tego nicku się zmieniło – wpisz je."); }
+  const taken = await fetch(`${DB_URL}/nicknames.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
+  if (!taken[k]) { const sim = tooSimilar(nick, taken); if (sim) throw new Error(`Nick „${nick}” jest zbyt podobny do zajętego „${sim}”. Wybierz inny.`); }
+  if (!pw && saved[k]) {
+    if (await nickHashOk(k, saved[k])) { if (!taken[k]) fetch(`${DB_URL}/nicknames/${k}.json`, {method: "PUT", body: JSON.stringify(nick.slice(0, 20))}).catch(() => {}); return; }
+    throw new Error("Hasło do tego nicku się zmieniło – wpisz je.");
+  }
   if (!pw) throw new Error("Wpisz hasło do nicku (przy pierwszym wejściu wymyśl je – zostanie zapamiętane).");
   if (pw.length < 3) throw new Error("Hasło do nicku: co najmniej 3 znaki.");
   const h = await sha256(k + ":" + pw);
@@ -729,6 +758,7 @@ async function nickLogin(nick, pw){
   if (!claim) throw new Error("Brak połączenia z bazą.");
   if (!claim.ok && !(await nickHashOk(k, h))) throw new Error("Ten nick jest zajęty, a hasło się nie zgadza.");
   saved[k] = h; store.set("nickok", saved);
+  if (!taken[k]) fetch(`${DB_URL}/nicknames/${k}.json`, {method: "PUT", body: JSON.stringify(nick.slice(0, 20))}).catch(() => {});   // add to the public list
   if (claim.ok) toast("Ustawiono hasło do nicku " + nick);
 }
 function gpeople(){

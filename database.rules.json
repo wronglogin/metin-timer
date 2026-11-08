@@ -511,6 +511,13 @@
         }
       }
     },
+    "nicknames": {
+      ".read": true,
+      "$k": {
+        ".write": "!data.exists()",
+        ".validate": "$k.matches(/^u[0-9a-z]{7}$/) && root.child('nicks').child($k).exists() && newData.isString() && newData.val().length >= 2 && newData.val().length <= 20"
+      }
+    },
     "clock": {
       "$c": {
         ".read": true,
