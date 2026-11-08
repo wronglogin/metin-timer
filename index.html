@@ -89,7 +89,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .kick:hover{color:var(--fg)}
 .autoline{color:var(--fg)!important;background:color-mix(in srgb,var(--accent) 18%,transparent);border:1px solid var(--accent);border-radius:8px;padding:5px 8px}
 .nwarn{color:var(--window)!important;border:1px solid var(--window);border-radius:8px;padding:6px 8px;font-size:14px!important;margin:4px 0 0!important}
-.field.loggedas{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:16px}
+.field.loggedas{display:flex;align-items:center;justify-content:flex-start;gap:14px;flex-wrap:wrap;font-size:16px}
 .loggedas .linkbtn:disabled{color:var(--muted);text-decoration:none;cursor:default}
 .loggedas[hidden],#m_nickf[hidden]{display:none}
 #m_nickf{display:grid;gap:12px}
@@ -1212,7 +1212,7 @@ function menuSheet(){
       <p class="pme" style="font-size:13px;margin:0">Pierwsze wejście z nowym nickiem ustawia hasło. Potem tylko ten, kto je zna, może grać tym nickiem. Hasło zapamiętuje się na urządzeniu.</p>
       <p id="m_nwarn" class="nwarn" hidden></p></div>
     </div>
-    <div class="field"><label for="m_room">Nazwy pokoi (kilka oddziel średnikiem)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
+    <div class="field"><label for="m_room">Nazwy pokoi (możesz być w kilku pokojach naraz – każdy pokój oddziel ;)</label><input id="m_room" placeholder="np. gildia-x7k2;ekipa-ch3" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(roomList().join(";") || (saved && saved.room) || "")}"></div>
     <p id="m_err" style="color:var(--danger)" hidden></p>
     <div class="acts">${online ? `<button class="btn" id="m_off">Opuść pokój</button>` : ""}<button class="btn primary" id="m_on">${online ? "Zapisz pokoje" : "Połącz"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
