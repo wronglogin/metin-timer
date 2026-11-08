@@ -51,6 +51,11 @@ header{grid-template-columns:minmax(0,1fr)}
 @keyframes marq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(min(0px,calc(-100% + 160px)))}}
 .ytdock{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:12;width:200px;height:200px;border-radius:8px;overflow:hidden;border:1px solid var(--rule);box-shadow:0 8px 24px rgba(0,0,0,.45);background:#000}
 .ytdock iframe{width:200px;height:200px;display:block}
+.ytdock:not(.big){height:auto}.ytdock:not(.big) #ytplayer{width:200px;height:200px;display:block}
+.ydrag{height:16px;cursor:grab;touch-action:none;background:var(--surface-2);display:grid;place-items:center;border-bottom:1px solid var(--rule)}
+.ydrag span{width:36px;height:4px;border-radius:2px;background:var(--muted);opacity:.7}
+.ytdock.moving .ydrag{cursor:grabbing}.ytdock.moving iframe{pointer-events:none}
+.ytdock.big .ydrag,.ytdock:fullscreen .ydrag{display:none}
 /* Watch2Gether: the same player, laid over the big box under the timers (moving an iframe would restart it) */
 .ytdock.big{position:absolute;right:auto;bottom:auto;z-index:4;border-radius:10px}
 .ytdock.big iframe{width:100%;height:100%}
@@ -446,7 +451,7 @@ body.sizing{cursor:ew-resize;user-select:none}
   <section id="w2g" class="w2g" hidden><div class="w2gbar" id="w2gbar"></div><div class="w2gbox" id="w2gbox" hidden></div></section>
 </div>
 <div id="layer"></div>
-<div id="ytdock" class="ytdock" hidden><div id="ytplayer"></div><button class="w2gsize" id="w2gsize" type="button" title="Przeciągnij, żeby powiększyć lub zmniejszyć · dwuklik: domyślny rozmiar" aria-label="Zmień rozmiar filmu"></button></div>
+<div id="ytdock" class="ytdock" hidden><div class="ydrag" id="ydrag" title="Złap i przesuń okienko radia · dwuklik: z powrotem w rogu" aria-label="Przesuń okienko radia"><span></span></div><div id="ytplayer"></div><button class="w2gsize" id="w2gsize" type="button" title="Przeciągnij, żeby powiększyć lub zmniejszyć · dwuklik: domyślny rozmiar" aria-label="Zmień rozmiar filmu"></button></div>
 
 <script>
 (() => {
@@ -743,7 +748,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794172587";
+const BUILD = "1794173072";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2741,7 +2746,30 @@ function renderW2g(){
   if (watching) {
     const b = box.getBoundingClientRect();
     Object.assign(dock.style, {left: b.left + scrollX + "px", top: b.top + scrollY + "px", width: b.width + "px", height: b.height + "px"});
-  } else if (dock.style.width) dock.removeAttribute("style");
+  } else if (dock.style.width) { dock.removeAttribute("style"); placeDock(); }
+}
+// the small radio window can be dragged anywhere by its top strip; the spot is remembered (double-click = corner)
+function placeDock(){
+  const d = document.getElementById("ytdock"), p = store.get("ytpos", null);
+  if (d.classList.contains("big")) return;
+  if (!p) { if (d.style.left) d.removeAttribute("style"); return; }
+  const w = d.offsetWidth || 202, h = d.offsetHeight || 218;
+  const x = Math.max(6, Math.min(p.x, innerWidth - w - 6)), y = Math.max(6, Math.min(p.y, innerHeight - h - 6));
+  Object.assign(d.style, {left: x + "px", top: y + "px", right: "auto", bottom: "auto"});
+}
+{
+  const g = document.getElementById("ydrag"), d = document.getElementById("ytdock");
+  g.addEventListener("pointerdown", e => {
+    if (d.classList.contains("big")) return;
+    e.preventDefault(); g.setPointerCapture(e.pointerId); d.classList.add("moving");
+    const r = d.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const move = ev => { store.set("ytpos", {x: Math.round(ev.clientX - dx), y: Math.round(ev.clientY - dy)}); placeDock(); };
+    const up = () => { g.removeEventListener("pointermove", move); g.removeEventListener("pointerup", up); g.removeEventListener("pointercancel", up); d.classList.remove("moving"); };
+    g.addEventListener("pointermove", move); g.addEventListener("pointerup", up); g.addEventListener("pointercancel", up);
+  });
+  g.addEventListener("dblclick", () => { store.set("ytpos", null); placeDock(); });
+  addEventListener("resize", placeDock);
+  placeDock();
 }
 document.getElementById("w2gbar").addEventListener("click", e => {
   const b = e.target.closest("[data-w2g]"); if (!b) return;
