@@ -33,8 +33,8 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 header{grid-template-columns:minmax(0,1fr)}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}
-  /* phone: the clock in the middle of the screen, MiniWiki/Gry/Menu/Admin on the right */
-  .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:start}.bar .brand small.clock{justify-self:center}
+  /* phone: title and clock in the middle of the screen, MiniWiki/Gry/Menu/Admin on the right */
+  .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}.bar .brand small.clock{justify-self:center}
   .ctrls{flex:1 1 100%}#wikiBtn{margin-left:auto}}
 .radio{display:flex;align-items:center;gap:2px;min-width:250px;flex:1 1 260px;max-width:360px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
@@ -743,7 +743,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794172178";
+const BUILD = "1794172587";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
