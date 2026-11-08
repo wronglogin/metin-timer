@@ -486,6 +486,32 @@
         },
         "$other": {
           ".validate": false
+        },
+        "maps": {
+          "$id": {
+            ".validate": "$id.matches(/^x[a-z0-9]{3,9}$/) && newData.hasChildren(['n', 'mn', 'mx'])",
+            "n": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 30"
+            },
+            "mn": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "mx": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "bn": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "bx": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 600"
+            },
+            "o": {
+              ".validate": "newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
         }
       }
     },
