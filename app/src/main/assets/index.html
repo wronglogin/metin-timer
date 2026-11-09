@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794236846"><link rel="apple-touch-icon" href="icon-192.png?v=1794236846">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794237359"><link rel="apple-touch-icon" href="icon-192.png?v=1794237359">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -751,7 +751,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794236846";
+const BUILD = "1794237359";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2316,9 +2316,12 @@ function adminSheet(){
         }
         else if (act === "del") {
           const pr = await fetch(`${rurl}/presence.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
-          const here = Object.values(pr).filter(v => v && now() - (+v.t || 0) < 360000).map(v => v.n);
+          // only others block it – this very page being in the room doesn't count (it leaves the room below)
+          const here = Object.entries(pr).filter(([k, v]) => k !== deviceId && v && now() - (+v.t || 0) < 360000).map(([, v]) => v.n);
           if (here.length) throw new Error(`W pokoju ${room} ktoś jest (${[...new Set(here)].join(", ")}) – usunąć można tylko nieużywany pokój.`);
           await adminPatch({}, "Usunięto pokój: " + room);
+          // you are in it yourself: leave it first, so this page doesn't write the room straight back
+          if (online && online.room === room) disconnect();
           const r = await fetch(`${rurl}.json`, {method: "DELETE"});
           if (!r.ok) throw new Error("Baza nie pozwoliła usunąć pokoju (" + r.status + ").");
           await fetch(`${DB_URL}/roomlist/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
