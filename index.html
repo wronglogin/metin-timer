@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794237467"><link rel="apple-touch-icon" href="icon-192.png?v=1794237467">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794238336"><link rel="apple-touch-icon" href="icon-192.png?v=1794238336">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -742,7 +742,14 @@ async function pruneDeletedRooms(){
   for (const r of gone) delete at[r];
   store.set("roomAt", at); store.set("rooms", keep);
   const last = store.get("lastRoom", null); if (last && gone.includes(last.room)) store.set("lastRoom", keep[0] ? {room: keep[0]} : null);
-  if (online && gone.includes(online.room)) { disconnect(); if (keep[0]) connect(DB_URL, keep[0]).catch(() => {}); }
+  // only the deleted room goes; if it was the one open here, move to the next saved room (the others stay saved)
+  if (online && gone.includes(online.room)) {
+    if (keep[0]) {
+      disconnect(true);
+      try { await connect(DB_URL, keep[0]); store.set("lastRoom", {room: keep[0]}); }
+      catch (x) { setMode("Prywatny"); render(); toast(`Nie udało się wejść do pokoju ${keep[0]} – wybierz pokój u góry.`); }
+    } else disconnect();
+  }
   if (typeof renderRoomSel === "function") renderRoomSel();
   toast(`Admin usunął pokój: ${gone.join(", ")}`);
 }
@@ -751,7 +758,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794237467";
+const BUILD = "1794238336";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
