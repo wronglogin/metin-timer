@@ -7,3 +7,5 @@ cofanie i ponawianie, MiniWiki.
 - **Pobierz na Androida:** [UnityTimer.apk](https://github.com/wronglogin/metin-timer/releases/latest/download/UnityTimer.apk)
 
 Szczegóły (baza, panel admina, budowanie): [INSTRUKCJA.md](INSTRUKCJA.md)
+
+Chcesz postawić własny, osobny timer dla swojej gildii (własna baza, logowanie przez Twój serwer Discord, GitHub Pages albo Netlify)? → [WLASNY-PROJEKT.md](WLASNY-PROJEKT.md)
