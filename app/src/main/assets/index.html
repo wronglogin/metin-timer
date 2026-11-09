@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794237359"><link rel="apple-touch-icon" href="icon-192.png?v=1794237359">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794237467"><link rel="apple-touch-icon" href="icon-192.png?v=1794237467">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -751,7 +751,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794237359";
+const BUILD = "1794237467";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -978,6 +978,8 @@ async function connect(db, room){
     try {
       const {path, data} = JSON.parse(ev.data);
       if (kind === "put") setPath(remoteRoot, path, data);
+      // the whole room vanished (an admin deleted it): check right away instead of waiting for the next config check
+      if (kind === "put" && path === "/" && data === null && Object.keys(spots || {}).length) setTimeout(pruneDeletedRooms, 1500);
       else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
       presence = remoteRoot.presence || {};
       const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog") || k.startsWith("game") || k.startsWith("glog") || k.startsWith("debts") || k.startsWith("dlog");
@@ -2316,17 +2318,24 @@ function adminSheet(){
         }
         else if (act === "del") {
           const pr = await fetch(`${rurl}/presence.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})) || {};
-          // only others block it – this very page being in the room doesn't count (it leaves the room below)
+          // someone else is in it: warn first, the second click deletes anyway (they get moved out of the room)
           const here = Object.entries(pr).filter(([k, v]) => k !== deviceId && v && now() - (+v.t || 0) < 360000).map(([, v]) => v.n);
-          if (here.length) throw new Error(`W pokoju ${room} ktoś jest (${[...new Set(here)].join(", ")}) – usunąć można tylko nieużywany pokój.`);
-          await adminPatch({}, "Usunięto pokój: " + room);
+          if (here.length && b.dataset.force !== "1") {
+            const d = b.closest(".rdanger"), w = d && d.querySelector(".rdwarn");
+            if (w) w.innerHTML = `W pokoju <b>${esc(room)}</b> ktoś teraz jest: <b>${esc([...new Set(here)].join(", "))}</b>. Kliknij jeszcze raz, żeby usunąć mimo to – zostaną z niego wyrzuceni.`;
+            b.dataset.force = "1"; b.textContent = "Usuń mimo to"; b.disabled = false; return;
+          }
+          // the "deleted" mark goes first, so pages still in the room notice it as soon as the room disappears
+          await adminPatch({["roompw/" + room]: null, ["roomdel/" + room]: {".sv": "timestamp"}}, "Usunięto pokój: " + room + (here.length ? ` (byli w nim: ${[...new Set(here)].join(", ")})` : ""));
           // you are in it yourself: leave it first, so this page doesn't write the room straight back
           if (online && online.room === room) disconnect();
           const r = await fetch(`${rurl}.json`, {method: "DELETE"});
           if (!r.ok) throw new Error("Baza nie pozwoliła usunąć pokoju (" + r.status + ").");
           await fetch(`${DB_URL}/roomlist/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
           await fetch(`${DB_URL}/roompw/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
-          adminPatch({["roompw/" + room]: null, ["roomdel/" + room]: {".sv": "timestamp"}}).then(() => pruneDeletedRooms()).catch(() => {});
+          // their heartbeat may have put a trace back in the meantime: clear once more after they've left
+          setTimeout(() => fetch(`${rurl}.json`, {method: "DELETE"}).catch(() => {}), 8000);
+          pruneDeletedRooms();
           extraRooms.delete(room); toast(`Usunięto pokój ${room}`);
         }
         else if (act === "ban") { await adminPatch({["roombans/" + room]: {".sv": "timestamp"}}, "Zablokowano pokój: " + room); toast(`Zablokowano pokój ${room}`); }
