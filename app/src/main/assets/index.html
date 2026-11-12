@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794503965"><link rel="apple-touch-icon" href="icon-192.png?v=1794503965">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794513674"><link rel="apple-touch-icon" href="icon-192.png?v=1794513674">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -880,7 +880,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794503965";
+const BUILD = "1794513674";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1071,6 +1071,8 @@ async function roomAccess(db, room, changed){
     const pw = await askRoomPw(room, true); if (pw === null) throw new Error("Pokój nie został założony.");
     const h = await roomHash(room, pw);
     const c = await fetch(`${base}.json`, {method: "PATCH", body: JSON.stringify({h, s: "p"})}).catch(() => null);
+    // who set the room up (shown to admins in room management)
+    if (c && c.ok) fetch(`${db}/roomby/${encodeURIComponent(room)}.json`, {method: "PUT", body: JSON.stringify({n: String(myNick() || "?").slice(0, 20), u: me, t: {".sv": "timestamp"}})}).catch(() => {});
     const m = await fetch(`${base}/m/${me}.json`, {method: "PUT", body: JSON.stringify(h)}).catch(() => null);
     // a room set up before the mark existed: the password was already there – mark it now, so nobody is asked again
     if (!(c && c.ok) && m && m.ok) await fetch(`${base}/s.json`, {method: "PUT", body: JSON.stringify("p")}).catch(() => {});
@@ -2477,7 +2479,7 @@ function adminSheet(){
     const drawRooms = async () => {
       const ul = el.querySelector("#a_rooms");
       try {
-        const [rl, rb] = await Promise.all([`${DB_URL}/roomlist.json`, `${DB_URL}/config/roombans.json`].map(u => fetch(u).then(r => r.ok ? r.json() : {}).catch(() => ({})).then(x => x || {})));
+        const [rl, rb, rby] = await Promise.all([`${DB_URL}/roomlist.json`, `${DB_URL}/config/roombans.json`, `${DB_URL}/roomby.json`].map(u => fetch(u).then(r => r.ok ? r.json() : {}).catch(() => ({})).then(x => x || {})));
         // every room ever used since the list exists, most recently used first
         const names = [...new Set([...Object.keys(rl), ...Object.keys(rb), ...extraRooms])].sort((a, b) => (+rl[b] || 0) - (+rl[a] || 0) || a.localeCompare(b));
         ul.innerHTML = names.length ? names.map(n => {
@@ -2485,7 +2487,8 @@ function adminSheet(){
           const when = rb[n] ? '<span style="color:var(--danger)">zablokowany</span>' : ago == null ? "" : ago < 7 ? '<span style="color:var(--ok,#4ade80)">ktoś jest teraz</span>' : ago < 60 ? `${ago} min temu` : ago < 1440 ? `${Math.round(ago / 60)} h temu` : ago < 43200 ? `${Math.round(ago / 1440)} dni temu` : `<span style="color:var(--danger)">nieużywany ${Math.round(ago / 1440)} dni</span>`;
           // safe actions in the row; the ones that wipe or lock a room are folded away under "Więcej" and need the room name typed in
           const r = esc(n);
-          return `<li class="rrow"><span><b>${r}</b> <span class="pme">${when}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${r}">Odblokuj</button>`
+          const by = rby[n] && rby[n].n ? `<span class="pme" title="${rby[n].t ? esc(new Date(rby[n].t).toLocaleString("pl-PL")) : ""}">· założył(a): <b>${esc(rby[n].n)}</b></span>` : '<span class="pme">· założyciel nieznany</span>';
+          return `<li class="rrow"><span><b>${r}</b> <span class="pme">${when}</span> ${by}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${r}">Odblokuj</button>`
             : `${online && online.room === n ? '<button class="btn" disabled>Jesteś tu</button>' : `<button class="btn primary" data-ract="join" data-room="${r}" title="Połącz się z tym pokojem (admin wchodzi bez hasła)">Wejdź</button>`}<button class="btn" data-ract="pw" data-room="${r}">Hasło</button><button class="btn" data-rmore aria-expanded="false">Więcej ▾</button>`}</span>
             ${rb[n] ? "" : `<div class="rdanger" hidden><span class="rdwarn">Niebezpieczne – tego nie da się cofnąć:</span>
               <button class="btn danger" data-ract="zero" data-room="${r}">Zeruj timery</button><button class="btn danger" data-ract="debts" data-room="${r}">Wyzeruj długi</button><button class="btn danger" data-ract="reset" data-room="${r}">Reset respów</button><button class="btn danger" data-ract="ban" data-room="${r}">Zablokuj</button><button class="btn danger" data-ract="del" data-room="${r}">Usuń pokój</button></div>`}</li>`;
@@ -2562,6 +2565,7 @@ function adminSheet(){
           if (!r.ok) throw new Error("Baza nie pozwoliła usunąć pokoju (" + r.status + ").");
           await fetch(`${DB_URL}/roomlist/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
           await fetch(`${DB_URL}/roompw/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
+          await fetch(`${DB_URL}/roomby/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
           // their heartbeat may have put a trace back in the meantime: clear once more after they've left
           setTimeout(() => fetch(`${rurl}.json`, {method: "DELETE"}).catch(() => {}), 8000);
           pruneDeletedRooms();

@@ -739,6 +739,25 @@
         }
       }
     },
+    "roomby": {
+      ".read": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && root.child('config/admins/'+auth.uid).val() === true",
+      "$room": {
+        ".write": "auth != null && auth.token.auth_time * 1000 > now - 604800000 && (!root.child('config/authepoch').exists() || auth.token.auth_time * 1000 > root.child('config/authepoch').val()) && !root.child('config/ubans/'+auth.uid).exists() && (root.child('config/admins/'+auth.uid).val() === true || (!data.exists() && newData.exists() && !root.child('rooms/'+$room).exists()))",
+        ".validate": "$room.matches(/^[A-Za-z0-9_-]{3,40}$/) && newData.hasChildren(['n','u','t'])",
+        "n": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20"
+        },
+        "u": {
+          ".validate": "newData.isString() && newData.val() === auth.uid"
+        },
+        "t": {
+          ".validate": "newData.isNumber() && newData.val() <= now"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
     "adminuids": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"
