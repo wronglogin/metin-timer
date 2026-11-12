@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794474863"><link rel="apple-touch-icon" href="icon-192.png?v=1794474863">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794475241"><link rel="apple-touch-icon" href="icon-192.png?v=1794475241">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -50,7 +50,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .radio .rbtn.muted{color:#fff;background:var(--danger)}
 .radio .rbtn.muted:hover{background:var(--danger);filter:brightness(1.1)}
 .radio.ismuted .rvol,.radio.ismuted .rvoln{opacity:.4}
-.radio .rbtn.rpower{color:var(--muted)}.radio .rbtn.rpower:hover{color:var(--danger)}
+.radio .rbtn.rpower{color:var(--muted)}.radio .rbtn.rpower.on{color:var(--ready)}.radio .rbtn.rpower.on:hover{color:var(--danger)}.radio .rbtn.rpower:not(.on):hover{color:var(--ready)}
 @media (prefers-reduced-motion:no-preference){.radio:not(.off) .rtitle span{animation:marq 14s linear infinite}}
 @keyframes marq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(min(0px,calc(-100% + 160px)))}}
 .ytdock{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:12;width:200px;height:200px;border-radius:8px;overflow:hidden;border:1px solid var(--rule);box-shadow:0 8px 24px rgba(0,0,0,.45);background:#000}
@@ -764,7 +764,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794474863";
+const BUILD = "1794475241";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2925,7 +2925,7 @@ function renderRadio(){
     <button class="rbtn" data-radio="prev" title="Poprzedni" aria-label="Poprzedni">${ICON.prev}</button>
     <button class="rbtn" data-radio="next" title="Następny" aria-label="Następny">${ICON.next}</button>
     <button class="rbtn" data-radio="queue" title="Kolejka radia" aria-label="Kolejka radia">${ICON.list}</button>
-    ${radioOn ? `<button class="rbtn rpower" data-radio="off" title="Wyłącz radio u mnie (inni dalej słuchają)" aria-label="Wyłącz radio u mnie">${ICON.power}</button>` : ""}`;
+    <button class="rbtn rpower${radioOn ? " on" : ""}" data-radio="${radioOn ? "off" : "on"}" title="${radioOn ? "Wyłącz radio u mnie (inni dalej słuchają)" : "Włącz radio u mnie"}" aria-label="${radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"}" aria-pressed="${radioOn}">${ICON.power}</button>`;
   const act = document.activeElement;
   if (act && (act.id === "rvol" || act.id === "rvoln")) return;          // don't rebuild while the volume is being changed
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
