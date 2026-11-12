@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794487801"><link rel="apple-touch-icon" href="icon-192.png?v=1794487801">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794488818"><link rel="apple-touch-icon" href="icon-192.png?v=1794488818">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -859,7 +859,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794487801";
+const BUILD = "1794488818";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1382,8 +1382,9 @@ function status(s, c){
   // the longest respawn of the map (Wiki) decides; the row's own max only for maps without one (custom maps without times)
   const rg = mapById[s.map] && !mapById[s.map].notimes && mapById[s.map][s.kind === "boss" ? "boss" : "metin"];
   const lim = rg && rg[1] * 60000 > mn ? rg[1] * 60000 : mx;
-  if (lim > mn && el >= lim) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu", phase:2};
-  return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie", phase:2};
+  const from = lim > mn ? ` (fioletowy od -${Math.round((lim - mn) / 60000)} min, max respu ${Math.round(lim / 60000)} min)` : "";
+  if (lim > mn && el >= lim) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu" + from, phase:2};
+  return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie" + from, phase:2};
 }
 function fmt(ms){
   const s = Math.max(0, Math.floor(ms / 1000)), m = Math.floor(s / 60), ss = s % 60;
