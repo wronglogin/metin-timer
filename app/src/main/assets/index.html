@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794498992"><link rel="apple-touch-icon" href="icon-192.png?v=1794498992">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794503965"><link rel="apple-touch-icon" href="icon-192.png?v=1794503965">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -395,11 +395,16 @@ main{padding-top:14px;display:grid;gap:14px}
 .cell .ch{font-size:clamp(10px,calc(14cqi / var(--cols)),12px);letter-spacing:.08em;text-align:center;color:var(--muted)}
 .cell .ct{border:1px solid var(--rule);border-radius:6px;aspect-ratio:1/1;width:100%;padding:0 1px;letter-spacing:-.04em;background:var(--surface-2);color:var(--muted);font-family:var(--f-num);font-weight:900;font-size:clamp(11px,calc(24cqi / var(--cols)),calc(18px * var(--sw,1)));font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
 .cell .ct:hover{border-color:var(--muted)}
-.cell.idle .ct{background:var(--ready);color:#06210f;border-color:var(--ready)}
-.cell.wait .ct{background:var(--danger);color:#2a0905;border-color:var(--danger)}
-.cell.window .ct{background:var(--window);color:#241a00;border-color:var(--window)}
-.cell.ready .ct{background:var(--over);color:#04192b;border-color:var(--over)}
-.cell.ready.late .ct{background:var(--late);color:#1d0f33;border-color:var(--late)}
+/* timer colours: each person can change them in the Menu (--c-*), the text colour follows (--t-*) */
+.cell.idle .ct{background:var(--c-idle,var(--ready));color:var(--t-idle,#06210f);border-color:var(--c-idle,var(--ready))}
+.cell.wait .ct{background:var(--c-wait,var(--danger));color:var(--t-wait,#2a0905);border-color:var(--c-wait,var(--danger))}
+.cell.window .ct{background:var(--c-window,var(--window));color:var(--t-window,#241a00);border-color:var(--c-window,var(--window))}
+.cell.ready .ct{background:var(--c-over,var(--over));color:var(--t-over,#04192b);border-color:var(--c-over,var(--over))}
+.cell.ready.late .ct{background:var(--c-late,var(--late));color:var(--t-late,#1d0f33);border-color:var(--c-late,var(--late))}
+.tcolors{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.field .tcolors label{text-transform:none;letter-spacing:normal;font-weight:500;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;color:var(--fg)}
+.tcolors input[type=color]{flex:none;width:30px!important;height:30px;min-height:0;padding:0;border:1px solid var(--rule);border-radius:6px;background:none;cursor:pointer}
+.tcolors input[type=color]::-webkit-color-swatch-wrapper{padding:2px}.tcolors input[type=color]::-webkit-color-swatch{border:0;border-radius:4px}
 .cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:clamp(9px,calc(13cqi / var(--cols)),11px);letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
 .cell .rs:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
 .cell .rs:disabled{opacity:.3;cursor:default}
@@ -411,7 +416,7 @@ main{padding-top:14px;display:grid;gap:14px}
 html{caret-color:transparent}input,textarea,select,[contenteditable]{caret-color:auto}
 @media (min-width:521px){.legend{justify-content:center;text-align:center}}
 @media (min-width:1080px){.legend{flex-wrap:nowrap;white-space:nowrap;gap:6px 10px;font-size:12px}}
-.legend .w{color:var(--danger)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)} .legend .o{color:var(--late)}
+.legend .w{color:var(--c-wait,var(--danger))} .legend .y{color:var(--c-window,var(--window))} .legend .g{color:var(--c-idle,var(--ready))} .legend .b{color:var(--c-over,var(--over))} .legend .o{color:var(--c-late,var(--late))}
 
 /* compact view: only name, undo/redo and channel timers */
 .compact .tag,.compact .srow .more,.compact .cell .rs,.compact .ranges,.compact .legend,.compact .addrow{display:none}
@@ -636,6 +641,18 @@ let tab = store.get("tab", "m1");               // map id or "mine"
 const showMine = () => settings.hidden.length > 0 && visibleMaps().length >= 2;
 const saveTab = () => { store.set("tab", tab); store.set("view", view); };
 let settings = Object.assign({sound:0, wake:false, hidden:[], zoom:1, volume:0.8, compact:false, tablet:false, voice:false}, store.get("settings", {}));
+// timer colours, per device: defaults are the page's own; the text on a tile turns dark or light to stay readable
+const TCOLORS = [["idle", "Nie zaznaczony"], ["wait", "Odlicza"], ["window", "Ostatnie 4 min"], ["over", "Na minusie"], ["late", "Fioletowy (dodatkowy)"]];
+const TC_DEF = {idle:"#4fd39b", wait:"#ef6a5b", window:"#e8c24a", over:"#4ea3e8", late:"#b48cf2"};
+const tcolor = k => (settings.colors && /^#[0-9a-f]{6}$/i.test(settings.colors[k] || "")) ? settings.colors[k] : TC_DEF[k];
+function applyColors(){
+  const st = document.documentElement.style;
+  for (const [k] of TCOLORS) {
+    const c = tcolor(k), n = parseInt(c.slice(1), 16), l = (0.299 * (n >> 16) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255;
+    st.setProperty("--c-" + k, c); st.setProperty("--t-" + k, l > 0.55 ? "rgba(0,0,0,.82)" : "#fff");
+  }
+}
+applyColors();
 if (!(settings.volume >= 0 && settings.volume <= 1)) settings.volume = 0.8;
 if (!(settings.zoom >= 0.6 && settings.zoom <= 1.5)) settings.zoom = 1;
 const applyZoom = () => { document.documentElement.style.setProperty("--zoom", settings.zoom); document.documentElement.classList.toggle("compact", !!settings.compact); document.documentElement.classList.toggle("tablet", !!settings.tablet); if (typeof fitNames === "function" && document.querySelector(".spots")) fitNames(); };
@@ -863,7 +880,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794498992";
+const BUILD = "1794503965";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1883,6 +1900,9 @@ function menuSheet(){
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. Własną mapę dla całego pokoju dodasz przyciskiem „+ Custom Mapa” na końcu paska map. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
+    <div class="field"><label>Kolory timerów <span class="opt">· tylko na tym urządzeniu</span></label>
+      <div class="tcolors">${TCOLORS.map(([k, n]) => `<label><input type="color" data-tc="${k}" value="${tcolor(k)}">${n}</label>`).join("")}</div>
+      <div class="acts" style="justify-content:flex-start;margin-top:6px"><button class="btn" id="tc_reset">Przywróć domyślne kolory</button></div></div>
     <div class="field"><label>Dodatkowy Fioletowy Kolor Timera <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg"><button data-late="1" aria-pressed="${!!settings.late}">Włączone</button><button data-late="0" aria-pressed="${!settings.late}">Wyłączone</button></div>
       <p class="fhint">Włączone: na minusie timer zmienia kolor na zmianę według czasów mapy z Wiki – np. Czerwony Las (36–47 min, timer 35): 0 do -12 fioletowy, -12 do -47 niebieski, -47 do -59 fioletowy i tak dalej.</p></div>
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
@@ -1931,6 +1951,8 @@ function menuSheet(){
       if (!had && showMine()) { tab = "mine"; view = "maps"; saveTab(); }
       render();
     });
+    el.querySelectorAll("[data-tc]").forEach(i => i.oninput = () => { settings.colors = Object.assign({}, settings.colors, {[i.dataset.tc]: i.value}); store.set("settings", settings); applyColors(); });
+    el.querySelector("#tc_reset").onclick = () => { settings.colors = {}; store.set("settings", settings); applyColors(); el.querySelectorAll("[data-tc]").forEach(i => i.value = tcolor(i.dataset.tc)); };
     el.querySelectorAll("[data-late]").forEach(b => b.onclick = () => {
       settings.late = b.dataset.late === "1"; store.set("settings", settings);
       el.querySelectorAll("[data-late]").forEach(x => x.setAttribute("aria-pressed", x === b)); render();

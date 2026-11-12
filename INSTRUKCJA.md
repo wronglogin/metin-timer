@@ -31,6 +31,7 @@ Pokój zmienisz albo opuścisz w **Menu → Wspólny pokój**. Tam jest też **T
   - **żółty** – ostatnie 4 minuty,
   - **niebieski** – na minusie (resp już powinien stać; licznik pokazuje, ile minęło).
   - **fioletowy** (opcjonalny, włączasz w Menu → „Dodatkowy Fioletowy Kolor Timera”) – na minusie timer zmienia kolor na zmianę według czasów mapy z Wiki, np. Czerwony Las (36–47 min, timer 35): 0 do -12 fioletowy, -12 do -47 niebieski, -47 do -59 fioletowy i tak dalej, dopóki nikt nie kliknie.
+  - Każdy kolor możesz zmienić na własny w Menu → „Kolory timerów” (tylko na Twoim urządzeniu, „Przywróć domyślne kolory” wraca do tych powyżej).
 - Pole **min** przy respie to czas odliczania w minutach (domyślnie minutę krócej niż resp z Wiki,
   żeby być na miejscu przed respem).
 - **↶ / ↷** – cofnij i ponów (przy respie albo na górze dla całego pokoju; także Ctrl+Z / Ctrl+Y).
