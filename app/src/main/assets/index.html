@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794476005"><link rel="apple-touch-icon" href="icon-192.png?v=1794476005">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794476133"><link rel="apple-touch-icon" href="icon-192.png?v=1794476133">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -764,7 +764,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794476005";
+const BUILD = "1794476133";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -2325,7 +2325,7 @@ function adminSheet(){
           // safe actions in the row; the ones that wipe or lock a room are folded away under "Więcej" and need the room name typed in
           const r = esc(n);
           return `<li class="rrow"><span><b>${r}</b> <span class="pme">${when}</span></span><span style="display:flex;gap:6px;flex-wrap:wrap">${rb[n] ? `<button class="btn" data-ract="unban" data-room="${r}">Odblokuj</button>`
-            : `<button class="btn" data-ract="pw" data-room="${r}">Hasło</button><button class="btn" data-rmore aria-expanded="false">Więcej ▾</button>`}</span>
+            : `${online && online.room === n ? '<button class="btn" disabled>Jesteś tu</button>' : `<button class="btn primary" data-ract="join" data-room="${r}" title="Połącz się z tym pokojem (admin wchodzi bez hasła)">Wejdź</button>`}<button class="btn" data-ract="pw" data-room="${r}">Hasło</button><button class="btn" data-rmore aria-expanded="false">Więcej ▾</button>`}</span>
             ${rb[n] ? "" : `<div class="rdanger" hidden><span class="rdwarn">Niebezpieczne – tego nie da się cofnąć:</span>
               <button class="btn danger" data-ract="zero" data-room="${r}">Zeruj timery</button><button class="btn danger" data-ract="debts" data-room="${r}">Wyzeruj długi</button><button class="btn danger" data-ract="reset" data-room="${r}">Reset respów</button><button class="btn danger" data-ract="ban" data-room="${r}">Zablokuj</button><button class="btn danger" data-ract="del" data-room="${r}">Usuń pokój</button></div>`}</li>`;
         }).join("") : '<li class="pme">Brak pokoi.</li>';
@@ -2339,6 +2339,16 @@ function adminSheet(){
       const b = e.target.closest("[data-ract]"); if (!b) return;
       const act = b.dataset.ract, room = b.dataset.room, rurl = `${DB_URL}/rooms/${encodeURIComponent(room)}`;
       berr.hidden = true;
+      if (act === "join") {
+        // the admin walks into any room: it joins the saved rooms (so the room switch at the top shows it) and opens
+        b.disabled = true;
+        try {
+          await connect(DB_URL, room);
+          const list = roomList(); if (!list.includes(room)) { const at = store.get("roomAt", {}) || {}; at[room] = now(); store.set("roomAt", at); store.set("rooms", [...list, room]); }
+          store.set("lastRoom", {room}); store.set("stayOffline", false); renderRoomSel(); close(); toast("Połączono z pokojem " + room);
+        } catch (x) { berr.textContent = x.message; berr.hidden = false; b.disabled = false; }
+        return;
+      }
       if (act === "pw") {
         const li = b.closest("li");
         li.innerHTML = `<span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;width:100%"><b>${esc(room)}</b><input class="rpwin" maxlength="40" placeholder="nowe hasło" autocomplete="off" style="flex:1;min-width:110px"><button class="btn primary" data-rpset>Ustaw</button><button class="btn" data-rpopen>Bez hasła</button><button class="btn" data-rpno>Anuluj</button></span>`;
