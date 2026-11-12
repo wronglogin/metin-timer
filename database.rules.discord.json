@@ -493,6 +493,9 @@
             }
           }
         },
+        "pwv": {
+          ".validate": "newData.isNumber()"
+        },
         "$other": {
           ".validate": false
         },
