@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480336"><link rel="apple-touch-icon" href="icon-192.png?v=1794480336">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480548"><link rel="apple-touch-icon" href="icon-192.png?v=1794480548">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -29,14 +29,16 @@ button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:tran
 
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
 .bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.ctrls{display:flex;align-items:center;gap:inherit;flex-wrap:wrap;min-width:0}
+.ctrls{display:flex;align-items:center;gap:inherit;flex-wrap:wrap;min-width:0;flex:1 1 auto}
+/* room, people and undo on the left, the page buttons on the right – also when the row wraps under the title */
+#wikiBtn{margin-left:auto}
 header{grid-template-columns:minmax(0,1fr)}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
 @media (max-width:520px){.brand{flex-basis:100%}
   /* phone: title and clock in the middle of the screen, MiniWiki/Gry/Menu/Admin on the right */
   .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}.bar .brand small.clock{justify-self:center}
   .ctrls{flex:1 1 100%}#wikiBtn{margin-left:auto}}
-.radio{display:flex;align-items:center;gap:2px;min-width:250px;flex:1 1 260px;max-width:400px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+.radio{display:flex;align-items:center;gap:2px;min-width:200px;flex:1 1 220px;max-width:400px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
 .radio .rbtn:hover{background:var(--surface-2)}
 .radio .rvoln{width:42px;flex:0 0 auto;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:2px 3px;font-family:var(--f-num);font-size:13px;text-align:center;margin-right:4px;-moz-appearance:textfield}
@@ -472,7 +474,8 @@ body.sizing{cursor:ew-resize;user-select:none}
 .field{display:grid;gap:4px}
 .field[hidden]{display:none}
 .btn[hidden]{display:none}
-@media (max-width:520px){#adminBtn .abtx{display:none}#adminBtn{padding:0 10px}}
+#adminBtn .abico{display:none}
+@media (max-width:520px){#adminBtn .abtx{display:none}#adminBtn .abico{display:block}#adminBtn{padding:0 10px}}
 @media (max-width:440px){.ctrls>#adminBtn{padding:3px 5px;flex-shrink:0}}
 .stakein{display:flex;align-items:center;gap:8px}.stakein input{flex:1;min-width:0}.stakein span{color:var(--muted);font-weight:600;white-space:nowrap}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -525,8 +528,8 @@ body.sizing{cursor:ew-resize;user-select:none}
       <button class="btn" id="wikiBtn" aria-pressed="false">Wiki</button>
       <button class="btn" id="msBtn" aria-pressed="false" hidden title="Misje tygodniowe"><span class="mlong">Misje Tygodniowe</span><span class="mshort">Misje</span></button>
       <button class="btn" id="gamesBtn">Gry</button>
-      <button class="btn" id="menuBtn">Menu</button>
-      <button class="btn" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina">⚙<span class="abtx"> Admin</span></button>
+      <button class="btn icon" id="menuBtn" title="Menu (ustawienia)" aria-label="Menu">⚙</button>
+      <button class="btn" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina"><svg class="abico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.600-1.700 8-6 8-11V5zm0 2.200 6 2.200V11c0 3.900-2.500 7.400-6 8.900-3.500-1.500-6-5-6-8.900V6.400z"/></svg><span class="abtx">Admin</span></button>
       </div>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -840,7 +843,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794480336";
+const BUILD = "1794480548";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1322,7 +1325,7 @@ function renderRoomSel(){
   sel.value = cur;
 }
 async function switchRoom(room){
-  if (room && !myNick()) { toast("Najpierw wpisz swój nick w Menu."); renderRoomSel(); menuSheet(); return; }
+  if (room && !myNick()) { toast("Najpierw wpisz swój nick w Menu (⚙)."); renderRoomSel(); menuSheet(); return; }
   if (!room) { disconnect(); return; }
   if (online && online.room === room) return;
   try { await connect(DB_URL, room); toast("Pokój: " + room); }
@@ -3802,7 +3805,7 @@ function spinRoulette(ps, stake){
   lastSpin = id; showSpin(local, 0);
 }
 function rouletteSheet(){
-  if (!online) { toast("Loteria działa we wspólnym pokoju. Połącz się w Menu."); return; }
+  if (!online) { toast("Loteria działa we wspólnym pokoju. Połącz się w Menu (⚙)."); return; }
   const busy = roomBusy();
   sheet(`<h2>Loteria</h2><p>Zaznacz, kto gra, i wpisz stawkę (albo zostaw puste – wtedy gra za darmo). Wygrywa jedna losowa osoba i zgarnia całą pulę. Wynik widzą wszyscy w pokoju.</p>
     ${busyHtml(busy)}
@@ -3927,7 +3930,7 @@ function debtChanges(gameName, pmap, winIds, loseIds, stake){
   return out;
 }
 function debtsSheet(){
-  if (!online) { toast("Rozliczenia działają we wspólnym pokoju. Połącz się w Menu."); return; }
+  if (!online) { toast("Rozliczenia działają we wspólnym pokoju. Połącz się w Menu (⚙)."); return; }
   sheet(`<h2>Rozliczenia</h2><p>Kto komu ile wisi z gier na stawki (liczą się stawki w k, kk, kkk). Wygrane i przegrane między dwiema osobami się znoszą. Spłatę zaznacza osoba, której dług się należy.</p>
     <div class="dme" id="dl_me"></div>
     <div class="field"><label>Długi (kto → komu)</label><ul class="banlist" id="dl_list"></ul></div>
@@ -4298,7 +4301,7 @@ function horseClick(g, act, b){
     if (g.state !== "bet") return;
     const h = hPick || (g.b && g.b[meId()] && +g.b[meId()].h);
     if (!h) { toast("Wybierz konia."); return; }
-    if (!myNick()) { toast("Najpierw wpisz nick w Menu."); return; }
+    if (!myNick()) { toast("Najpierw wpisz nick w Menu (⚙)."); return; }
     // everyone bets the same stake, set by the person who opened the race
     gamePatch({[`game/b/${meId()}`]: {h, a: 1, n: myNick().slice(0, 20)}, [`game/p/${meId()}`]: myNick().slice(0, 20)});
     return;
@@ -5269,7 +5272,7 @@ function gamesMenu(){
   });
 }
 function gameSheet(type){
-  if (!online) { toast("Gry działają we wspólnym pokoju. Połącz się w Menu."); return; }
+  if (!online) { toast("Gry działają we wspólnym pokoju. Połącz się w Menu (⚙)."); return; }
   if (type === "horse" || type === "horse3d" || type === "wheel") return horseSheet(type);
   const def = GAMES[type];
   const busy = roomBusy();

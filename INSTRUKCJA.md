@@ -46,7 +46,7 @@ i maksymalny metinów i bossów. Czasy możesz uzupełnić później przyciskiem
 ### Wiki
 Przycisk **Wiki** na górze: czasy respu na mapach i przepisy na róże.
 
-## 3. Menu (ustawienia tylko na Twoim urządzeniu)
+## 3. Menu – przycisk ⚙ (ustawienia tylko na Twoim urządzeniu)
 
 - **Widok:** *Kompaktowy* (mało miejsca, np. okno obok gry) i/lub *Tabletowy* (kilka kolumn na szerokim ekranie).
 - **Rozmiar respów** – suwak powiększenia.
@@ -123,7 +123,7 @@ Odświeżenie nie wylogowuje i nie zmienia timerów.
 
 ## 9. Dla adminów
 
-**⚙ Admin** obok Menu (widzą go tylko właściciel i admini; wymaga hasła admina, pamiętanego 48 h na urządzeniu).
+**Admin** obok Menu (⚙) (widzą go tylko właściciel i admini; wymaga hasła admina, pamiętanego 48 h na urządzeniu).
 Panel jest podzielony na części:
 
 - **Ustawienia:** liczba kanałów (dla wszystkich), przesunięcie zegara względem gry.
