@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794498300"><link rel="apple-touch-icon" href="icon-192.png?v=1794498300">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794498588"><link rel="apple-touch-icon" href="icon-192.png?v=1794498588">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -863,7 +863,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794498300";
+const BUILD = "1794498588";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1382,15 +1382,15 @@ function status(s, c){
   // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero
   if (el < mn - SOON) return {cls:"wait", text: fmt(mn - el), label:"odlicza", phase:0};
   if (el < mn) return {cls:"window", text: fmt(mn - el), label:"za chwilę", phase:1};
-  // purple after a fixed time on the minus, taken from the Wiki: the map's longest respawn minus its default timer
-  // (Czerwony Las 36–47 min, timer 35 → from -12), whatever minutes the row or the click had
+  // the purple/blue times come from the Wiki (the map's longest respawn and its default timer), whatever minutes the row or the click had
   if (!settings.late) return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie", phase:2};
   const rg = mapById[s.map] && !mapById[s.map].notimes && mapById[s.map][s.kind === "boss" ? "boss" : "metin"];
   const over = rg ? (rg[1] - dmin(rg)) * 60000 : mx - mn, base = rg ? dmin(rg) * 60000 : mn;
-  const from = over > 0 ? ` (fioletowy od -${Math.round(over / 60000)} min na ${Math.round(over / 60000)} min, potem ${Math.round(base / 60000)} min niebieski i tak w kółko)` : "";
-  // then it cycles while nobody clicks: purple for that time, blue for the map's timer (Czerwony Las: 12 purple, 35 blue, ...)
-  const q = el - mn - over;
-  if (over > 0 && q >= 0 && q % (over + base) < over) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu" + from, phase:2};
+  const from = over > 0 ? ` (na minusie na zmianę: ${Math.round(over / 60000)} min fioletowy, ${Math.round(base / 60000)} min niebieski)` : "";
+  // on the minus it alternates while nobody clicks: purple for max − timer, blue for the map's timer
+  // (Czerwony Las 36–47, timer 35: 0…-12 purple, -12…-47 blue, -47…-59 purple, ...)
+  const q = el - mn;
+  if (over > 0 && q % (over + base) < over) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu" + from, phase:2};
   return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie" + from, phase:2};
 }
 function fmt(ms){
@@ -1547,7 +1547,7 @@ function render(){
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
   $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
-    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Reset liczników o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span>${settings.late ? '<span><b class="o">Fioletowy</b> po max. czasie respu</span>' : ""}</div>`;
+    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Reset liczników o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span>${settings.late ? '<span><b class="o">Fioletowy</b> na zmianę z niebieskim</span>' : ""}</div>`;
   fitNames();
 }
 function paneHtml(id){
@@ -1884,7 +1884,7 @@ function menuSheet(){
     <div class="field"><label>Widoczne mapy <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. Własną mapę dla całego pokoju dodasz przyciskiem „+ Custom Mapa” na końcu paska map. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
     <div class="field"><label>Fioletowe timery <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg"><button data-late="1" aria-pressed="${!!settings.late}">Włączone</button><button data-late="0" aria-pressed="${!settings.late}">Wyłączone</button></div>
-      <p class="fhint">Włączone: gdy timer jest na minusie dłużej, niż wynosi różnica max i min respu mapy z Wiki (np. Czerwony Las od -12), robi się fioletowy. Bez kliknięcia potem na zmianę: tyle samo minut fioletowy, czas timera mapy niebieski.</p></div>
+      <p class="fhint">Włączone: na minusie timer zmienia kolor na zmianę według czasów mapy z Wiki – np. Czerwony Las (36–47 min, timer 35): 0 do -12 fioletowy, -12 do -47 niebieski, -47 do -59 fioletowy i tak dalej.</p></div>
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}

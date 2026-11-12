@@ -30,7 +30,7 @@ Pokój zmienisz albo opuścisz w **Menu → Wspólny pokój**. Tam jest też **T
   - **czerwony** – odlicza do respu,
   - **żółty** – ostatnie 4 minuty,
   - **niebieski** – na minusie (resp już powinien stać; licznik pokazuje, ile minęło).
-  - **fioletowy** (opcjonalny, włączasz w Menu → „Fioletowe timery”) – licznik jest na minusie dłużej niż różnica max i min respu mapy z Wiki (np. Czerwony Las: od -12), więc metin raczej już stoi. Jeśli nikt nie kliknie, timer zmienia się dalej na zmianę: tyle samo minut fioletowy, potem czas timera mapy niebieski.
+  - **fioletowy** (opcjonalny, włączasz w Menu → „Fioletowe timery”) – na minusie timer zmienia kolor na zmianę według czasów mapy z Wiki, np. Czerwony Las (36–47 min, timer 35): 0 do -12 fioletowy, -12 do -47 niebieski, -47 do -59 fioletowy i tak dalej, dopóki nikt nie kliknie.
 - Pole **min** przy respie to czas odliczania w minutach (domyślnie minutę krócej niż resp z Wiki,
   żeby być na miejscu przed respem).
 - **↶ / ↷** – cofnij i ponów (przy respie albo na górze dla całego pokoju; także Ctrl+Z / Ctrl+Y).
