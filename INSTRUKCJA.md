@@ -55,7 +55,7 @@ Przycisk **MiniWiki** na górze: czasy respu na mapach i przepisy na róże.
 - **Widoczne mapy** – ukryte mapy znikają z zakładek i nie dają alarmów.
 - **Gry** – włączone / wyłączone (wyłączone = nie widzisz gier i nikt Cię do nich nie doda).
 - **Nie wygaszaj ekranu** (na stronie).
-- **Eksportuj / Importuj respy** i **Reset pokoju** (zeruje liczniki w tym pokoju – u wszystkich w pokoju).
+- **Eksportuj / Importuj respy** i **Reset timerów w pokoju** (zeruje liczniki w tym pokoju – u wszystkich w pokoju).
 - **Aplikacja na Androida** – informacja o wersji i przycisk pobrania.
 
 ## 4. Radio i Watch2Gether (na stronie)

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794475374"><link rel="apple-touch-icon" href="icon-192.png?v=1794475374">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794475456"><link rel="apple-touch-icon" href="icon-192.png?v=1794475456">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -764,7 +764,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794475374";
+const BUILD = "1794475456";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1760,7 +1760,7 @@ function menuSheet(){
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
     ${IN_APP ? "" : `<div class="field"><label>Ekran</label><div class="seg"><button id="wake" aria-pressed="${settings.wake}">Nie wygaszaj ekranu</button></div></div>`}
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
-    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset pokoju" : "Reset timerów"}</button></div>
+    <div class="acts" style="justify-content:flex-start"><button class="btn" id="m_exp">Eksportuj respy</button><button class="btn" id="m_imp">Importuj respy</button><button class="btn danger" id="m_reset">${online ? "Reset timerów w pokoju" : "Reset timerów"}</button></div>
     <hr style="border:0;border-top:1px solid var(--rule);width:100%">
     <h2 style="font-size:19px">Aplikacja na Androida</h2>
     <div id="appinfo" style="display:grid;gap:6px">${appInfoHtml(store.get("rel", null))}</div>
@@ -2003,7 +2003,7 @@ function importSheet(){
   });
 }
 function resetSheet(){
-  sheet(`<h2>${online ? "Reset pokoju" : "Reset timerów"}</h2><p>Wyzeruje wszystkie liczniki na wszystkich mapach${online ? ` tylko w pokoju <b>${esc(online.room)}</b> (dla wszystkich w nim). Inne pokoje się nie zmienią` : ""}. Respy i ich nazwy zostają. Możesz to cofnąć.</p>
+  sheet(`<h2>${online ? "Reset timerów w pokoju" : "Reset timerów"}</h2><p>Wyzeruje wszystkie liczniki na wszystkich mapach${online ? ` tylko w pokoju <b>${esc(online.room)}</b> (dla wszystkich w nim). Inne pokoje się nie zmienią` : ""}. Respy i ich nazwy zostają. Możesz to cofnąć.</p>
     <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn danger" id="r_ok">Zeruj wszystko</button></div>`,
   (el, close) => el.querySelector("#r_ok").onclick = () => {
     const ch = {}; for (const s of Object.values(spots)) if (s.t && Object.keys(s.t).length) ch[`${s.id}/t`] = null;
