@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794475456"><link rel="apple-touch-icon" href="icon-192.png?v=1794475456">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794476005"><link rel="apple-touch-icon" href="icon-192.png?v=1794476005">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -764,7 +764,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794475456";
+const BUILD = "1794476005";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1715,7 +1715,7 @@ function bindRoomBlock(el, close){
       if (bad) throw new Error(`Zła nazwa pokoju „${bad}”: 3–40 znaków, litery, cyfry, - lub _.`);
       const room = online && rooms.includes(online.room) ? online.room : rooms[0];
       if (!online || online.room !== room) await connect(DB_URL, room);
-      { const at = store.get("roomAt", {}) || {}; for (const r of rooms) if (!at[r] || !roomList().includes(r)) at[r] = Date.now(); store.set("roomAt", at); }
+      { const at = store.get("roomAt", {}) || {}; for (const r of rooms) if (!at[r] || !roomList().includes(r)) at[r] = now(); store.set("roomAt", at); }
       store.set("rooms", rooms); store.set("lastRoom", {room}); store.set("stayOffline", false); renderRoomSel(); close();
       toast(rooms.length > 1 ? `Zapisano ${rooms.length} pokoje, aktywny: ${room}. Przełączasz u góry.` : "Połączono z pokojem " + room);
     }
@@ -2385,7 +2385,8 @@ function adminSheet(){
           // the "deleted" mark goes first, so pages still in the room notice it as soon as the room disappears
           await adminPatch({["roompw/" + room]: null, ["roomdel/" + room]: {".sv": "timestamp"}}, "Usunięto pokój: " + room + (here.length ? ` (byli w nim: ${[...new Set(here)].join(", ")})` : ""));
           // you are in it yourself: leave it first, so this page doesn't write the room straight back
-          if (online && online.room === room) disconnect();
+          // (to your next saved room if you have one – only with no other room do you end up on the private timer)
+          await leaveRoom(room);
           const r = await fetch(`${rurl}.json`, {method: "DELETE"});
           if (!r.ok) throw new Error("Baza nie pozwoliła usunąć pokoju (" + r.status + ").");
           await fetch(`${DB_URL}/roomlist/${encodeURIComponent(room)}.json`, {method: "DELETE"}).catch(() => {});
