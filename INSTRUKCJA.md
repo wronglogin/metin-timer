@@ -1,7 +1,7 @@
 # Unity Timer – instrukcja
 
 Timer respawnu metinów i bossów w Metin2 dla naszej gildii: wspólne pokoje na żywo, kanały CH1–CH10,
-cofanie i ponawianie, MiniWiki, radio z Watch2Gether i gry.
+cofanie i ponawianie, Wiki, radio z Watch2Gether i gry.
 
 - **Strona:** https://wronglogin.github.io/metin-timer/
 - **Aplikacja na Androida:** [UnityTimer.apk](https://github.com/wronglogin/metin-timer/releases/latest/download/UnityTimer.apk)
@@ -30,7 +30,7 @@ Pokój zmienisz albo opuścisz w **Menu → Wspólny pokój**. Tam jest też **T
   - **czerwony** – odlicza do respu,
   - **żółty** – ostatnie 4 minuty,
   - **niebieski** – na minusie (resp już powinien stać; licznik pokazuje, ile minęło).
-- Pole **min** przy respie to czas odliczania w minutach (domyślnie minutę krócej niż resp z MiniWiki,
+- Pole **min** przy respie to czas odliczania w minutach (domyślnie minutę krócej niż resp z Wiki,
   żeby być na miejscu przed respem).
 - **↶ / ↷** – cofnij i ponów (przy respie albo na górze dla całego pokoju; także Ctrl+Z / Ctrl+Y).
 - **Wszystkie liczniki zerują się codziennie o 01:00** (czas polski).
@@ -43,8 +43,8 @@ Pokój zmienisz albo opuścisz w **Menu → Wspólny pokój**. Tam jest też **T
 Na końcu paska map jest **+ Custom Mapa** – mapa dla całego pokoju. Podajesz nazwę i (opcjonalnie) resp minimalny
 i maksymalny metinów i bossów. Czasy możesz uzupełnić później przyciskiem **Edytuj mapę**.
 
-### MiniWiki
-Przycisk **MiniWiki** na górze: czasy respu na mapach i przepisy na róże.
+### Wiki
+Przycisk **Wiki** na górze: czasy respu na mapach i przepisy na róże.
 
 ## 3. Menu (ustawienia tylko na Twoim urządzeniu)
 
@@ -76,7 +76,7 @@ Ikona kolejki przy radiu na górze strony → wklej link i **Dodaj**. Wszyscy w 
 
 ## 5. Misje tygodniowe
 
-Przycisk **Misje** na górze (po zalogowaniu przez Discord; działa też w aplikacji). Trzy obozy – **Góra Sohan,
+Przycisk **Misje Tygodniowe** na górze (po zalogowaniu przez Discord; działa też w aplikacji). Trzy obozy – **Góra Sohan,
 Pustynia, Wężowe Pole** – dają każdej postaci jedną misję na tydzień.
 
 - **Dodaj postać** (nick po lewej), a przy niej trzy pola – po jednym na obóz. Zaznacz pole, gdy postać zrobi misję:
@@ -89,7 +89,7 @@ Pustynia, Wężowe Pole** – dają każdej postaci jedną misję na tydzień.
 - **Do kupienia – razem** na dole: suma przedmiotów wszystkich postaci, z podziałem na obozy.
   Liczy tylko misje jeszcze niezrobione (chyba że zaznaczysz „licz też misje już zrobione”).
 - Lista jest **prywatna** – przypisana do Twojego konta Discord, nie do pokoju. **Udostępnij** daje wybranym osobom
-  pełny dostęp (widzą listę u siebie w Misjach i mogą ją edytować); dostęp można w każdej chwili zabrać,
+  pełny dostęp (widzą listę u siebie w Misjach Tygodniowych i mogą ją edytować); dostęp można w każdej chwili zabrać,
   a osoba z dostępem może sama „Opuścić tę listę”.
 
 ## 6. Gry
