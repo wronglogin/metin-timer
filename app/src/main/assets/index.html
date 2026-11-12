@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794498588"><link rel="apple-touch-icon" href="icon-192.png?v=1794498588">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794498642"><link rel="apple-touch-icon" href="icon-192.png?v=1794498642">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -863,7 +863,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794498588";
+const BUILD = "1794498642";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1883,7 +1883,7 @@ function menuSheet(){
       <div class="zoomrow"><input id="vol" type="range" min="0" max="100" step="5" value="${Math.round(settings.volume * 100)}"><output id="volv">${Math.round(settings.volume * 100)}%</output></div></div>
     <div class="field"><label>Widoczne mapy <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg">${MAPS.map(m => `<button data-vis="${m.id}" aria-pressed="${!isHidden(m.id)}">${esc(m.name)}</button>`).join("")}</div>
       <p class="fhint">Ukryte mapy znikają z zakładek i nie dają alarmów. Własną mapę dla całego pokoju dodasz przyciskiem „+ Custom Mapa” na końcu paska map. Gdy coś ukryjesz, pojawi się zakładka „Twoje mapy” ze wszystkimi respami z widocznych map na jednym ekranie. Respy ukrytych map zostają w pokoju dla innych.</p></div>
-    <div class="field"><label>Fioletowe timery <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg"><button data-late="1" aria-pressed="${!!settings.late}">Włączone</button><button data-late="0" aria-pressed="${!settings.late}">Wyłączone</button></div>
+    <div class="field"><label>Dodatkowy Fioletowy Kolor Timera <span class="opt">· tylko na tym urządzeniu</span></label><div class="seg"><button data-late="1" aria-pressed="${!!settings.late}">Włączone</button><button data-late="0" aria-pressed="${!settings.late}">Wyłączone</button></div>
       <p class="fhint">Włączone: na minusie timer zmienia kolor na zmianę według czasów mapy z Wiki – np. Czerwony Las (36–47 min, timer 35): 0 do -12 fioletowy, -12 do -47 niebieski, -47 do -59 fioletowy i tak dalej.</p></div>
     <div class="field"><label>Gry</label><div class="seg"><button data-gon="1" aria-pressed="${settings.games !== false}">Włączone</button><button data-gon="0" aria-pressed="${settings.games === false}">Wyłączone</button></div>
       <p class="fhint">Wyłączone: nie widzisz żadnych gier ani przycisku Gry, a inni nie mogą cię dodać do gry.</p></div>
