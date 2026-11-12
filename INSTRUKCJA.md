@@ -123,7 +123,7 @@ Odświeżenie nie wylogowuje i nie zmienia timerów.
 
 ## 9. Dla adminów
 
-**Admin** obok Menu (⚙) (widzą go tylko właściciel i admini; wymaga hasła admina, pamiętanego 48 h na urządzeniu).
+Przycisk z **tarczą** obok Menu (⚙) (widzą go tylko właściciel i admini; wymaga hasła admina, pamiętanego 48 h na urządzeniu).
 Panel jest podzielony na części:
 
 - **Ustawienia:** liczba kanałów (dla wszystkich), przesunięcie zegara względem gry.

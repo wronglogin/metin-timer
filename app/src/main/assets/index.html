@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480647"><link rel="apple-touch-icon" href="icon-192.png?v=1794480647">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480780"><link rel="apple-touch-icon" href="icon-192.png?v=1794480780">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -38,7 +38,8 @@ header{grid-template-columns:minmax(0,1fr)}
   /* phone: title and clock in the middle of the screen, MiniWiki/Gry/Menu/Admin on the right */
   .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}.bar .brand small.clock{justify-self:center}
   .ctrls{flex:1 1 100%}#wikiBtn{margin-left:auto}}
-.radio{display:flex;align-items:center;gap:2px;min-width:200px;flex:1 1 220px;max-width:400px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+.radio:not(.off){min-width:292px;flex-basis:300px}
+.radio{display:flex;align-items:center;gap:2px;min-width:200px;flex:1 1 220px;max-width:400px;overflow:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
 .radio .rbtn:hover{background:var(--surface-2)}
 .radio .rvoln{width:42px;flex:0 0 auto;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:2px 3px;font-family:var(--f-num);font-size:13px;text-align:center;margin-right:4px;-moz-appearance:textfield}
@@ -97,7 +98,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .rqgrip{flex:0 0 auto;cursor:grab;color:var(--muted);padding:6px 4px;font-size:16px;line-height:1;touch-action:none;user-select:none}
 .rq li[data-qk]{user-select:none}
 .rq li.rqdrag{opacity:.85;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:grabbing}
-@media (max-width:520px){.radio{flex:1 1 100%;max-width:none}}
+@media (max-width:520px){.radio,.radio:not(.off){flex:1 1 100%;max-width:none;min-width:0}}
 .brand{display:grid;grid-template-columns:max-content;justify-content:start;justify-items:center}
 .brand small.clock{font-size:15px;font-weight:600;letter-spacing:.06em;color:var(--accent);font-variant-numeric:tabular-nums;min-height:1.2em}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
@@ -474,8 +475,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .field{display:grid;gap:4px}
 .field[hidden]{display:none}
 .btn[hidden]{display:none}
-#adminBtn{display:inline-flex;align-items:center;gap:6px}#adminBtn[hidden]{display:none}
-@media (max-width:520px){#adminBtn .abtx{display:none}#adminBtn{padding:0 10px}}
+#adminBtn{display:inline-grid;place-items:center}#adminBtn[hidden]{display:none}
 @media (max-width:440px){.ctrls>#adminBtn{padding:3px 5px;flex-shrink:0}}
 .stakein{display:flex;align-items:center;gap:8px}.stakein input{flex:1;min-width:0}.stakein span{color:var(--muted);font-weight:600;white-space:nowrap}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -529,7 +529,7 @@ body.sizing{cursor:ew-resize;user-select:none}
       <button class="btn" id="msBtn" aria-pressed="false" hidden title="Misje tygodniowe"><span class="mlong">Misje Tygodniowe</span><span class="mshort">Misje</span></button>
       <button class="btn" id="gamesBtn">Gry</button>
       <button class="btn icon" id="menuBtn" title="Menu (ustawienia)" aria-label="Menu">⚙</button>
-      <button class="btn" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina"><svg class="abico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.600-1.700 8-6 8-11V5zm0 2.200 6 2.200V11c0 3.900-2.500 7.400-6 8.900-3.500-1.500-6-5-6-8.900V6.400z"/></svg><span class="abtx">Admin</span></button>
+      <button class="btn icon" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina"><svg class="abico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.600-1.700 8-6 8-11V5zm0 2.200 6 2.200V11c0 3.900-2.500 7.400-6 8.900-3.500-1.500-6-5-6-8.900V6.400z"/></svg></button>
       </div>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -843,7 +843,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794480647";
+const BUILD = "1794480780";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
