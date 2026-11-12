@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794513674"><link rel="apple-touch-icon" href="icon-192.png?v=1794513674">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794514150"><link rel="apple-touch-icon" href="icon-192.png?v=1794514150">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -880,7 +880,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794513674";
+const BUILD = "1794514150";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1214,7 +1214,10 @@ let presence = {}, presenceTimer = null;
 const deviceId = store.get("cid", null) || (() => { const id = uid(); store.set("cid", id); return id; })();
 const myNick = () => String(store.get("nick", "") || "").trim();
 const presUrl = id => roomUrl("/presence/" + id);
-function heartbeat(){
+async function heartbeat(){
+  if (!online || !myNick()) return;
+  // a room the admin deleted must not come back from a page that still had it open: check first, then write
+  await pruneDeletedRooms().catch(() => {});
   if (!online || !myNick()) return;
   fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {}), ...(dOn() && dSess() ? {u: dSess().uid} : {})})}).then(r => { if (r.status === 401 || r.status === 403) recheckRoomPw(); }).catch(() => {});
   // list of rooms with recent activity, so the admin can see who is online in every room
