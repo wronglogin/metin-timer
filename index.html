@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485618"><link rel="apple-touch-icon" href="icon-192.png?v=1794485618">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485917"><link rel="apple-touch-icon" href="icon-192.png?v=1794485917">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -32,10 +32,13 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .bar{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-width:0}
 .ctrls{display:flex;align-items:stretch;justify-content:center;gap:8px;flex-wrap:wrap;min-width:0;flex:0 1 auto}
 /* two joined groups: the room (room, people, undo/redo) and the pages (Wiki … admin) */
-.cgroup{display:flex;align-items:stretch;flex-wrap:nowrap;min-width:0;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.cgroup{display:flex;align-items:stretch;flex-wrap:nowrap;min-width:0;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px}
 /* the buttons sit edge to edge like one bar, split by thin lines */
 /* (every piece has a line on its left and is pulled 1px left, so the first visible one hides its line under the bar's edge) */
 .cgroup>*{border-radius:0!important;border:0!important;border-left:1px solid var(--rule)!important;margin:0 0 0 -1px!important;min-height:38px;box-shadow:none!important}
+/* (no overflow:hidden on the group – it would cut off the list of people that opens under the people counter) */
+.cgroup>:first-child{border-left-color:transparent!important;border-radius:7px 0 0 7px!important}
+.cgroup>:last-child,.cgroup>#menuBtn:has(+ #adminBtn[hidden]){border-radius:0 7px 7px 0!important}
 .cgroup>.btn{background:transparent}.cgroup>.btn:hover:not(:disabled){background:var(--surface)}
 .cgroup>.mode{display:inline-flex;align-items:center;padding:0 12px;background:transparent}
 .cgroup>.roomsel{background:transparent}
@@ -106,6 +109,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .rq li.rqdrag{opacity:.85;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:grabbing}
 @media (max-width:520px){.radio,.radio:not(.off){flex:1 1 100%;max-width:none;min-width:0}.ctrls{flex:1 1 100%}}
 .brand{display:grid}
+.brand .home{color:inherit;text-decoration:none;cursor:pointer}.brand .home:hover{color:var(--accent)}
 .brand small.clock{font-size:15px;font-weight:600;letter-spacing:.06em;color:var(--accent);font-variant-numeric:tabular-nums;min-height:1.2em}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
@@ -525,7 +529,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 <div class="wrap">
   <header>
     <div class="bar">
-      <div class="brand">Unity Timer<small class="clock" id="clock" title="Aktualny czas polski (w pokoju zgrany z serwerem)"></small></div>
+      <div class="brand"><a class="home" id="homeBtn" href="./" title="Timery (strona główna)">Unity Timer</a><small class="clock" id="clock" title="Aktualny czas polski (w pokoju zgrany z serwerem)"></small></div>
       <div id="radio" class="radio" hidden></div>
       <div class="ctrls">
       <div class="cgroup">
@@ -854,7 +858,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794485618";
+const BUILD = "1794485917";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1672,6 +1676,8 @@ function applyGamesOff(){
 }
 setTimeout(applyGamesOff, 0);
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
+// the title: back to the timers of the room (whatever page or window is open), without reloading
+$("#homeBtn").onclick = e => { e.preventDefault(); document.querySelectorAll("#layer [data-close]").forEach(b => b.click()); view = "maps"; saveTab(); render(); window.scrollTo(0, 0); };
 $("#msBtn").onclick = () => { view = view === "missions" ? "maps" : "missions"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
