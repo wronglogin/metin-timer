@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794488818"><link rel="apple-touch-icon" href="icon-192.png?v=1794488818">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794489107"><link rel="apple-touch-icon" href="icon-192.png?v=1794489107">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -859,7 +859,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794488818";
+const BUILD = "1794489107";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1374,7 +1374,7 @@ function status(s, c){
   if (!v) return {cls:"idle", text:"--:--", label:"nie liczy"};
   const t = typeof v === "number" ? v : v.a;
   if (t < resetAt) return {cls:"idle", text:"--:--", label:"nie liczy"};
-  const el = now() - t, mn = (v.mn || s.min)*60000, mx = (v.mx || s.max)*60000;
+  const el = now() - t, mn = (v.mn > 1 ? v.mn : s.min)*60000, mx = (v.mx || s.max)*60000;
   // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero,
   // purple once even the longest respawn of the map has passed (e.g. Czerwony Las 35 min timer, max 47 → from -12)
   if (el < mn - SOON) return {cls:"wait", text: fmt(mn - el), label:"odlicza", phase:0};
@@ -2057,7 +2057,9 @@ function importMarks(t){
     if (!/^c([1-9]|10)$/.test(c)) continue;
     const a = typeof v === "number" ? v : v && +v.a;
     if (!(a > resetAt)) continue;
-    out[c] = {a, mn: Math.min(600, Math.max(1, +(v && v.mn) || 0)) || undefined, mx: Math.min(600, Math.max(1, +(v && v.mx) || 0)) || undefined};
+    // a mark without its own times (plain number) keeps none, so it follows the row's minutes (earlier this wrote 1 min)
+    const tm = k => { const x = Math.round(+(v && v[k]) || 0); return x >= 1 ? Math.min(600, x) : undefined; };
+    out[c] = {a, mn: tm("mn"), mx: tm("mx")};
     for (const k of ["mn", "mx"]) if (out[c][k] === undefined) delete out[c][k];
   }
   return out;
