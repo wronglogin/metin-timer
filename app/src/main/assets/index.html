@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794489107"><link rel="apple-touch-icon" href="icon-192.png?v=1794489107">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794489587"><link rel="apple-touch-icon" href="icon-192.png?v=1794489587">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -859,7 +859,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794489107";
+const BUILD = "1794489587";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1661,7 +1661,17 @@ document.addEventListener("change", e => {
   let v = Math.round(+el.value); if (!(v >= 1 && v <= 600)) { el.value = s[f]; return; }
   let mn = f === "min" ? v : s.min, mx = f === "max" ? v : s.max;
   if (mx < mn) { if (f === "min") mx = mn; else mn = mx; }
-  if (mn !== s.min || mx !== s.max) commit({[`${s.id}/min`]: mn, [`${s.id}/max`]: mx});
+  if (mn === s.min && mx === s.max) return;
+  // channels already counting keep the minutes they were started with: a mark without its own times
+  // (or with a broken 1 min) gets the row's old times written into it in the same change
+  const ch = {[`${s.id}/min`]: mn, [`${s.id}/max`]: mx};
+  for (const [c, v] of Object.entries(s.t || {})) {
+    if (!v) continue;
+    const a = typeof v === "number" ? v : +v.a;
+    if (!(a > resetAt)) continue;
+    if (typeof v === "number" || !(v.mn > 1)) ch[`${s.id}/t/${c}`] = {a, mn: s.min, mx: Math.max(s.min, (v.mx > 1 ? v.mx : s.max) || s.min)};
+  }
+  commit(ch);
 });
 document.addEventListener("keydown", e => {
   if (e.target.matches && e.target.matches("#main input[data-f]") && e.key === "Enter") { e.target.blur(); return; }
