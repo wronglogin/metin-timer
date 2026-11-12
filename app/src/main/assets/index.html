@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794475241"><link rel="apple-touch-icon" href="icon-192.png?v=1794475241">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794475374"><link rel="apple-touch-icon" href="icon-192.png?v=1794475374">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -764,7 +764,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794475241";
+const BUILD = "1794475374";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3025,7 +3025,7 @@ function radioSheet(){
     <label class="w2gopt"><input type="checkbox" id="ra_w2g"><span><b>Watch2Gether</b> (opcjonalnie) – zamiast muzyki w tle film na dużym ekranie pod timerami, wszyscy oglądają ten sam moment. Kto nie chce, chowa go u siebie.</span></label>
     <p id="ra_err" style="color:var(--danger)" hidden></p>
     <ol class="banlist rq" id="ra_list"></ol>
-    <div class="acts"><button class="btn danger grow" id="ra_clear">Wyczyść kolejkę</button><button class="btn" id="ra_off">${radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"}</button><button class="btn" data-close>Zamknij</button></div>`, el => {
+    <div class="acts"><button class="btn danger grow" id="ra_clear">Wyczyść kolejkę</button><button class="btn" data-close>Zamknij</button></div>`, el => {
     // without scrolling: show the current song and the next few; the rest is one tap away
     let showAll = false;
     const SHOW = 6;
@@ -3039,7 +3039,6 @@ function radioSheet(){
         <div class="rqplay" title="${esc(t)}${it.by ? " – dodał(a) " + esc(it.by) : ""}"><span class="rqt">${esc(t)}</span>${it.by || it.w ? `<span class="rqby">${it.w ? '<span class="w2gtag">Watch2Gether</span>' + (it.by ? " · " : "") : ""}${it.by ? "dodał(a) " + esc(it.by) : ""}</span>` : ""}</div>
         <button class="btn rqw" data-rqw="${k}" aria-pressed="${it.w ? "true" : "false"}" title="${it.w ? "Watch2Gether włączony – kliknij, żeby grało jako zwykła muzyka" : "Oznacz jako Watch2Gether (film na dużym ekranie)"}" aria-label="Watch2Gether">📺</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
-      el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
       el.querySelector("#ra_list").innerHTML = !ks.length ? '<li class="pme">Kolejka jest pusta.</li>'
         : (before ? `<li class="pme rqmore">${before} wcześniej</li>` : "") + vis.map(row).join("")
           + (before || after || showAll ? `<li class="rqmore"><button class="rqtoggle" data-rqall="1">${showAll ? "Pokaż mniej" : `Pokaż całą kolejkę (${ks.length})`}</button></li>` : "");
@@ -3084,7 +3083,6 @@ function radioSheet(){
     };
     el.querySelector("#ra_add").onclick = add;
     el.querySelector("#ra_url").addEventListener("keydown", e => { if (e.key === "Enter") add(); });
-    el.querySelector("#ra_off").onclick = ev => { setRadioOn(!radioOn); ev.target.textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie"; };
     el.querySelector("#ra_clear").onclick = ev => {
       if (!ev.target.dataset.sure) { ev.target.dataset.sure = 1; ev.target.textContent = "Na pewno wyczyścić?"; return; }
       radioPatch({queue: null, cur: null}); ev.target.dataset.sure = ""; ev.target.textContent = "Wyczyść kolejkę"; draw();
