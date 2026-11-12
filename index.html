@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794476133"><link rel="apple-touch-icon" href="icon-192.png?v=1794476133">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794477059"><link rel="apple-touch-icon" href="icon-192.png?v=1794477059">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -230,7 +230,53 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .btn:disabled{opacity:.35;cursor:default}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
 #gamesBtn[hidden]{display:none}
-#wikiBtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+#wikiBtn[aria-pressed="true"],#msBtn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+/* weekly missions (Misje): a private list per Discord account, shared with chosen people */
+.missions{padding:14px 0 30px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}
+.mshead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mshead h1{font-family:var(--f-head);font-size:22px;margin:0 auto 0 0}
+.mshead select{min-height:36px;background:var(--surface);color:var(--fg);border:1px solid var(--rule);border-radius:8px;padding:0 8px;max-width:100%}
+.msnote{color:var(--muted);font-size:14px;margin:0}
+.mslist{display:grid;gap:8px}
+.mscols,.msrow{display:grid;grid-template-columns:minmax(170px,1.2fr) repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+.mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.mscols span:not(:first-child){text-align:center}
+.msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:8px 10px}
+.msname{display:grid;gap:6px;align-content:center;min-width:0}
+.msname input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:7px;color:var(--fg);font-weight:700;font-size:15px;padding:6px 8px}
+.msname .msbtns{display:flex;gap:6px}
+.msname .btn{min-height:28px;padding:0 8px;font-size:13px}
+.mscamp{display:grid;justify-items:center;align-content:center;gap:3px;text-align:center;border:1px solid var(--rule);border-radius:8px;padding:6px 4px;cursor:pointer;min-width:0;background:var(--bg)}
+.mscamp .mscn{display:none;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mscamp input{width:22px;height:22px;accent-color:var(--ready);cursor:pointer;margin:0}
+.mscamp .mst{font-size:13px;line-height:1.25;color:var(--muted)}
+.mscamp .mst b{display:block;color:var(--fg);font-family:var(--f-num);font-weight:600}
+.mscamp.todo{border-color:var(--ready)}.mscamp.todo .mst{color:var(--ready);font-weight:600}
+.msitems{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid var(--rule);padding-top:8px;margin-top:2px}
+.msitems h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.msit{display:grid;grid-template-columns:minmax(0,1fr) 64px 30px;gap:4px;margin-bottom:4px}
+.msit input{min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:6px;color:var(--fg);padding:5px 6px;font-size:14px}
+.msit input[type=number]{text-align:center;font-family:var(--f-num)}
+.msit .btn{min-height:30px;padding:0}
+.mscopy{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.mscopy select{min-height:30px;background:var(--surface);color:var(--fg);border:1px solid var(--rule);border-radius:6px}
+.msadd{display:flex;gap:8px;flex-wrap:wrap}.msadd input{flex:1 1 180px;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:8px;color:var(--fg);padding:8px 10px;font-size:15px}
+.mssum{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;overflow-x:auto}
+.mssum h2{margin:0;font-size:17px}.mssum label{color:var(--muted);font-size:14px;display:flex;gap:8px;align-items:center}
+.mssum table{width:100%;border-collapse:collapse;font-size:14.5px}
+.mssum th,.mssum td{padding:6px 8px;border-bottom:1px solid var(--rule);text-align:right;font-family:var(--f-num)}
+.mssum th{color:var(--muted);font-size:12px;letter-spacing:.06em;text-transform:uppercase;font-family:inherit}
+.mssum th:first-child,.mssum td:first-child{text-align:left;font-family:inherit;font-weight:600}
+.mssum td:last-child{color:var(--accent);font-weight:700}
+.mssum td.z{color:var(--muted);opacity:.5}
+@media (max-width:640px){
+  .mscols{display:none}
+  .msrow{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .msname{grid-column:1/-1;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .mscamp .mscn{display:block}
+  .msitems{grid-template-columns:minmax(0,1fr)}
+  .mssum{padding:10px}.mssum th,.mssum td{padding:6px 4px;font-size:13px}.mssum th{font-size:10.5px;letter-spacing:0}
+}
 .btn.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--rule))}
 .icon{min-width:42px;padding:6px 8px;font-weight:700}
 
@@ -449,6 +495,7 @@ body.sizing{cursor:ew-resize;user-select:none}
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
       <button class="btn" id="wikiBtn" aria-pressed="false">MiniWiki</button>
+      <button class="btn" id="msBtn" aria-pressed="false" hidden title="Misje tygodniowe">Misje</button>
       <button class="btn" id="gamesBtn">Gry</button>
       <button class="btn" id="menuBtn">Menu</button>
       <button class="btn" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina">⚙<span class="abtx"> Admin</span></button>
@@ -457,6 +504,7 @@ body.sizing{cursor:ew-resize;user-select:none}
     <nav class="tabs" id="tabs" role="tablist"></nav>
   </header>
   <main id="main"></main>
+  <section id="missions" class="missions" hidden></section>
   <section id="w2g" class="w2g" hidden><div class="w2gbar" id="w2gbar"></div><div class="w2gbox" id="w2gbox" hidden></div></section>
 </div>
 <div id="layer"></div>
@@ -532,7 +580,7 @@ const store = {
 /* ---------- state ---------- */
 // spot: {id, map, name, kind, min, max, color, o, t:{c1:timestamp, c2:..}}
 let spots = {};
-let view = store.get("view", "maps");           // "maps" | "wiki"
+let view = store.get("view", "maps");           // "maps" | "wiki" | "missions"
 let tab = store.get("tab", "m1");               // map id or "mine"
 const showMine = () => settings.hidden.length > 0 && visibleMaps().length >= 2;
 const saveTab = () => { store.set("tab", tab); store.set("view", view); };
@@ -764,7 +812,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794476133";
+const BUILD = "1794477059";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1419,6 +1467,7 @@ function renderTabs(){
   if (out !== renderTabs.last) { $("#tabs").innerHTML = out; renderTabs.last = out; }
   updateHistButtons();
   $("#wikiBtn").setAttribute("aria-pressed", view === "wiki");
+  const mb = $("#msBtn"); mb.hidden = !(dOn() && dSess()); mb.setAttribute("aria-pressed", view === "missions");
 }
 function fixTab(){
   const vis = visibleMaps().map(m => m.id);
@@ -1428,6 +1477,11 @@ function render(){
   refreshMaps();
   fixTab();
   renderTabs();
+  // Misje: its own page under the tabs (drawn by msDraw), the timers hide meanwhile
+  const onMs = view === "missions" && dOn() && !!dSess();
+  $("#main").hidden = onMs; $("#missions").hidden = !onMs;
+  if (onMs) { msShow(); return; }
+  msHide();
   if (editingInline()) { renderPending = true; return; } // don't wipe a field someone is typing in
   renderPending = false;
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
@@ -1574,6 +1628,7 @@ function applyGamesOff(){
 }
 setTimeout(applyGamesOff, 0);
 $("#wikiBtn").onclick = () => { view = view === "wiki" ? "maps" : "wiki"; saveTab(); render(); window.scrollTo(0, 0); };
+$("#msBtn").onclick = () => { view = view === "missions" ? "maps" : "missions"; saveTab(); render(); window.scrollTo(0, 0); };
 
 /* ---------- sheets ---------- */
 document.addEventListener("click", e => { if (e.target.closest("[data-addmap]")) mapsSheet(); const em = e.target.closest("[data-editmap]"); if (em) mapsSheet(em.dataset.editmap); });
@@ -2074,6 +2129,8 @@ function seenUser(){
   if (Date.now() - (+store.get("seenAt", 0) || 0) < 3 * 3600e3 && store.get("seenN", "") === s.n) return;
   fetch(`${DB_URL}/users/${encodeURIComponent(s.uid)}.json`, {method: "PUT", body: JSON.stringify({n: s.n.slice(0, 20), at: {".sv": "timestamp"}})})
     .then(r => { if (r.ok) { store.set("seenAt", Date.now()); store.set("seenN", s.n); } }).catch(() => {});
+  // nick directory (uid → nick) that every signed-in person may read: used to pick who gets access to a missions list
+  fetch(`${DB_URL}/dnicks/${encodeURIComponent(s.uid)}.json`, {method: "PUT", body: JSON.stringify(s.n.slice(0, 20))}).catch(() => {});
 }
 async function checkBan(){
   seenUser();
@@ -3137,6 +3194,236 @@ document.getElementById("radio").addEventListener("click", e => {
   else if (a === "queue") radioSheet();
 });
 setInterval(() => { if (online && radioOn && (ytReady || alt)) syncRadio(false); }, 5000);
+
+/* ---------- weekly missions (przycisk Misje) ----------
+   Three camps (Góra Sohan, Pustynia, Wężowe Pole) give each character one mission a week. A list of characters is
+   private to a Discord account and can be shared with chosen people (they get full editing):
+     missions/<ownerUid> = {n: owner's nick, acl: {<uid>: nick}, ch: {<id>: {n: character, o: order,
+                            d: {s|p|w: when the mission was done}, it: {s|p|w: {<id>: {n: item, q: amount}}}}}}
+     missionshare/<uid>/<ownerUid> = owner's nick      (so a person finds the lists shared with them)
+     dnicks/<uid> = nick                               (directory for picking people)
+   A ticked mission unticks itself 7 days after the tick – nothing is written for that, it is worked out from the time. */
+const MS_CAMPS = [["s", "Góra Sohan"], ["p", "Pustynia"], ["w", "Wężowe Pole"]];
+const MS_WEEK = 7 * 86400e3, MS_MAXCH = 40, MS_MAXIT = 30;
+const ms = {owner: null, data: null, es: null, shares: {}, open: new Set(), all: false, shown: false, tick: null, loading: false, err: "", hold: 0};
+const msMe = () => (dSess() || {}).uid || null;
+const msMine = () => ms.owner === msMe();
+const msUrl = (p = "") => `${DB_URL}/missions/${encodeURIComponent(ms.owner)}${p}.json`;
+const msChars = () => Object.entries((ms.data && ms.data.ch) || {}).filter(([, c]) => c && typeof c === "object").map(([id, c]) => ({id, ...c})).sort((a, b) => (a.o || 0) - (b.o || 0));
+const msDone = (c, k) => { const t = +((c.d || {})[k]) || 0; return t && now() - t < MS_WEEK ? t : 0; };
+const msWhen = t => new Intl.DateTimeFormat("pl-PL", {timeZone: RESET_TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"}).format(t);
+const msLeft = ms_ => { const m = Math.max(0, Math.ceil(ms_ / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m % 60} min` : `${m} min`; };
+const msEditing = () => { const a = document.activeElement; return !!(a && a.matches && a.matches("#missions input:not([type=checkbox]), #missions select")); };
+function msShow(){
+  if (!ms.shown) {
+    ms.shown = true;
+    ms.tick = setInterval(() => { if (ms.shown && !msEditing()) msDraw(); }, 30000);
+    msLoadShares();
+    // make sure others can find me in the people list even before the 3-hourly "seen" write
+    const me = dSess(); if (me) fetch(`${DB_URL}/dnicks/${encodeURIComponent(me.uid)}.json`, {method: "PUT", body: JSON.stringify(me.n.slice(0, 20))}).catch(() => {});
+    msOpen(store.get("msOwner", null) || msMe());
+  }
+}
+function msHide(){
+  if (!ms.shown) return;
+  ms.shown = false; clearInterval(ms.tick);
+  if (ms.es) { try { ms.es.close(); } catch {} ms.es = null; }
+}
+async function msLoadShares(){
+  const me = msMe(); if (!me) return;
+  try { const r = await fetch(`${DB_URL}/missionshare/${encodeURIComponent(me)}.json`); if (r.ok) { ms.shares = (await r.json()) || {}; if (ms.shown && !msEditing()) msDraw(); } } catch {}
+}
+// open one list (mine or one shared with me) and keep it live while the page is shown
+async function msOpen(owner){
+  const me = msMe(); if (!me) return;
+  if (ms.es) { try { ms.es.close(); } catch {} ms.es = null; }
+  ms.owner = owner || me; ms.data = null; ms.loading = true; ms.err = ""; store.set("msOwner", ms.owner === me ? null : ms.owner);
+  msDraw();
+  if (!(await dToken())) return;
+  const mine = ms.owner, es = new EventSource(msUrl());
+  ms.es = es;
+  const on = kind => ev => {
+    if (ms.owner !== mine || ms.es !== es) return;
+    try {
+      const {path, data} = JSON.parse(ev.data);
+      ms.data = ms.data || {};
+      if (kind === "put") setPath(ms.data, path, data);
+      else for (const [k, v] of Object.entries(data || {})) setPath(ms.data, path.replace(/\/$/, "") + "/" + k, v);
+      ms.loading = false;
+      if (ms.shown && !msEditing()) msDraw();
+    } catch {}
+  };
+  es.addEventListener("put", on("put")); es.addEventListener("patch", on("patch"));
+  es.addEventListener("auth_revoked", async () => { if (ms.es === es && await dToken(true)) msOpen(mine); });
+  es.addEventListener("cancel", () => msLost(mine, es));
+  es.onerror = () => { if (ms.es === es && es.readyState === 2) msLost(mine, es); };
+}
+// a shared list stopped answering: the owner took the access back (or deleted it)
+async function msLost(owner, es){
+  if (ms.es !== es) return;
+  const r = await fetch(`${DB_URL}/missions/${encodeURIComponent(owner)}/n.json`).catch(() => null);
+  if (ms.es !== es || !r || r.ok) return;
+  if (owner !== msMe()) { toast("Nie masz już dostępu do tej listy misji.", 5000); delete ms.shares[owner]; msOpen(msMe()); }
+  else { ms.loading = false; ms.err = `Nie udało się wczytać listy misji (baza odpowiedziała ${r.status}). Jeśli to świeża aktualizacja, admin musi wkleić nowe reguły bazy.`; msDraw(); }
+}
+// save a change in the open list: shown at once, sent to the database, put right again if the database refuses
+async function msPatch(changes){
+  ms.data = ms.data || {};
+  for (const [k, v] of Object.entries(changes)) setPath(ms.data, "/ch/" + k, clone(v));
+  if (!msEditing()) msDraw();
+  const body = {...changes};
+  if (msMine() && !ms.data.n) { ms.data.n = myNick().slice(0, 20); fetch(msUrl("/n"), {method: "PUT", body: JSON.stringify(ms.data.n)}).catch(() => {}); }
+  const r = await fetch(msUrl("/ch"), {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)}).catch(() => null);
+  if (!r || !r.ok) { toast("Nie zapisano – sprawdź internet i spróbuj jeszcze raz.", 5000); msOpen(ms.owner); }
+}
+function msSum(){
+  const rows = new Map();
+  for (const c of msChars()) for (const [k] of MS_CAMPS) {
+    if (!ms.all && msDone(c, k)) continue;                       // a mission already done this week needs nothing bought
+    for (const it of Object.values((c.it || {})[k] || {})) {
+      if (!it || !it.n) continue;
+      const key = String(it.n).trim().toLowerCase(); if (!key) continue;
+      const row = rows.get(key) || {n: String(it.n).trim(), s: 0, p: 0, w: 0};
+      row[k] += +it.q || 0; rows.set(key, row);
+    }
+  }
+  return [...rows.values()].sort((a, b) => a.n.localeCompare(b.n, "pl"));
+}
+function msDraw(){
+  const box = document.getElementById("missions"); if (!box || !ms.shown) return;
+  const me = msMe(); if (!me) { box.innerHTML = '<p class="msnote">Misje tygodniowe są dostępne po zalogowaniu przez Discord.</p>'; return; }
+  // what is typed but not yet added (a new item, a new character) survives the redraw
+  const drafts = {}; box.querySelectorAll(".msnew").forEach(r => { const c = r.closest("[data-msc]"), k = r.closest("[data-msk]"); if (c && k) drafts[c.dataset.msc + "/" + k.dataset.msk] = [...r.querySelectorAll("input")].map(i => i.value); });
+  const newName = (box.querySelector("#ms_new") || {}).value || "";
+  const chars = msChars(), mine = msMine(), acl = Object.keys((ms.data && ms.data.acl) || {}).length;
+  const names = [...new Set(chars.flatMap(c => MS_CAMPS.flatMap(([k]) => Object.values((c.it || {})[k] || {}).map(i => i && String(i.n || "").trim()))).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pl"));
+  const lists = `<option value="${esc(me)}"${mine ? " selected" : ""}>Moja lista</option>` + Object.entries(ms.shares).map(([u, n]) => `<option value="${esc(u)}"${u === ms.owner ? " selected" : ""}>Lista: ${esc(String(n))}</option>`).join("");
+  const camp = (c, [k, name]) => { const t = msDone(c, k);
+    return `<label class="mscamp ${t ? "done" : "todo"}" title="${name}${t ? " – zrobiona " + msWhen(t) : ""}"><span class="mscn">${name}</span><input type="checkbox" data-msd="${k}"${t ? " checked" : ""} aria-label="${name}: ${esc(c.n)}">
+      <span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b>${msWhen(t + MS_WEEK)}` : "do zrobienia"}</span></label>`; };
+  const items = c => `<div class="msitems">${MS_CAMPS.map(([k, name]) => { const its = Object.entries((c.it || {})[k] || {}).filter(([, i]) => i);
+      return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
+        ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="ile" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
+      ${chars.length > 1 ? `<div class="mscopy">Te same przedmioty co inna postać: <select data-msf="copy"><option value="">skopiuj od…</option>${chars.filter(x => x.id !== c.id).map(x => `<option value="${x.id}">${esc(x.n)}</option>`).join("")}</select></div>` : ""}</div>`;
+  const cnt = c => MS_CAMPS.reduce((n, [k]) => n + Object.keys((c.it || {})[k] || {}).length, 0);
+  const sum = msSum();
+  box.innerHTML = `<div class="mshead"><h1>Misje tygodniowe</h1>
+      ${Object.keys(ms.shares).length ? `<select id="ms_list" aria-label="Lista misji">${lists}</select>` : ""}
+      ${mine ? `<button class="btn" data-ms="share">Udostępnij${acl ? ` (${acl})` : ""}</button>` : `<button class="btn" data-ms="leave">Opuść tę listę</button>`}</div>
+    <p class="msnote">${mine ? "To Twoja prywatna lista – widzą ją tylko osoby, którym dasz dostęp przyciskiem „Udostępnij”." : `Lista gracza <b>${esc(String(ms.shares[ms.owner] || (ms.data && ms.data.n) || "?"))}</b> – możesz ją edytować tak jak właściciel.`} Zaznacz misję, gdy postać ją zrobi: odznaczy się sama po 7 dniach.</p>
+    ${ms.err ? `<p class="msnote" style="color:var(--danger)">${esc(ms.err)}</p>` : ms.loading ? '<p class="msnote">Wczytywanie…</p>' : `
+    <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([, n]) => `<span>${n}</span>`).join("")}</div>` : ""}
+      ${chars.map(c => `<div class="msrow" data-msc="${c.id}"><div class="msname"><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
+          <span class="msbtns"><button class="btn" data-ms="items" aria-expanded="${ms.open.has(c.id)}">Przedmioty${cnt(c) ? ` (${cnt(c)})` : ""} ${ms.open.has(c.id) ? "▴" : "▾"}</button><button class="btn" data-ms="cdel" title="Usuń postać" aria-label="Usuń postać ${esc(c.n || "")}">✕</button></span></div>
+        ${MS_CAMPS.map(k => camp(c, k)).join("")}${ms.open.has(c.id) ? items(c) : ""}</div>`).join("")}
+      ${chars.length ? "" : '<p class="msnote">Nie ma jeszcze żadnej postaci. Dodaj pierwszą poniżej.</p>'}</div>
+    ${chars.length < MS_MAXCH ? `<div class="msadd"><input id="ms_new" maxlength="24" placeholder="Nick postaci" autocomplete="off"><button class="btn primary" data-ms="cadd">Dodaj postać</button></div>` : ""}
+    <div class="mssum"><h2>Do kupienia – razem</h2>
+      <label><input type="checkbox" id="ms_all"${ms.all ? " checked" : ""}> licz też misje, które są już zrobione w tym tygodniu</label>
+      ${sum.length ? `<table><thead><tr><th>Przedmiot</th>${MS_CAMPS.map(([, n]) => `<th>${n}</th>`).join("")}<th>Razem</th></tr></thead><tbody>
+        ${sum.map(r => `<tr><td>${esc(r.n)}</td>${MS_CAMPS.map(([k]) => `<td class="${r[k] ? "" : "z"}">${r[k] || "–"}</td>`).join("")}<td>${r.s + r.p + r.w}</td></tr>`).join("")}</tbody></table>`
+        : `<p class="msnote">${names.length ? "Wszystkie misje z wpisanymi przedmiotami są już zrobione." : "Rozwiń „Przedmioty” przy postaci i wpisz, co trzeba kupić na misję w każdym obozie – tutaj pojawi się suma dla wszystkich postaci."}</p>`}</div>
+    <datalist id="ms_names">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>`}`;
+  box.querySelectorAll(".msnew").forEach(r => { const c = r.closest("[data-msc]"), k = r.closest("[data-msk]"), d = c && k && drafts[c.dataset.msc + "/" + k.dataset.msk]; if (d) r.querySelectorAll("input").forEach((i, n) => { i.value = d[n] || ""; }); });
+  if (newName && box.querySelector("#ms_new")) box.querySelector("#ms_new").value = newName;
+}
+{
+  const box = document.getElementById("missions");
+  const cidOf = el => { const r = el.closest("[data-msc]"); return r ? r.dataset.msc : null; };
+  const addItem = row => {
+    const cid = cidOf(row), k = row.closest("[data-msk]").dataset.msk, n = row.querySelector('[data-msf="nn"]').value.trim().slice(0, 40), q = Math.max(0, Math.min(9999999, Math.round(+row.querySelector('[data-msf="nq"]').value) || 1));
+    if (!n) { row.querySelector('[data-msf="nn"]').focus(); return; }
+    row.querySelectorAll("input").forEach(i => { i.value = ""; });
+    document.activeElement && document.activeElement.blur();
+    msPatch({[`${cid}/it/${k}/${uid()}`]: {n, q}});
+  };
+  const addChar = () => {
+    const inp = document.getElementById("ms_new"), n = inp.value.trim().slice(0, 24); if (!n) { inp.focus(); return; }
+    inp.value = ""; inp.blur(); const cs = msChars();
+    msPatch({[uid()]: {n, o: cs.length ? Math.max(...cs.map(c => c.o || 0)) + 1 : 1}});
+  };
+  box.addEventListener("click", e => {
+    const b = e.target.closest("[data-ms]"); if (!b) return;
+    const a = b.dataset.ms, cid = cidOf(b);
+    if (a === "share") msShareSheet();
+    else if (a === "leave") {
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Na pewno opuścić?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "Opuść tę listę"; } }, 3000); return; }
+      const me = msMe(), o = ms.owner;
+      fetch(`${DB_URL}/missionshare/${encodeURIComponent(me)}/${encodeURIComponent(o)}.json`, {method: "DELETE"}).catch(() => {});
+      fetch(`${DB_URL}/missions/${encodeURIComponent(o)}/acl/${encodeURIComponent(me)}.json`, {method: "DELETE"}).catch(() => {});
+      delete ms.shares[o]; msOpen(me); toast("Opuściłeś listę");
+    }
+    else if (a === "cadd") addChar();
+    else if (a === "items") { ms.open.has(cid) ? ms.open.delete(cid) : ms.open.add(cid); msDraw(); }
+    else if (a === "cdel") {
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Usunąć?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "✕"; } }, 3000); return; }
+      ms.open.delete(cid); msPatch({[cid]: null});
+    }
+    else if (a === "iadd") addItem(b.closest(".msit"));
+    else if (a === "idel") { const row = b.closest("[data-msi]"); msPatch({[`${cid}/it/${row.closest("[data-msk]").dataset.msk}/${row.dataset.msi}`]: null}); }
+  });
+  box.addEventListener("keydown", e => {
+    if (e.key !== "Enter") return;
+    if (e.target.id === "ms_new") addChar();
+    else if (e.target.closest(".msnew")) addItem(e.target.closest(".msnew"));
+    else if (e.target.matches("input")) e.target.blur();
+  });
+  box.addEventListener("change", e => {
+    const t = e.target, cid = cidOf(t);
+    if (t.id === "ms_list") { msOpen(t.value); return; }
+    if (t.id === "ms_all") { ms.all = t.checked; msDraw(); return; }
+    if (t.dataset.msd) { msPatch({[`${cid}/d/${t.dataset.msd}`]: t.checked ? now() : null}); return; }
+    const f = t.dataset.msf; if (!f || !cid) return;
+    const c = ((ms.data || {}).ch || {})[cid]; if (!c) return;
+    if (f === "n") { const v = t.value.trim().slice(0, 24); if (v && v !== c.n) msPatch({[`${cid}/n`]: v}); else t.value = c.n || ""; }
+    else if (f === "in" || f === "iq") {
+      const row = t.closest("[data-msi]"), k = row.closest("[data-msk]").dataset.msk, base = `${cid}/it/${k}/${row.dataset.msi}`;
+      if (f === "in") { const v = t.value.trim().slice(0, 40); if (v) msPatch({[base + "/n"]: v}); else msPatch({[base]: null}); }
+      else msPatch({[base + "/q"]: Math.max(0, Math.min(9999999, Math.round(+t.value) || 0))});
+    }
+    else if (f === "copy" && t.value) {
+      const src = ((ms.data || {}).ch || {})[t.value]; if (!src) return;
+      const it = {}; for (const [k] of MS_CAMPS) for (const i of Object.values((src.it || {})[k] || {})) if (i && i.n) (it[k] = it[k] || {})[uid()] = {n: i.n, q: +i.q || 0};
+      t.blur(); msPatch({[`${cid}/it`]: Object.keys(it).length ? it : null}); toast(`Skopiowano przedmioty od: ${src.n}`);
+    }
+  });
+  // a field lost focus: show whatever arrived from others in the meantime – but not in the middle of a click
+  // (a redraw between press and release would swallow the click on "+" or a checkbox)
+  box.addEventListener("pointerdown", () => { ms.hold = Date.now(); }, true);
+  box.addEventListener("focusout", () => setTimeout(() => { if (ms.shown && !msEditing()) msDraw(); }, Date.now() - ms.hold < 400 ? 450 : 0));
+}
+// who may see and edit my list: pick people from the nick directory
+async function msShareSheet(){
+  const me = msMe(); if (!me || !msMine()) return;
+  let people = {};
+  try { const r = await fetch(`${DB_URL}/dnicks.json`); if (r.ok) people = (await r.json()) || {}; } catch {}
+  sheet(`<h2>Udostępnij listę misji</h2>
+    <p>Wybrane osoby zobaczą Twoją listę w swoich „Misjach” i będą mogły ją edytować tak jak Ty (postacie, zaznaczenia, przedmioty). Dostęp możesz w każdej chwili zabrać.</p>
+    <div class="field"><input id="mh_q" placeholder="Szukaj nicku…" autocomplete="off" aria-label="Szukaj nicku"></div>
+    <ul class="banlist" id="mh_list"></ul>
+    <div class="acts"><button class="btn" data-close>Zamknij</button></div>`, el => {
+    const draw = () => {
+      const acl = (ms.data && ms.data.acl) || {}, q = el.querySelector("#mh_q").value.trim().toLowerCase();
+      const all = Object.entries({...people, ...acl}).filter(([u]) => u !== me).map(([u, n]) => ({u, n: String(people[u] || n || u), on: u in acl}))
+        .filter(p => !q || p.n.toLowerCase().includes(q)).sort((a, b) => (b.on - a.on) || a.n.localeCompare(b.n, "pl"));
+      el.querySelector("#mh_list").innerHTML = all.length ? all.slice(0, 60).map(p => `<li><span><b>${esc(p.n)}</b>${p.on ? ' <span class="pme">· ma dostęp</span>' : ""}</span>
+        <button class="btn${p.on ? " danger" : " primary"}" data-mh="${esc(p.u)}" data-n="${esc(p.n)}" data-on="${p.on ? 1 : 0}">${p.on ? "Zabierz dostęp" : "Daj dostęp"}</button></li>`).join("")
+        : `<li class="pme">${q ? "Nikogo takiego nie ma." : "Nikt poza Tobą jeszcze się nie logował."}</li>`;
+    };
+    draw(); el.querySelector("#mh_q").oninput = draw;
+    el.querySelector("#mh_list").addEventListener("click", async e => {
+      const b = e.target.closest("[data-mh]"); if (!b) return;
+      const u = b.dataset.mh, on = b.dataset.on === "1", myN = myNick().slice(0, 20); b.disabled = true;
+      const put = (url, v) => fetch(url, v === null ? {method: "DELETE"} : {method: "PUT", body: JSON.stringify(v)}).catch(() => null);
+      if (!ms.data || !ms.data.n) await put(msUrl("/n"), myN);
+      const r = await put(msUrl("/acl/" + encodeURIComponent(u)), on ? null : b.dataset.n.slice(0, 20));
+      if (!r || !r.ok) { toast("Nie udało się zmienić dostępu."); b.disabled = false; return; }
+      await put(`${DB_URL}/missionshare/${encodeURIComponent(u)}/${encodeURIComponent(me)}.json`, on ? null : myN);
+      ms.data = ms.data || {}; setPath(ms.data, "/acl/" + u, on ? null : b.dataset.n.slice(0, 20));
+      toast(on ? `Zabrano dostęp: ${b.dataset.n}` : `${b.dataset.n} ma teraz dostęp do Twojej listy`); draw(); msDraw();
+    });
+  });
+}
 
 /* ---------- roulette (przycisk Gry) ----------
    rooms/<room>/roulette = {id, by, s: stake, p: {meId(): nick}, w: winnerId, at}. The person who spins draws the
