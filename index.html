@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478458"><link rel="apple-touch-icon" href="icon-192.png?v=1794478458">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478619"><link rel="apple-touch-icon" href="icon-192.png?v=1794478619">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -242,7 +242,20 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .mscols span:not(:first-child){text-align:center}
 .msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:6px 10px}
-.msname{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;min-width:0}
+.msname{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px;align-items:center;min-width:0}
+.msrow{border-left:4px solid var(--mc,var(--rule))}
+.msname input{border-color:var(--mc,var(--rule))}
+.mscol{width:22px;height:22px;border-radius:50%;border:2px solid var(--rule);background:var(--mc,transparent);padding:0;cursor:pointer;flex:0 0 auto}
+.mscol[aria-expanded="true"]{outline:2px solid var(--accent);outline-offset:2px}
+.msopts{grid-column:1/-1;display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;border-top:1px solid var(--rule);padding-top:8px;margin-top:2px;font-size:13px}
+.msopts .msol{color:var(--muted)}
+.mssw{display:flex;gap:5px;flex-wrap:wrap}
+.mssw button{width:24px;height:24px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;font-size:12px;line-height:1;color:var(--muted)}
+.mssw button.none{background:var(--bg);border-color:var(--rule)}
+.mssw button[aria-pressed="true"]{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+.msopts select{min-height:30px;background:var(--bg);color:var(--fg);border:1px solid var(--rule);border-radius:6px;padding:0 6px;max-width:100%}
+.mspair{display:grid;gap:4px;position:relative;border:1px dashed var(--accent);border-radius:12px;padding:14px 6px 6px}
+.mspair .mspl{position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 8px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .msname input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:7px;color:var(--fg);font-weight:700;font-size:14.5px;padding:5px 8px}
 .msname .msbtns{display:flex;gap:6px}
 .msname .btn{min-height:28px;padding:0 8px;font-size:13px}
@@ -271,7 +284,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 @media (max-width:640px){
   .mscols{display:none}
   .msrow{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .msname{grid-column:1/-1;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .msname{grid-column:1/-1;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
   .mscamp{flex-direction:column;gap:3px;text-align:center;padding:5px 4px}
   .mscamp .mscn{display:block}
   .msitems{grid-template-columns:minmax(0,1fr)}
@@ -812,7 +825,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794478458";
+const BUILD = "1794478619";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3200,7 +3213,7 @@ setInterval(() => { if (online && radioOn && (ytReady || alt)) syncRadio(false);
 /* ---------- weekly missions (przycisk Misje) ----------
    Three camps (Góra Sohan, Pustynia, Wężowe Pole) give each character one mission a week. A list of characters is
    private to a Discord account and can be shared with chosen people (they get full editing):
-     missions/<ownerUid> = {n: owner's nick, acl: {<uid>: nick}, ch: {<id>: {n: character, o: order,
+     missions/<ownerUid> = {n: owner's nick, acl: {<uid>: nick}, ch: {<id>: {n: character, o: order, c: colour, g: pair id,
                             d: {s|p|w: when the mission was done}, it: {s|p|w: {<id>: {n: item, q: amount}}}}}}
      missionshare/<uid>/<ownerUid> = owner's nick      (so a person finds the lists shared with them)
      dnicks/<uid> = nick                               (directory for picking people)
@@ -3214,11 +3227,23 @@ const MS_ITEMS = "Futro Wilka|Futro Wilka +|Skóra Tygrysa|Futro Białego Tygrys
 const msFold = t => String(t || "").toLowerCase().replace(/ł/g, "l").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
 const MS_CANON = new Map(MS_ITEMS.map(n => [msFold(n), n]));
 const msCanon = t => MS_CANON.get(msFold(t)) || String(t || "").replace(/\s+/g, " ").trim();
-const ms = {owner: null, data: null, es: null, shares: {}, open: new Set(), all: false, shown: false, tick: null, loading: false, err: "", hold: 0};
+const ms = {owner: null, data: null, es: null, shares: {}, open: new Set(), opt: null, all: false, shown: false, tick: null, loading: false, err: "", hold: 0};
 const msMe = () => (dSess() || {}).uid || null;
 const msMine = () => ms.owner === msMe();
 const msUrl = (p = "") => `${DB_URL}/missions/${encodeURIComponent(ms.owner)}${p}.json`;
 const msChars = () => Object.entries((ms.data && ms.data.ch) || {}).filter(([, c]) => c && typeof c === "object").map(([id, c]) => ({id, ...c})).sort((a, b) => (a.o || 0) - (b.o || 0));
+// the same list with the two characters of a pair next to each other (the pair sits where its first member is)
+function msOrdered(){
+  const all = msChars(), out = [], seen = new Set();
+  for (const c of all) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id); out.push(c);
+    const mate = c.g && all.find(x => x.id !== c.id && x.g === c.g && !seen.has(x.id));
+    if (mate) { seen.add(mate.id); c.pair = "a"; mate.pair = "b"; out.push(mate); }
+  }
+  return out;
+}
+const msMate = c => c.g ? msChars().find(x => x.id !== c.id && x.g === c.g) || null : null;
 const msDone = (c, k) => { const t = +((c.d || {})[k]) || 0; return t && now() - t < MS_WEEK ? t : 0; };
 const msWhen = t => new Intl.DateTimeFormat("pl-PL", {timeZone: RESET_TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"}).format(t);
 const msLeft = ms_ => { const m = Math.max(0, Math.ceil(ms_ / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m % 60} min` : `${m} min`; };
@@ -3304,7 +3329,7 @@ function msDraw(){
   // what is typed but not yet added (a new item, a new character) survives the redraw
   const drafts = {}; box.querySelectorAll(".msnew").forEach(r => { const c = r.closest("[data-msc]"), k = r.closest("[data-msk]"); if (c && k) drafts[c.dataset.msc + "/" + k.dataset.msk] = [...r.querySelectorAll("input")].map(i => i.value); });
   const newName = (box.querySelector("#ms_new") || {}).value || "";
-  const chars = msChars(), mine = msMine(), acl = Object.keys((ms.data && ms.data.acl) || {}).length;
+  const chars = msOrdered(), mine = msMine(), acl = Object.keys((ms.data && ms.data.acl) || {}).length;
   const names = [...new Set(chars.flatMap(c => MS_CAMPS.flatMap(([k]) => Object.values((c.it || {})[k] || {}).map(i => i && String(i.n || "").trim()))).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pl"));
   const lists = `<option value="${esc(me)}"${mine ? " selected" : ""}>Moja lista</option>` + Object.entries(ms.shares).map(([u, n]) => `<option value="${esc(u)}"${u === ms.owner ? " selected" : ""}>Lista: ${esc(String(n))}</option>`).join("");
   const camp = (c, [k, name]) => { const t = msDone(c, k);
@@ -3314,6 +3339,9 @@ function msDraw(){
       return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
         ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="x" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
 </div>`;
+  const opts = c => { const mate = msMate(c), others = chars.filter(x => x.id !== c.id);
+    return `<div class="msopts"><span class="msol">Kolor</span><span class="mssw">${COLORS.map(k => `<button data-ms="col" data-col="${k}" style="background:${k}" aria-pressed="${c.c === k}" aria-label="Kolor ${k}"></button>`).join("")}<button data-ms="col" data-col="" class="none" aria-pressed="${!COLORS.includes(c.c)}" title="Bez koloru" aria-label="Bez koloru">✕</button></span>
+      ${others.length ? `<span class="msol">Para z</span><select data-msf="pair" aria-label="Para z"><option value="">— bez pary —</option>${others.map(x => { const xm = msMate(x); return `<option value="${x.id}"${mate && mate.id === x.id ? " selected" : ""}>${esc(x.n || "")}${xm && xm.id !== c.id ? ` (teraz z: ${esc(xm.n || "")})` : ""}</option>`; }).join("")}</select>` : '<span class="msol">Dodaj drugą postać, żeby połączyć je w parę.</span>'}</div>`; };
   const cnt = c => MS_CAMPS.reduce((n, [k]) => n + Object.keys((c.it || {})[k] || {}).length, 0);
   const sum = msSum();
   box.innerHTML = `<div class="mshead"><h1>Misje tygodniowe</h1>
@@ -3322,9 +3350,9 @@ function msDraw(){
     <p class="msnote">${mine ? "To Twoja prywatna lista – widzą ją tylko osoby, którym dasz dostęp przyciskiem „Udostępnij”." : `Lista gracza <b>${esc(String(ms.shares[ms.owner] || (ms.data && ms.data.n) || "?"))}</b> – możesz ją edytować tak jak właściciel.`} Zaznacz misję, gdy postać ją zrobi: odznaczy się sama po 7 dniach.</p>
     ${ms.err ? `<p class="msnote" style="color:var(--danger)">${esc(ms.err)}</p>` : ms.loading ? '<p class="msnote">Wczytywanie…</p>' : `
     <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([, n]) => `<span>${n}</span>`).join("")}</div>` : ""}
-      ${chars.map(c => `<div class="msrow" data-msc="${c.id}"><div class="msname"><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
+      ${chars.map(c => `${c.pair === "a" ? '<div class="mspair"><span class="mspl">Para</span>' : ""}<div class="msrow" data-msc="${c.id}"${COLORS.includes(c.c) ? ` style="--mc:${c.c}"` : ""}><div class="msname"><button class="mscol" data-ms="opt" aria-expanded="${ms.opt === c.id}" title="Kolor i para" aria-label="Kolor i para: ${esc(c.n || "")}"></button><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
           <span class="msbtns"><button class="btn" data-ms="items" aria-expanded="${ms.open.has(c.id)}">Przedmioty${cnt(c) ? ` (${cnt(c)})` : ""} ${ms.open.has(c.id) ? "▴" : "▾"}</button><button class="btn" data-ms="cdel" title="Usuń postać" aria-label="Usuń postać ${esc(c.n || "")}">✕</button></span></div>
-        ${MS_CAMPS.map(k => camp(c, k)).join("")}${ms.open.has(c.id) ? items(c) : ""}</div>`).join("")}
+        ${MS_CAMPS.map(k => camp(c, k)).join("")}${ms.opt === c.id ? opts(c) : ""}${ms.open.has(c.id) ? items(c) : ""}</div>${c.pair === "b" ? "</div>" : ""}`).join("")}
       ${chars.length ? "" : '<p class="msnote">Nie ma jeszcze żadnej postaci. Dodaj pierwszą poniżej.</p>'}</div>
     ${chars.length < MS_MAXCH ? `<div class="msadd"><input id="ms_new" maxlength="24" placeholder="Nick postaci" autocomplete="off"><button class="btn primary" data-ms="cadd">Dodaj postać</button></div>` : ""}
     <div class="mssum"><h2>Do kupienia – razem</h2>
@@ -3364,6 +3392,8 @@ function msDraw(){
     }
     else if (a === "cadd") addChar();
     else if (a === "items") { ms.open.has(cid) ? ms.open.delete(cid) : ms.open.add(cid); msDraw(); }
+    else if (a === "opt") { ms.opt = ms.opt === cid ? null : cid; msDraw(); }
+    else if (a === "col") msPatch({[`${cid}/c`]: b.dataset.col || null});
     else if (a === "cdel") {
       if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Usunąć?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "✕"; } }, 3000); return; }
       ms.open.delete(cid); msPatch({[cid]: null});
@@ -3384,6 +3414,13 @@ function msDraw(){
     if (t.dataset.msd) { msPatch({[`${cid}/d/${t.dataset.msd}`]: t.checked ? now() : null}); return; }
     const f = t.dataset.msf; if (!f || !cid) return;
     const c = ((ms.data || {}).ch || {})[cid]; if (!c) return;
+    if (f === "pair") {
+      // a pair is exactly two characters: whoever either of them was paired with before becomes single again
+      const all = msChars(), meC = all.find(x => x.id === cid), other = all.find(x => x.id === t.value), ch = {};
+      for (const x of [meC, other]) { const m = x && msMate(x); if (m) ch[`${m.id}/g`] = null; }
+      if (other) { const g = uid(); ch[`${cid}/g`] = g; ch[`${other.id}/g`] = g; } else ch[`${cid}/g`] = null;
+      t.blur(); msPatch(ch); return;
+    }
     if (f === "n") { const v = t.value.trim().slice(0, 24); if (v && v !== c.n) msPatch({[`${cid}/n`]: v}); else t.value = c.n || ""; }
     else if (f === "in" || f === "iq") {
       const row = t.closest("[data-msi]"), k = row.closest("[data-msk]").dataset.msk, base = `${cid}/it/${k}/${row.dataset.msi}`;
