@@ -74,14 +74,29 @@ Ikona kolejki przy radiu na górze strony → wklej link i **Dodaj**. Wszyscy w 
   - Po filmie radio wraca do zwykłej muzyki.
 - Radio i Watch2Gether działają w przeglądarce (także na telefonie), nie w aplikacji na Androida.
 
-## 5. Gry
+## 5. Misje tygodniowe
+
+Przycisk **Misje** na górze (po zalogowaniu przez Discord; działa też w aplikacji). Trzy obozy – **Góra Sohan,
+Pustynia, Wężowe Pole** – dają każdej postaci jedną misję na tydzień.
+
+- **Dodaj postać** (nick po lewej), a przy niej trzy pola – po jednym na obóz. Zaznacz pole, gdy postać zrobi misję:
+  pokaże, za ile i kiedy dokładnie (dzień i godzina) misja będzie znowu dostępna, i **odznaczy się samo po 7 dniach**.
+- **Przedmioty ▾** przy postaci: wpisz, co trzeba kupić na misję w każdym obozie (nazwa i ilość).
+  „Te same przedmioty co inna postać” kopiuje listę z innej postaci.
+- **Do kupienia – razem** na dole: suma przedmiotów wszystkich postaci, z podziałem na obozy.
+  Liczy tylko misje jeszcze niezrobione (chyba że zaznaczysz „licz też misje już zrobione”).
+- Lista jest **prywatna** – przypisana do Twojego konta Discord, nie do pokoju. **Udostępnij** daje wybranym osobom
+  pełny dostęp (widzą listę u siebie w Misjach i mogą ją edytować); dostęp można w każdej chwili zabrać,
+  a osoba z dostępem może sama „Opuścić tę listę”.
+
+## 6. Gry
 
 Przycisk **Gry**: kości, rzut monetą, refleks, zgadnij liczbę, kamień-papier-nożyce, wyścig konny (2D i 3D) i ruletka.
 Stawki w **kk yang** (od 1kk do 1000kk) albo **Darmowa gra**. Wygrane i przegrane zapisują się jako **długi**
 (kto → komu) w oknie **Rozliczenia**. Wygrane i przegrane między dwiema osobami się znoszą; spłatę zaznacza osoba,
 której dług się należy.
 
-## 6. Aplikacja na Androida
+## 7. Aplikacja na Androida
 
 1. Pobierz [UnityTimer.apk](https://github.com/wronglogin/metin-timer/releases/latest/download/UnityTimer.apk)
    (albo **Menu → Pobierz UnityTimer.apk**).
@@ -94,7 +109,7 @@ Nowe APK jest potrzebne tylko przy zmianach w samej aplikacji (np. ikona, nazwa)
 **Bezpieczeństwo:** pobieraj APK tylko z linku powyżej / z Menu. Aplikacja ma tylko uprawnienie do internetu –
 nie ma dostępu do zdjęć, plików, kontaktów ani lokalizacji.
 
-## 7. Aktualizacje
+## 8. Aktualizacje
 
 Otwarte strony same sprawdzają, czy jest nowa wersja (co kilka minut i przy powrocie do karty) i odświeżają się,
 gdy nic nie robisz. Jeśli jesteś w trakcie (piszesz, masz otwarte okno albo grę), na górze pojawi się pasek
@@ -103,7 +118,7 @@ Odświeżenie nie wylogowuje i nie zmienia timerów.
 
 ---
 
-## 8. Dla adminów
+## 9. Dla adminów
 
 **⚙ Admin** obok Menu (widzą go tylko właściciel i admini; wymaga hasła admina, pamiętanego 48 h na urządzeniu).
 Panel jest podzielony na części:
