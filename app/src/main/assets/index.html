@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794477445"><link rel="apple-touch-icon" href="icon-192.png?v=1794477445">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794477655"><link rel="apple-touch-icon" href="icon-192.png?v=1794477655">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -238,19 +238,20 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mshead select{min-height:36px;background:var(--surface);color:var(--fg);border:1px solid var(--rule);border-radius:8px;padding:0 8px;max-width:100%}
 .msnote{color:var(--muted);font-size:14px;margin:0}
 .mslist{display:grid;gap:8px}
-.mscols,.msrow{display:grid;grid-template-columns:minmax(170px,1.2fr) repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+.mscols,.msrow{display:grid;grid-template-columns:minmax(250px,1.5fr) repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
 .mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .mscols span:not(:first-child){text-align:center}
-.msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:8px 10px}
-.msname{display:grid;gap:6px;align-content:center;min-width:0}
-.msname input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:7px;color:var(--fg);font-weight:700;font-size:15px;padding:6px 8px}
+.msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:6px 10px}
+.msname{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;min-width:0}
+.msname input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:7px;color:var(--fg);font-weight:700;font-size:14.5px;padding:5px 8px}
 .msname .msbtns{display:flex;gap:6px}
 .msname .btn{min-height:28px;padding:0 8px;font-size:13px}
-.mscamp{display:grid;justify-items:center;align-content:center;gap:3px;text-align:center;border:1px solid var(--rule);border-radius:8px;padding:6px 4px;cursor:pointer;min-width:0;background:var(--bg)}
+.mscamp{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--rule);border-radius:8px;padding:3px 8px;cursor:pointer;min-width:0;background:var(--bg)}
 .mscamp .mscn{display:none;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.mscamp input{width:22px;height:22px;accent-color:var(--ready);cursor:pointer;margin:0}
-.mscamp .mst{font-size:13px;line-height:1.25;color:var(--muted)}
-.mscamp .mst b{display:block;color:var(--fg);font-family:var(--f-num);font-weight:600}
+.mscamp input{width:17px;height:17px;flex:0 0 auto;accent-color:var(--ready);cursor:pointer;margin:0}
+.mscamp .mst{font-size:12.5px;line-height:1.25;color:var(--muted);min-width:0}
+.mscamp .mst b{color:var(--fg);font-family:var(--f-num);font-weight:600}
+.mscamp .mst .msw{display:block;font-size:11.5px}
 .mscamp.todo{border-color:var(--ready)}.mscamp.todo .mst{color:var(--ready);font-weight:600}
 .msitems{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid var(--rule);padding-top:8px;margin-top:2px}
 .msitems h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
@@ -273,6 +274,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
   .mscols{display:none}
   .msrow{grid-template-columns:repeat(3,minmax(0,1fr))}
   .msname{grid-column:1/-1;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .mscamp{flex-direction:column;gap:3px;text-align:center;padding:5px 4px}
   .mscamp .mscn{display:block}
   .msitems{grid-template-columns:minmax(0,1fr)}
   .mssum{padding:10px}.mssum th,.mssum td{padding:6px 4px;font-size:13px}.mssum th{font-size:10.5px;letter-spacing:0}
@@ -812,7 +814,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794477445";
+const BUILD = "1794477655";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3302,7 +3304,7 @@ function msDraw(){
   const lists = `<option value="${esc(me)}"${mine ? " selected" : ""}>Moja lista</option>` + Object.entries(ms.shares).map(([u, n]) => `<option value="${esc(u)}"${u === ms.owner ? " selected" : ""}>Lista: ${esc(String(n))}</option>`).join("");
   const camp = (c, [k, name]) => { const t = msDone(c, k);
     return `<label class="mscamp ${t ? "done" : "todo"}" title="${name}${t ? " – zrobiona " + msWhen(t) : ""}"><span class="mscn">${name}</span><input type="checkbox" data-msd="${k}"${t ? " checked" : ""} aria-label="${name}: ${esc(c.n)}">
-      <span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b>${msWhen(t + MS_WEEK)}` : "do zrobienia"}</span></label>`; };
+      <span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b><span class="msw">${msWhen(t + MS_WEEK)}</span>` : "do zrobienia"}</span></label>`; };
   const items = c => `<div class="msitems">${MS_CAMPS.map(([k, name]) => { const its = Object.entries((c.it || {})[k] || {}).filter(([, i]) => i);
       return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
         ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="ile" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
