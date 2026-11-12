@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794494465"><link rel="apple-touch-icon" href="icon-192.png?v=1794494465">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794494624"><link rel="apple-touch-icon" href="icon-192.png?v=1794494624">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -255,7 +255,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 /* camp names: Góra Sohan blue, Pustynia yellow, Wężowe Pole brown */
 .missions .msk-s{color:#5bb8ef!important}.missions .msk-p{color:#e8c24a!important}.missions .msk-w{color:#b9814f!important}
 .mslist{display:grid;gap:8px}
-.mscols,.msrow{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(0,1fr)) 34px;gap:8px;align-items:stretch}
+.mscols,.msrow{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(0,1fr)) 66px;gap:8px;align-items:stretch}
 .mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .mscols span:not(:first-child){text-align:center}
 .msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:6px 10px}
@@ -277,8 +277,9 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mspair .mspl{position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 8px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .msname input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:7px;color:var(--fg);font-weight:700;font-size:14.5px;padding:5px 8px}
 .msname .msbtns{display:flex;gap:6px}
-.msrow{position:relative}.msdel{min-height:28px;padding:0;width:34px;align-self:center}
-.msdel[data-sure="1"]{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:auto;padding:0 10px;z-index:2;color:var(--danger);background:var(--surface-2)}
+.msrow{position:relative}.msdel{min-height:28px;padding:0;width:34px;align-self:center;justify-self:end;font-size:13px}
+/* the column is wide enough for the confirmation, so it never covers the camps */
+.msdel[data-sure="1"]{width:66px;color:var(--danger)}
 .msname .btn{min-height:28px;padding:0 8px;font-size:13px}
 .mscamp{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--rule);border-radius:8px;padding:3px 8px;cursor:pointer;min-width:0;background:var(--bg)}
 .mscamp .mscn{display:none;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -312,8 +313,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 @media (max-width:640px){
   .mscols{display:none}
   .msrow{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .msname{grid-column:1/-1;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;padding-right:40px}
-  .msdel,.msdel[data-sure="1"]{position:absolute;top:6px;right:10px;transform:none}
+  .msname{grid-column:1/-1;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;padding-right:72px}
+  .msdel{position:absolute;top:6px;right:10px}
   .mscamp{flex-direction:column;gap:3px;text-align:center;padding:5px 4px}
   .mscamp .mscn{display:block}
   .msitems{grid-template-columns:minmax(0,1fr)}
@@ -862,7 +863,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794494465";
+const BUILD = "1794494624";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3458,7 +3459,7 @@ function msDraw(){
       msPatch({[`${cid}/c`]: col, ...(mate ? {[`${mate.id}/c`]: col} : {})});
     }
     else if (a === "cdel") {
-      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Usunąć?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "✕"; } }, 3000); return; }
+      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Usuń?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "✕"; } }, 3000); return; }
       ms.open.delete(cid); msPatch({[cid]: null});
     }
     else if (a === "iadd") addItem(b.closest(".msit"));
