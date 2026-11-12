@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485917"><link rel="apple-touch-icon" href="icon-192.png?v=1794485917">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485978"><link rel="apple-touch-icon" href="icon-192.png?v=1794485978">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -12,7 +12,7 @@
 :root{
   --bg:#0f1417; --surface:#182026; --surface-2:#202a31; --rule:#2b3740;
   --fg:#e7ece9; --muted:#8c9b98; --accent:#c8955a; --accent-ink:#1b130a;
-  --wait:#9fb4c4; --window:#e8c24a; --ready:#4fd39b; --over:#4ea3e8; --late:#f2913d; --danger:#ef6a5b;
+  --wait:#9fb4c4; --window:#e8c24a; --ready:#4fd39b; --over:#4ea3e8; --late:#b48cf2; --danger:#ef6a5b;
   --f-ui:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
   --f-num:"Chivo Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
   color-scheme:dark;
@@ -395,17 +395,18 @@ main{padding-top:14px;display:grid;gap:14px}
 .cell.wait .ct{background:var(--danger);color:#2a0905;border-color:var(--danger)}
 .cell.window .ct{background:var(--window);color:#241a00;border-color:var(--window)}
 .cell.ready .ct{background:var(--over);color:#04192b;border-color:var(--over)}
-.cell.ready.late .ct{background:var(--late);color:#2a1300;border-color:var(--late)}
+.cell.ready.late .ct{background:var(--late);color:#1d0f33;border-color:var(--late)}
 .cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:clamp(9px,calc(13cqi / var(--cols)),11px);letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
 .cell .rs:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
 .cell .rs:disabled{opacity:.3;cursor:default}
 .empty{border:1px dashed var(--rule);border-radius:8px;padding:18px;color:var(--muted);display:grid;gap:10px;justify-items:start}
 .addrow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
 .legend b{font-weight:600}
 /* no text cursor on things you cannot type in (it shows up when the browser's "caret browsing", F7, is on) */
 html{caret-color:transparent}input,textarea,select,[contenteditable]{caret-color:auto}
 @media (min-width:521px){.legend{justify-content:center;text-align:center}}
+@media (min-width:1080px){.legend{flex-wrap:nowrap;white-space:nowrap;gap:6px 10px;font-size:12px}}
 .legend .w{color:var(--danger)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)} .legend .o{color:var(--late)}
 
 /* compact view: only name, undo/redo and channel timers */
@@ -858,7 +859,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794485917";
+const BUILD = "1794485978";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1535,7 +1536,7 @@ function render(){
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
   $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
-    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span><span><b class="o">Pomarańczowy</b> po maksymalnym czasie respu</span></div>`;
+    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Reset liczników o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span><span><b class="o">Fioletowy</b> po max. czasie respu</span></div>`;
   fitNames();
 }
 function paneHtml(id){
