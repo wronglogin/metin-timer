@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794238336"><link rel="apple-touch-icon" href="icon-192.png?v=1794238336">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794474863"><link rel="apple-touch-icon" href="icon-192.png?v=1794474863">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -36,7 +36,7 @@ header{grid-template-columns:minmax(0,1fr)}
   /* phone: title and clock in the middle of the screen, MiniWiki/Gry/Menu/Admin on the right */
   .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}.bar .brand small.clock{justify-self:center}
   .ctrls{flex:1 1 100%}#wikiBtn{margin-left:auto}}
-.radio{display:flex;align-items:center;gap:2px;min-width:250px;flex:1 1 260px;max-width:360px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+.radio{display:flex;align-items:center;gap:2px;min-width:250px;flex:1 1 260px;max-width:400px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
 .radio .rbtn:hover{background:var(--surface-2)}
 .radio .rvoln{width:42px;flex:0 0 auto;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:2px 3px;font-family:var(--f-num);font-size:13px;text-align:center;margin-right:4px;-moz-appearance:textfield}
@@ -47,6 +47,10 @@ header{grid-template-columns:minmax(0,1fr)}
 .radio .rtitle span{display:inline-block;padding-left:2px}
 .radio.off .rtitle{color:var(--muted)}
 .radio.off [data-radio="on"]{color:var(--ready)}
+.radio .rbtn.muted{color:#fff;background:var(--danger)}
+.radio .rbtn.muted:hover{background:var(--danger);filter:brightness(1.1)}
+.radio.ismuted .rvol,.radio.ismuted .rvoln{opacity:.4}
+.radio .rbtn.rpower{color:var(--muted)}.radio .rbtn.rpower:hover{color:var(--danger)}
 @media (prefers-reduced-motion:no-preference){.radio:not(.off) .rtitle span{animation:marq 14s linear infinite}}
 @keyframes marq{0%,15%{transform:translateX(0)}85%,100%{transform:translateX(min(0px,calc(-100% + 160px)))}}
 .ytdock{position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:12;width:200px;height:200px;border-radius:8px;overflow:hidden;border:1px solid var(--rule);box-shadow:0 8px 24px rgba(0,0,0,.45);background:#000}
@@ -82,7 +86,9 @@ header{grid-template-columns:minmax(0,1fr)}
 .raadd{display:flex;gap:8px;min-width:0}
 .raadd input{flex:1;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px}
 .rq li.rnow{border-color:var(--accent)}
-.rqplay{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rqplay{flex:1;min-width:0;text-align:left;padding:4px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rq .btn.rqgo{display:grid;place-items:center;width:34px;padding:0;color:var(--ready)}
+.rq li.rnow .btn.rqgo{background:var(--accent);border-color:var(--accent);color:#14110b}
 .rqplay .rqt,.rqplay .rqby{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rqplay .rqby{font-size:11.5px;font-weight:400;color:var(--muted);margin-top:1px}
 .rq .btn{min-height:28px;padding:0 9px;flex:0 0 auto}
@@ -758,7 +764,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794238336";
+const BUILD = "1794474863";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -881,7 +887,7 @@ async function push(changes){
     const r = await fetch(roomUrl(), {method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify(changes)});
     if (!r.ok) throw new Error(r.status);
     return true;
-  } catch (e) { setMode("Błąd zapisu", "err"); pushFailed(); return false; }
+  } catch (e) { setMode("Błąd zapisu", "err"); pushFailed(); if (/^40[13]$/.test(e.message)) recheckRoomPw(); return false; }
 }
 /* a change that didn't reach the database must not stay on this screen only (everyone else wouldn't see it):
    go back to the room as the database last sent it, say so clearly, and reload the room over a fresh stream */
@@ -896,7 +902,7 @@ async function pushFailed(){
   pushFailAt = Date.now();
   const me = online;
   if (dOn()) await dToken(true);
-  if (online === me && me.reopen) me.reopen();
+  if (online === me && me.reopen && !pwAsking) me.reopen();
 }
 // the clock difference is measured again every 30 minutes and whenever the page comes back to the front,
 // so a computer clock changed (or corrected by Windows) while the page is open does not shift the timers
@@ -918,14 +924,14 @@ async function syncClock(db){
    roompw/<room>/m/<uid> (the rules compare the hash), and the rules let only those members into rooms/<room>.
    Rooms that existed before passwords (no hash) stay open until the admin gives them one. */
 const roomHash = (room, pw) => sha256(room + "\n" + String(pw));
-function askRoomPw(room, create, wrong){
+function askRoomPw(room, create, wrong, changed){
   return new Promise(res => {
     let done = false; const fin = v => { if (!done) { done = true; res(v); } };
     sheet(`<h2>${create ? "Nowy pokój" : "Hasło do pokoju"}</h2>
-      <p>${create ? `Pokój <b>${esc(room)}</b> jeszcze nie istnieje – zakładasz go. Ustaw hasło: będą go potrzebować wszyscy, którzy mają do niego wejść.` : `Pokój <b>${esc(room)}</b> ma hasło. Wpisz je, żeby wejść (wystarczy raz – potem wchodzisz już bez hasła na każdym urządzeniu).`}</p>
+      <p>${create ? `Pokój <b>${esc(room)}</b> jeszcze nie istnieje – zakładasz go. Ustaw hasło: będą go potrzebować wszyscy, którzy mają do niego wejść.` : changed ? `Hasło do pokoju <b>${esc(room)}</b> zostało zmienione. Wpisz nowe, żeby zostać w pokoju – bez niego z niego wyjdziesz.` : `Pokój <b>${esc(room)}</b> ma hasło. Wpisz je, żeby wejść (wystarczy raz – potem wchodzisz już bez hasła na każdym urządzeniu).`}</p>
       ${wrong ? '<p style="color:var(--danger)">Złe hasło. Spróbuj jeszcze raz.</p>' : ""}
       <div class="field"><label for="rp_pw">Hasło do pokoju</label><input id="rp_pw" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-      <div class="acts"><button class="btn" data-close>Anuluj</button><button class="btn primary" id="rp_ok">${create ? "Załóż pokój" : "Wejdź"}</button></div>`, (el, close) => {
+      <div class="acts"><button class="btn" data-close>${changed ? "Wyjdź z pokoju" : "Anuluj"}</button><button class="btn primary" id="rp_ok">${create ? "Załóż pokój" : changed ? "Zostań w pokoju" : "Wejdź"}</button></div>`, (el, close) => {
       const inp = el.querySelector("#rp_pw"), ok = () => { const v = inp.value.trim(); if (!v) { inp.focus(); return; } fin(v); close(); };
       el.querySelector("#rp_ok").onclick = ok; inp.onkeydown = e => { if (e.key === "Enter") ok(); };
       el.addEventListener("click", e => { if (e.target.closest("[data-close]")) fin(null); });
@@ -934,7 +940,7 @@ function askRoomPw(room, create, wrong){
     });
   });
 }
-async function roomAccess(db, room){
+async function roomAccess(db, room, changed){
   if (!dOn()) return;
   const me = (dSess() || {}).uid; if (!me) return;
   const base = `${db}/roompw/${encodeURIComponent(room)}`;
@@ -956,10 +962,45 @@ async function roomAccess(db, room){
   }
   if (r.status !== 401 && r.status !== 403) return;
   for (let wrong = false; ; wrong = true) {
-    const pw = await askRoomPw(room, false, wrong); if (pw === null) throw new Error(`Bez hasła nie wejdziesz do pokoju ${room}.`);
+    const pw = await askRoomPw(room, false, wrong, changed); if (pw === null) throw new Error(`Bez hasła nie wejdziesz do pokoju ${room}.`);
     const w = await fetch(`${base}/m/${me}.json`, {method: "PUT", body: JSON.stringify(await roomHash(room, pw))}).catch(() => null);
     if (w && w.ok) { fetch(`${base}/s.json`, {method: "PUT", body: JSON.stringify("p")}).catch(() => {}); return; }      // (heals rooms from before the mark)
   }
+}
+/* The room's password was changed while we are in it (or we lost access to it some other way): stop receiving the
+   room at once, ask for the new password right here, and without it leave the room. Called when the admin's "pwv"
+   mark changes, when the stream is cancelled, and when a save or the presence heartbeat is refused. */
+let pwAsking = false;
+async function recheckRoomPw(){
+  if (!online || !dOn() || pwAsking) return;
+  const me = online, {db, room} = online;
+  pwAsking = true;
+  try {
+    const r = await fetch(`${db}/rooms/${encodeURIComponent(room)}/pwv.json`).catch(() => null);
+    if (!r || online !== me || r.ok || (r.status !== 401 && r.status !== 403)) return;      // still allowed, or no connection
+    if (!(await dToken())) return;                                   // signed out: the login gate handles that
+    if (await roomBanned(db, room) || await checkBan()) return;      // blocked room / banned account have their own messages
+    try { me.es && me.es.close(); } catch {}
+    setMode("Hasło…", "err");
+    try { await roomAccess(db, room, true); }
+    catch (x) { if (online === me) leaveRoom(room, `Wyszedłeś z pokoju ${room} – ma nowe hasło.`); return; }
+    if (online === me) { if (me.reopen) me.reopen(); toast(`Zostajesz w pokoju ${room}.`); }
+  } finally { pwAsking = false; }
+}
+// out of one room: it leaves the saved list; if it was open, go to the next saved room, or to the private timer
+async function leaveRoom(room, msg){
+  const keep = roomList().filter(r => r !== room);
+  store.set("rooms", keep);
+  const last = store.get("lastRoom", null); if (last && last.room === room) store.set("lastRoom", keep[0] ? {room: keep[0]} : null);
+  if (online && online.room === room) {
+    if (keep[0]) {
+      disconnect(true);
+      try { await connect(DB_URL, keep[0]); store.set("lastRoom", {room: keep[0]}); }
+      catch (x) { setMode("Prywatny"); render(); }
+    } else disconnect();
+  }
+  if (typeof renderRoomSel === "function") renderRoomSel();
+  if (msg) toast(msg, 6000);
 }
 async function connect(db, room){
   db = db.trim().replace(/\/+$/, ""); room = room.trim();
@@ -985,9 +1026,11 @@ async function connect(db, room){
     try {
       const {path, data} = JSON.parse(ev.data);
       if (kind === "put") setPath(remoteRoot, path, data);
+      else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
       // the whole room vanished (an admin deleted it): check right away instead of waiting for the next config check
       if (kind === "put" && path === "/" && data === null && Object.keys(spots || {}).length) setTimeout(pruneDeletedRooms, 1500);
-      else for (const [k, v] of Object.entries(data || {})) setPath(remoteRoot, path.replace(/\/$/, "") + "/" + k, v);
+      // the room's password was changed (the admin bumps "pwv"): everyone in the room is asked for the new one
+      if (online) { const first = online.pwv === undefined, v = remoteRoot.pwv || 0; if (v !== online.pwv) { online.pwv = v; if (!first) recheckRoomPw(); } }
       presence = remoteRoot.presence || {};
       const side = k => k.startsWith("presence") || k.startsWith("radio") || k.startsWith("roulette") || k.startsWith("rlog") || k.startsWith("game") || k.startsWith("glog") || k.startsWith("debts") || k.startsWith("dlog");
       onRoulette(path === "/" && kind === "put"); onGame(path === "/" && kind === "put");
@@ -1010,7 +1053,8 @@ async function connect(db, room){
     es.addEventListener("patch", handle("patch"));
     es.addEventListener("keep-alive", () => { const t = Date.now(); if (lastKa) kaGap = t - lastKa; lastKa = t; lastEv = t; });
     es.addEventListener("cancel", async () => { setMode("Brak dostępu", "err"); checkForce();
-      if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); } });
+      if (online && await roomBanned(online.db, online.room)) { disconnect(); toast("Admin zablokował ten pokój.", 5000); }
+      else recheckRoomPw(); });
     es.addEventListener("auth_revoked", async () => {               // the hourly token ran out: take a fresh one and reconnect
       if (dOn() && await dToken(true)) openStream(); else setMode("Brak dostępu", "err"); });
     es.onerror = () => setMode("Wznawianie…", "err");
@@ -1054,7 +1098,7 @@ const myNick = () => String(store.get("nick", "") || "").trim();
 const presUrl = id => roomUrl("/presence/" + id);
 function heartbeat(){
   if (!online || !myNick()) return;
-  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {}), ...(dOn() && dSess() ? {u: dSess().uid} : {})})}).catch(() => {});
+  fetch(presUrl(deviceId), {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({n: myNick().slice(0, 20), t: {".sv":"timestamp"}, ...(settings.games === false ? {ng: true} : {}), ...(dOn() && dSess() ? {u: dSess().uid} : {})})}).then(r => { if (r.status === 401 || r.status === 403) recheckRoomPw(); }).catch(() => {});
   // list of rooms with recent activity, so the admin can see who is online in every room
   fetch(`${online.db}/roomlist/${encodeURIComponent(online.room)}.json`, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify({".sv":"timestamp"})}).catch(() => {});
 }
@@ -1348,6 +1392,10 @@ function fitNames(){
     const inputs = box.querySelectorAll(".nm"); if (!inputs.length) return;
     const cs = getComputedStyle(inputs[0]); measureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
     let w = 0; inputs.forEach(i => { w = Math.max(w, measureCtx.measureText(i.value).width); });
+    // short names: the row under the name ("35 min" + undo/redo) must fit too, or the arrows slide under the channels
+    const sr = box.querySelector(".srow");
+    if (sr) { const kids = [...sr.children].filter(c => c.offsetWidth), g = parseFloat(getComputedStyle(sr).columnGap) || 0;
+      w = Math.max(w, kids.reduce((a, c) => a + c.offsetWidth, 0) + g * Math.max(0, kids.length - 1) - 8); }
     box.style.setProperty("--namew", Math.ceil(w + 10) + "px");
   });
 }
@@ -2297,7 +2345,9 @@ function adminSheet(){
         const inp = li.querySelector(".rpwin"); inp.focus();
         const save = async (val, msg) => { try { await adminPatch({["roompw/" + room]: val}, msg);
           // mark it for the page too (open / has a password), so an empty room asks for the password only when it should
-          await fetch(`${DB_URL}/roompw/${encodeURIComponent(room)}/s.json`, {method: "PUT", body: JSON.stringify(val === "-" ? "o" : "p")}).catch(() => {}); toast(val === "-" ? `Pokój ${room} jest bez hasła` : `Ustawiono hasło pokoju ${room}`); drawRooms(); } catch (x) { berr.textContent = x.message; berr.hidden = false; } };
+          await fetch(`${DB_URL}/roompw/${encodeURIComponent(room)}/s.json`, {method: "PUT", body: JSON.stringify(val === "-" ? "o" : "p")}).catch(() => {});
+          // tell the pages that are in the room right now: they ask for the new password at once (no refresh needed)
+          await fetch(`${DB_URL}/rooms/${encodeURIComponent(room)}/pwv.json`, {method: "PUT", body: JSON.stringify({".sv": "timestamp"})}).catch(() => {}); toast(val === "-" ? `Pokój ${room} jest bez hasła` : `Ustawiono hasło pokoju ${room}`); drawRooms(); } catch (x) { berr.textContent = x.message; berr.hidden = false; } };
         li.querySelector("[data-rpset]").onclick = async () => { const v = inp.value.trim(); if (!v) { inp.focus(); return; } save(await roomHash(room, v), "Ustawiono hasło pokoju: " + room); };
         li.querySelector("[data-rpopen]").onclick = () => save("-", "Zdjęto hasło pokoju: " + room);
         li.querySelector("[data-rpno]").onclick = () => drawRooms();
@@ -2868,13 +2918,14 @@ function renderRadio(){
   const it = curItem();
   let live = ""; try { const d = ytReady && radioOn && ytPlayer.getVideoData(); if (d && it && d.video_id === it.v) live = d.title || ""; } catch {}
   const title = it ? (it.t || live || titleCache[it.v] || "Wczytywanie tytułu…") : "Kolejka pusta";
-  box.classList.toggle("off", !radioOn);
-  const html = `<button class="rbtn" data-radio="${radioOn ? "mute" : "on"}" title="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio u mnie"}" aria-label="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio"}">${!radioOn ? ICON.radio : radioMuted ? ICON.muted : ICON.sound}</button>
+  box.classList.toggle("off", !radioOn); box.classList.toggle("ismuted", radioOn && radioMuted);
+  const html = `<button class="rbtn${radioOn && radioMuted ? " muted" : ""}" data-radio="${radioOn ? "mute" : "on"}" title="${radioOn ? (radioMuted ? "Wyciszone – kliknij, żeby włączyć dźwięk" : "Wycisz") : "Włącz radio u mnie"}" aria-label="${radioOn ? (radioMuted ? "Włącz dźwięk" : "Wycisz") : "Włącz radio"}">${!radioOn ? ICON.radio : radioMuted ? ICON.muted : ICON.sound}</button>
     ${radioOn ? `<input type="range" class="rvol" id="rvol" min="0" max="100" step="1" value="${radioVol}" aria-label="Głośność radia" title="Głośność radia: ${radioVol}%"><input type="number" class="rvoln" id="rvoln" min="0" max="100" step="1" inputmode="numeric" value="${radioVol}" aria-label="Głośność radia w procentach" title="Wpisz głośność 0–100">` : ""}
     <span class="rtitle" title="${esc(title)}"><span>${esc(title)}</span></span>
     <button class="rbtn" data-radio="prev" title="Poprzedni" aria-label="Poprzedni">${ICON.prev}</button>
     <button class="rbtn" data-radio="next" title="Następny" aria-label="Następny">${ICON.next}</button>
-    <button class="rbtn" data-radio="queue" title="Kolejka radia" aria-label="Kolejka radia">${ICON.list}</button>`;
+    <button class="rbtn" data-radio="queue" title="Kolejka radia" aria-label="Kolejka radia">${ICON.list}</button>
+    ${radioOn ? `<button class="rbtn rpower" data-radio="off" title="Wyłącz radio u mnie (inni dalej słuchają)" aria-label="Wyłącz radio u mnie">${ICON.power}</button>` : ""}`;
   const act = document.activeElement;
   if (act && (act.id === "rvol" || act.id === "rvoln")) return;          // don't rebuild while the volume is being changed
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
@@ -2965,6 +3016,7 @@ const ICON = {
   prev: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>',
   next: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
   list: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3 6h13v2H3zm0 5h13v2H3zm0 5h9v2H3zm15-5v6.2a2.5 2.5 0 1 0 2 2.4V13h2v-2z"/></svg>',
+  power: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 3.5v8M7 6.6a7.5 7.5 0 1 0 10 0"/></svg>',
 };
 function radioSheet(){
   sheet(`<h2>Radio pokoju</h2>
@@ -2983,7 +3035,8 @@ function radioSheet(){
       const before = showAll ? 0 : ci, after = showAll ? 0 : Math.max(0, ks.length - ci - SHOW);
       const row = k => { const it = r.queue[k], t = it.t || titleCache[it.v] || "Wczytywanie tytułu…"; return `<li class="${k === r.cur ? "rnow" : ""}" data-qk="${k}">
         <span class="rqgrip" title="Złap i przeciągnij" aria-hidden="true">⠿</span>
-        <button class="rqplay" data-rq="${k}" title="${esc(t)}${it.by ? " – dodał(a) " + esc(it.by) : ""}"><span class="rqt">${k === r.cur ? "▶ " : ""}${esc(t)}</span>${it.by || it.w ? `<span class="rqby">${it.w ? '<span class="w2gtag">Watch2Gether</span>' + (it.by ? " · " : "") : ""}${it.by ? "dodał(a) " + esc(it.by) : ""}</span>` : ""}</button>
+        <button class="btn rqgo" data-rq="${k}" title="${k === r.cur ? "Teraz gra – kliknij, żeby puścić od początku" : "Puść teraz"}" aria-label="${k === r.cur ? "Teraz gra" : "Puść teraz"}: ${esc(t)}">${ICON.radio}</button>
+        <div class="rqplay" title="${esc(t)}${it.by ? " – dodał(a) " + esc(it.by) : ""}"><span class="rqt">${esc(t)}</span>${it.by || it.w ? `<span class="rqby">${it.w ? '<span class="w2gtag">Watch2Gether</span>' + (it.by ? " · " : "") : ""}${it.by ? "dodał(a) " + esc(it.by) : ""}</span>` : ""}</div>
         <button class="btn rqw" data-rqw="${k}" aria-pressed="${it.w ? "true" : "false"}" title="${it.w ? "Watch2Gether włączony – kliknij, żeby grało jako zwykła muzyka" : "Oznacz jako Watch2Gether (film na dużym ekranie)"}" aria-label="Watch2Gether">📺</button>
         <button class="btn" data-rqdel="${k}" aria-label="Usuń z kolejki">✕</button></li>`; };
       el.querySelector("#ra_off").textContent = radioOn ? "Wyłącz radio u mnie" : "Włącz radio u mnie";
@@ -3068,6 +3121,7 @@ document.getElementById("radio").addEventListener("click", e => {
   const b = e.target.closest("[data-radio]"); if (!b) return;
   const a = b.dataset.radio;
   if (a === "on") setRadioOn(true);
+  else if (a === "off") setRadioOn(false);
   else if (a === "mute") { radioMuted = !radioMuted; store.set("radioMuted", radioMuted); applyMute(); renderRadio(); }
   else if (a === "prev") stepRadio(-1);
   else if (a === "next") stepRadio(1);
