@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480780"><link rel="apple-touch-icon" href="icon-192.png?v=1794480780">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485203"><link rel="apple-touch-icon" href="icon-192.png?v=1794485203">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -28,18 +28,13 @@ button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:tran
 .wrap{max-width:980px;margin:0 auto}
 
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
-.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.ctrls{display:flex;align-items:center;gap:inherit;flex-wrap:wrap;min-width:0;flex:1 1 auto}
-/* room, people and undo on the left, the page buttons on the right – also when the row wraps under the title */
-#wikiBtn{margin-left:auto}
+/* title and clock centred on their own row; under them the radio and all the buttons as one centred row */
+.bar{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-width:0}
+.ctrls{display:flex;align-items:center;justify-content:center;gap:inherit;flex-wrap:wrap;min-width:0;flex:0 1 auto}
 header{grid-template-columns:minmax(0,1fr)}
-.brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;margin-right:auto}
-@media (max-width:520px){.brand{flex-basis:100%}
-  /* phone: title and clock in the middle of the screen, MiniWiki/Gry/Menu/Admin on the right */
-  .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}.bar .brand small.clock{justify-self:center}
-  .ctrls{flex:1 1 100%}#wikiBtn{margin-left:auto}}
-.radio:not(.off){min-width:292px;flex-basis:300px}
-.radio{display:flex;align-items:center;gap:2px;min-width:200px;flex:1 1 220px;max-width:400px;overflow:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
+.brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;flex:1 1 100%}
+.bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}
+.radio{display:flex;align-items:center;gap:2px;flex:0 1 300px;min-width:250px;max-width:360px;overflow:hidden;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:3px}
 .radio .rbtn{display:grid;place-items:center;width:32px;height:32px;flex:0 0 auto;background:none;border:0;border-radius:6px;color:var(--fg)}
 .radio .rbtn:hover{background:var(--surface-2)}
 .radio .rvoln{width:42px;flex:0 0 auto;background:var(--bg);border:1px solid var(--rule);border-radius:5px;padding:2px 3px;font-family:var(--f-num);font-size:13px;text-align:center;margin-right:4px;-moz-appearance:textfield}
@@ -50,6 +45,7 @@ header{grid-template-columns:minmax(0,1fr)}
 .radio .rtitle span{display:inline-block;padding-left:2px}
 .radio.off .rtitle{color:var(--muted)}
 .radio.off [data-radio="on"]{color:var(--ready)}
+.radio:not(.off){flex-basis:410px;min-width:340px;max-width:440px}
 .radio .rbtn.muted{color:#fff;background:var(--danger)}
 .radio .rbtn.muted:hover{background:var(--danger);filter:brightness(1.1)}
 .radio.ismuted .rvol,.radio.ismuted .rvoln{opacity:.4}
@@ -98,8 +94,8 @@ header{grid-template-columns:minmax(0,1fr)}
 .rqgrip{flex:0 0 auto;cursor:grab;color:var(--muted);padding:6px 4px;font-size:16px;line-height:1;touch-action:none;user-select:none}
 .rq li[data-qk]{user-select:none}
 .rq li.rqdrag{opacity:.85;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.45);cursor:grabbing}
-@media (max-width:520px){.radio,.radio:not(.off){flex:1 1 100%;max-width:none;min-width:0}}
-.brand{display:grid;grid-template-columns:max-content;justify-content:start;justify-items:center}
+@media (max-width:520px){.radio,.radio:not(.off){flex:1 1 100%;max-width:none;min-width:0}.ctrls{flex:1 1 100%}}
+.brand{display:grid}
 .brand small.clock{font-size:15px;font-weight:600;letter-spacing:.06em;color:var(--accent);font-variant-numeric:tabular-nums;min-height:1.2em}
 .brand small{display:block;font-size:12px;font-weight:500;letter-spacing:.12em;color:var(--muted)}
 .people{position:relative;display:inline-flex;align-items:center;gap:5px;min-height:38px;padding:0 10px;border:1px solid var(--rule);border-radius:6px;background:var(--surface-2);color:var(--ready);font-family:var(--f-num);font-weight:700;cursor:default}
@@ -843,7 +839,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794480780";
+const BUILD = "1794485203";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
