@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794490268"><link rel="apple-touch-icon" href="icon-192.png?v=1794490268">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794494465"><link rel="apple-touch-icon" href="icon-192.png?v=1794494465">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -255,7 +255,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 /* camp names: Góra Sohan blue, Pustynia yellow, Wężowe Pole brown */
 .missions .msk-s{color:#5bb8ef!important}.missions .msk-p{color:#e8c24a!important}.missions .msk-w{color:#b9814f!important}
 .mslist{display:grid;gap:8px}
-.mscols,.msrow{display:grid;grid-template-columns:minmax(250px,1.5fr) repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
+.mscols,.msrow{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(0,1fr)) 34px;gap:8px;align-items:stretch}
 .mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .mscols span:not(:first-child){text-align:center}
 .msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:6px 10px}
@@ -277,6 +277,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mspair .mspl{position:absolute;top:-9px;left:14px;background:var(--bg);padding:0 8px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .msname input{width:100%;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:7px;color:var(--fg);font-weight:700;font-size:14.5px;padding:5px 8px}
 .msname .msbtns{display:flex;gap:6px}
+.msrow{position:relative}.msdel{min-height:28px;padding:0;width:34px;align-self:center}
+.msdel[data-sure="1"]{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:auto;padding:0 10px;z-index:2;color:var(--danger);background:var(--surface-2)}
 .msname .btn{min-height:28px;padding:0 8px;font-size:13px}
 .mscamp{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--rule);border-radius:8px;padding:3px 8px;cursor:pointer;min-width:0;background:var(--bg)}
 .mscamp .mscn{display:none;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -310,7 +312,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 @media (max-width:640px){
   .mscols{display:none}
   .msrow{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .msname{grid-column:1/-1;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center}
+  .msname{grid-column:1/-1;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;padding-right:40px}
+  .msdel,.msdel[data-sure="1"]{position:absolute;top:6px;right:10px;transform:none}
   .mscamp{flex-direction:column;gap:3px;text-align:center;padding:5px 4px}
   .mscamp .mscn{display:block}
   .msitems{grid-template-columns:minmax(0,1fr)}
@@ -859,7 +862,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794490268";
+const BUILD = "1794494465";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3404,10 +3407,10 @@ function msDraw(){
       ${mine ? `<button class="btn" data-ms="share">Udostępnij${acl ? ` (${acl})` : ""}</button>` : `<button class="btn" data-ms="leave">Opuść tę listę</button>`}</div>
     <p class="msnote">${mine ? "To Twoja prywatna lista – widzą ją tylko osoby, którym dasz dostęp przyciskiem „Udostępnij”." : `Lista gracza <b>${esc(String(ms.shares[ms.owner] || (ms.data && ms.data.n) || "?"))}</b> – możesz ją edytować tak jak właściciel.`} Zaznacz misję, gdy postać ją zrobi: odznaczy się sama po 7 dniach.</p>
     ${ms.err ? `<p class="msnote" style="color:var(--danger)">${esc(ms.err)}</p>` : ms.loading ? '<p class="msnote">Wczytywanie…</p>' : `
-    <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([k, n]) => `<span class="msk-${k}">${n}</span>`).join("")}</div>` : ""}
+    <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([k, n]) => `<span class="msk-${k}">${n}</span>`).join("")}<span></span></div>` : ""}
       ${chars.map(c => `${c.pair === "a" ? '<div class="mspair"><span class="mspl">Para</span>' : ""}<div class="msrow" data-msc="${c.id}"${COLORS.includes(c.c) ? ` style="--mc:${c.c}"` : ""}><div class="msname"><span class="msgrip" title="Złap i przeciągnij, żeby zmienić kolejność${c.pair ? " (para przesuwa się razem)" : ""}" aria-hidden="true">⠿</span><button class="mscol" data-ms="opt" aria-expanded="${ms.opt === c.id}" title="Kolor i para" aria-label="Kolor i para: ${esc(c.n || "")}"></button><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
-          <span class="msbtns"><button class="btn" data-ms="items" aria-expanded="${ms.open.has(c.id)}">Przedmioty${cnt(c) ? ` (${cnt(c)})` : ""} ${ms.open.has(c.id) ? "▴" : "▾"}</button><button class="btn" data-ms="cdel" title="Usuń postać" aria-label="Usuń postać ${esc(c.n || "")}">✕</button></span></div>
-        ${MS_CAMPS.map(k => camp(c, k)).join("")}${ms.opt === c.id ? opts(c) : ""}${ms.open.has(c.id) ? items(c) : ""}</div>${c.pair === "b" ? "</div>" : ""}`).join("")}
+          <span class="msbtns"><button class="btn" data-ms="items" aria-expanded="${ms.open.has(c.id)}">Przedmioty${cnt(c) ? ` (${cnt(c)})` : ""} ${ms.open.has(c.id) ? "▴" : "▾"}</button></span></div>
+        ${MS_CAMPS.map(k => camp(c, k)).join("")}<button class="btn msdel" data-ms="cdel" title="Usuń postać" aria-label="Usuń postać ${esc(c.n || "")}">✕</button>${ms.opt === c.id ? opts(c) : ""}${ms.open.has(c.id) ? items(c) : ""}</div>${c.pair === "b" ? "</div>" : ""}`).join("")}
       ${chars.length ? "" : '<p class="msnote">Nie ma jeszcze żadnej postaci. Dodaj pierwszą poniżej.</p>'}</div>
     ${chars.length < MS_MAXCH ? `<div class="msadd"><input id="ms_new" maxlength="24" placeholder="Nick postaci" autocomplete="off"><button class="btn primary" data-ms="cadd">Dodaj postać</button></div>` : ""}
     <div class="mssum"><h2>Do kupienia – razem</h2>
