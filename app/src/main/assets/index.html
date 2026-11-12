@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478382"><link rel="apple-touch-icon" href="icon-192.png?v=1794478382">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478458"><link rel="apple-touch-icon" href="icon-192.png?v=1794478458">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -812,7 +812,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794478382";
+const BUILD = "1794478458";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3312,7 +3312,7 @@ function msDraw(){
       <span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b><span class="msw">${msWhen(t + MS_WEEK)}</span>` : "do zrobienia"}</span></label>`; };
   const items = c => `<div class="msitems">${MS_CAMPS.map(([k, name]) => { const its = Object.entries((c.it || {})[k] || {}).filter(([, i]) => i);
       return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
-        ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="ile" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
+        ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="x" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
 </div>`;
   const cnt = c => MS_CAMPS.reduce((n, [k]) => n + Object.keys((c.it || {})[k] || {}).length, 0);
   const sum = msSum();
