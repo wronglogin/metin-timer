@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794479656"><link rel="apple-touch-icon" href="icon-192.png?v=1794479656">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794479972"><link rel="apple-touch-icon" href="icon-192.png?v=1794479972">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -269,14 +269,17 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mscamp .mst .msw{display:block;font-size:11.5px}
 .msedit{flex:0 0 auto;background:none;border:0;color:var(--muted);padding:2px 4px;font-size:13px;cursor:pointer;border-radius:5px}
 .msedit:hover{color:var(--accent);background:var(--surface)}
-.mscamp.ed{flex-direction:column;align-items:stretch;gap:1px;padding:3px 6px}.mscamp.ed>input[type=checkbox]{display:none}.mscamp.ed .mst{font-size:11px}
-.mswhen{display:block;margin-top:2px;width:100%;min-width:0;box-sizing:border-box;background:var(--surface);border:1px solid var(--accent);border-radius:6px;color:var(--fg);font-family:var(--f-num);font-size:12px;padding:2px 4px;color-scheme:dark}
+.mscamp.ed{flex-direction:column;align-items:stretch;gap:1px;padding:3px 6px}.mscamp.ed>input[type=checkbox]{display:none}.mscamp.ed .mst{font-size:11px;text-align:center}
+.msrem{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:2px;color:var(--muted);font-size:12px}
+.msrem input{width:38px;min-width:0;background:var(--surface);border:1px solid var(--accent);border-radius:6px;color:var(--fg);font-family:var(--f-num);font-size:13px;padding:2px 2px;text-align:center;-moz-appearance:textfield}
+.msrem input::-webkit-inner-spin-button,.msrem input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .mscamp.todo{border-color:var(--ready)}.mscamp.todo .mst{color:var(--ready);font-weight:600}
 .msitems{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border-top:1px solid var(--rule);padding-top:8px;margin-top:2px}
 .msitems h3{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
-.msit{display:grid;grid-template-columns:minmax(0,1fr) 64px 30px;gap:4px;margin-bottom:4px}
+.msit{display:grid;grid-template-columns:58px minmax(0,1fr) 30px;gap:4px;margin-bottom:4px}
 .msit input{min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:6px;color:var(--fg);padding:5px 6px;font-size:14px}
-.msit input[type=number]{text-align:center;font-family:var(--f-num)}
+.msit input[type=number]{text-align:center;font-family:var(--f-num);-moz-appearance:textfield}
+.msit input[type=number]::-webkit-inner-spin-button,.msit input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .msit .btn{min-height:30px;padding:0}
 .msadd{display:flex;gap:8px;flex-wrap:wrap}.msadd input{flex:1 1 180px;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:8px;color:var(--fg);padding:8px 10px;font-size:15px}
 .mssum{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;overflow-x:auto}
@@ -833,7 +836,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794479656";
+const BUILD = "1794479972";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3254,9 +3257,6 @@ function msOrdered(){
 const msMate = c => c.g ? msChars().find(x => x.id !== c.id && x.g === c.g) || null : null;
 const msDone = (c, k) => { const t = +((c.d || {})[k]) || 0; return t && now() - t < MS_WEEK ? t : 0; };
 const msWhen = t => new Intl.DateTimeFormat("pl-PL", {timeZone: RESET_TZ, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"}).format(t);
-// the moment as Polish wall-clock text for a date-time field ("2026-11-12T10:43"), and back
-const msWall = t => new Date(t + tzOffset(t)).toISOString().slice(0, 16);
-const msUnwall = v => { const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(v || ""); if (!m) return 0; const u = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]); return u - tzOffset(u - tzOffset(u)); };
 const msLeft = ms_ => { const m = Math.max(0, Math.ceil(ms_ / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m % 60} min` : `${m} min`; };
 const msEditing = () => { const a = document.activeElement; return !!(a && a.matches && a.matches("#missions input:not([type=checkbox]), #missions select")); };
 function msShow(){
@@ -3343,14 +3343,13 @@ function msDraw(){
   const chars = msOrdered(), mine = msMine(), acl = Object.keys((ms.data && ms.data.acl) || {}).length;
   const names = [...new Set(chars.flatMap(c => MS_CAMPS.flatMap(([k]) => Object.values((c.it || {})[k] || {}).map(i => i && String(i.n || "").trim()))).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pl"));
   const lists = `<option value="${esc(me)}"${mine ? " selected" : ""}>Moja lista</option>` + Object.entries(ms.shares).map(([u, n]) => `<option value="${esc(u)}"${u === ms.owner ? " selected" : ""}>Lista: ${esc(String(n))}</option>`).join("");
-  const camp = (c, [k, name]) => { const t = msDone(c, k);
-    return `<label class="mscamp ${t ? "done" : "todo"}${t && ms.when === c.id + "/" + k ? " ed" : ""}" title="${name}${t ? " – zrobiona " + msWhen(t) : ""}"><span class="mscn">${name}</span><input type="checkbox" data-msd="${k}"${t ? " checked" : ""} aria-label="${name}: ${esc(c.n)}">
-      ${t && ms.when === c.id + "/" + k
-        ? `<span class="mst">zrobiona:<input type="datetime-local" class="mswhen" data-msf="when" data-k="${k}" value="${msWall(t)}" min="${msWall(now() - MS_WEEK + 60000)}" max="${msWall(now())}" aria-label="Kiedy misja została zrobiona (czas polski)"></span>`
-        : `<span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b><span class="msw">${msWhen(t + MS_WEEK)}</span>` : "do zrobienia"}</span>${t ? `<button class="msedit" data-ms="when" data-k="${k}" title="Popraw, kiedy misja została zrobiona (np. gdy zaznaczasz ją później)" aria-label="Popraw czas zrobienia">✎</button>` : ""}`}</label>`; };
+  const camp = (c, [k, name]) => { const t = msDone(c, k), ed = ms.when === c.id + "/" + k, rem = t ? Math.max(0, Math.ceil((t + MS_WEEK - now()) / 60000)) : 0;
+    return `<${ed ? "div" : "label"} class="mscamp ${t ? "done" : "todo"}${ed ? " ed" : ""}" title="${name}${t ? " – zrobiona " + msWhen(t) : ""}"><span class="mscn">${name}</span><input type="checkbox" data-msd="${k}"${t ? " checked" : ""} aria-label="${name}: ${esc(c.n)}">
+      ${ed ? `<span class="mst">dostępna za:<span class="msrem" data-k="${k}"><input type="number" min="0" max="7" inputmode="numeric" value="${Math.floor(rem / 1440)}" data-msr="d" aria-label="dni">d<input type="number" min="0" max="23" inputmode="numeric" value="${Math.floor(rem % 1440 / 60)}" data-msr="h" aria-label="godzin">h<input type="number" min="0" max="59" inputmode="numeric" value="${rem % 60}" data-msr="m" aria-label="minut">min</span></span>`
+        : `<span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b><span class="msw">${msWhen(t + MS_WEEK)}</span>` : "do zrobienia"}</span><button class="msedit" data-ms="when" data-k="${k}" title="Wpisz, za ile misja będzie dostępna (tak jak pokazuje gra)" aria-label="Wpisz, za ile misja będzie dostępna">✎</button>`}</${ed ? "div" : "label"}>`; };
   const items = c => `<div class="msitems">${MS_CAMPS.map(([k, name]) => { const its = Object.entries((c.it || {})[k] || {}).filter(([, i]) => i);
-      return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
-        ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="x" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
+      return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
+        ${its.length < MS_MAXIT ? `<div class="msit msnew"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="x" data-msf="nq" aria-label="Ilość"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
 </div>`;
   const opts = c => { const mate = msMate(c), others = chars.filter(x => x.id !== c.id);
     return `<div class="msopts"><span class="msol">Kolor</span><span class="mssw">${COLORS.map(k => `<button data-ms="col" data-col="${k}" style="background:${k}" aria-pressed="${c.c === k}" aria-label="Kolor ${k}"></button>`).join("")}<button data-ms="col" data-col="" class="none" aria-pressed="${!COLORS.includes(c.c)}" title="Bez koloru" aria-label="Bez koloru">✕</button></span>
@@ -3406,7 +3405,7 @@ function msDraw(){
     else if (a === "cadd") addChar();
     else if (a === "items") { ms.open.has(cid) ? ms.open.delete(cid) : ms.open.add(cid); msDraw(); }
     else if (a === "opt") { ms.opt = ms.opt === cid ? null : cid; msDraw(); }
-    else if (a === "when") { e.preventDefault(); ms.when = cid + "/" + b.dataset.k; msDraw(); const i = box.querySelector(".mswhen"); if (i) i.focus(); }
+    else if (a === "when") { e.preventDefault(); ms.when = cid + "/" + b.dataset.k; msDraw(); const i = box.querySelector(".msrem input"); if (i) { i.focus(); i.select(); } }
     else if (a === "col") {
       // a pair shares its colour
       const meC = msChars().find(x => x.id === cid), mate = meC && msMate(meC), col = b.dataset.col || null;
@@ -3432,7 +3431,6 @@ function msDraw(){
     if (t.dataset.msd) { msPatch({[`${cid}/d/${t.dataset.msd}`]: t.checked ? now() : null}); return; }
     const f = t.dataset.msf; if (!f || !cid) return;
     const c = ((ms.data || {}).ch || {})[cid]; if (!c) return;
-    if (f === "when") return;                                      // saved when the field is left (see focusout), not per keystroke
     if (f === "pair") {
       // a pair is exactly two characters: whoever either of them was paired with before becomes single again
       const all = msChars(), meC = all.find(x => x.id === cid), other = all.find(x => x.id === t.value), ch = {};
@@ -3480,12 +3478,16 @@ function msDraw(){
   // a field lost focus: show whatever arrived from others in the meantime – but not in the middle of a click
   // (a redraw between press and release would swallow the click on "+" or a checkbox)
   box.addEventListener("pointerdown", () => { ms.hold = Date.now(); }, true);
-  // the "done at" field is left (or Enter): save it. Not in the future; older than a week just means "available again"
+  // "available in d / h / min" (as the game shows it) is left, or Enter: the tick time is worked back from it.
+  // 0 = available now (unticked); more than a week is cut to a week
   box.addEventListener("focusout", e => {
-    const t = e.target; if (!t.classList || !t.classList.contains("mswhen")) return;
-    const cid = cidOf(t), k = t.dataset.k, c = ((ms.data || {}).ch || {})[cid]; ms.when = null;
-    const ts = Math.min(msUnwall(t.value), now()), old = c && +((c.d || {})[k]) || 0;
-    if (c && ts > 0 && Math.abs(ts - old) >= 60000) msPatch({[`${cid}/d/${k}`]: ts});
+    const g = e.target.closest && e.target.closest(".msrem"); if (!g || (e.relatedTarget && g.contains(e.relatedTarget))) return;
+    const cid = cidOf(g), k = g.dataset.k, c = ((ms.data || {}).ch || {})[cid]; ms.when = null;
+    const v = n => Math.max(0, Math.round(+g.querySelector(`[data-msr="${n}"]`).value) || 0);
+    const rem = Math.min(MS_WEEK, v("d") * 86400e3 + v("h") * 3600e3 + v("m") * 60e3), old = c && +((c.d || {})[k]) || 0;
+    if (!c) return;
+    const ts = rem > 0 ? now() - (MS_WEEK - rem) : null;
+    if (ts === null ? old : Math.abs(ts - old) >= 60000) msPatch({[`${cid}/d/${k}`]: ts});
   });
   box.addEventListener("focusout", () => setTimeout(() => { if (ms.shown && !msEditing()) msDraw(); }, Date.now() - ms.hold < 400 ? 450 : 0));
 }
