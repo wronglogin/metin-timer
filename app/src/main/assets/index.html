@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478619"><link rel="apple-touch-icon" href="icon-192.png?v=1794478619">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478902"><link rel="apple-touch-icon" href="icon-192.png?v=1794478902">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -242,7 +242,9 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .mscols span:not(:first-child){text-align:center}
 .msrow{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:6px 10px}
-.msname{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px;align-items:center;min-width:0}
+.msname{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:6px;align-items:center;min-width:0}
+.msgrip{cursor:grab;color:var(--muted);font-size:16px;line-height:1;padding:6px 2px;touch-action:none;user-select:none}
+.mslist .msdrag{opacity:.9;box-shadow:0 8px 22px rgba(0,0,0,.5);cursor:grabbing;position:relative;z-index:2}
 .msrow{border-left:4px solid var(--mc,var(--rule))}
 .msname input{border-color:var(--mc,var(--rule))}
 .mscol{width:22px;height:22px;border-radius:50%;border:2px solid var(--rule);background:var(--mc,transparent);padding:0;cursor:pointer;flex:0 0 auto}
@@ -284,7 +286,7 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 @media (max-width:640px){
   .mscols{display:none}
   .msrow{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .msname{grid-column:1/-1;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+  .msname{grid-column:1/-1;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center}
   .mscamp{flex-direction:column;gap:3px;text-align:center;padding:5px 4px}
   .mscamp .mscn{display:block}
   .msitems{grid-template-columns:minmax(0,1fr)}
@@ -825,7 +827,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794478619";
+const BUILD = "1794478902";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3227,7 +3229,7 @@ const MS_ITEMS = "Futro Wilka|Futro Wilka +|Skóra Tygrysa|Futro Białego Tygrys
 const msFold = t => String(t || "").toLowerCase().replace(/ł/g, "l").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
 const MS_CANON = new Map(MS_ITEMS.map(n => [msFold(n), n]));
 const msCanon = t => MS_CANON.get(msFold(t)) || String(t || "").replace(/\s+/g, " ").trim();
-const ms = {owner: null, data: null, es: null, shares: {}, open: new Set(), opt: null, all: false, shown: false, tick: null, loading: false, err: "", hold: 0};
+const ms = {owner: null, data: null, es: null, shares: {}, open: new Set(), opt: null, drag: false, all: false, shown: false, tick: null, loading: false, err: "", hold: 0};
 const msMe = () => (dSess() || {}).uid || null;
 const msMine = () => ms.owner === msMe();
 const msUrl = (p = "") => `${DB_URL}/missions/${encodeURIComponent(ms.owner)}${p}.json`;
@@ -3324,7 +3326,7 @@ function msSum(){
   return [...rows.values()].sort((a, b) => a.n.localeCompare(b.n, "pl"));
 }
 function msDraw(){
-  const box = document.getElementById("missions"); if (!box || !ms.shown) return;
+  const box = document.getElementById("missions"); if (!box || !ms.shown || ms.drag) return;
   const me = msMe(); if (!me) { box.innerHTML = '<p class="msnote">Misje tygodniowe są dostępne po zalogowaniu przez Discord.</p>'; return; }
   // what is typed but not yet added (a new item, a new character) survives the redraw
   const drafts = {}; box.querySelectorAll(".msnew").forEach(r => { const c = r.closest("[data-msc]"), k = r.closest("[data-msk]"); if (c && k) drafts[c.dataset.msc + "/" + k.dataset.msk] = [...r.querySelectorAll("input")].map(i => i.value); });
@@ -3350,7 +3352,7 @@ function msDraw(){
     <p class="msnote">${mine ? "To Twoja prywatna lista – widzą ją tylko osoby, którym dasz dostęp przyciskiem „Udostępnij”." : `Lista gracza <b>${esc(String(ms.shares[ms.owner] || (ms.data && ms.data.n) || "?"))}</b> – możesz ją edytować tak jak właściciel.`} Zaznacz misję, gdy postać ją zrobi: odznaczy się sama po 7 dniach.</p>
     ${ms.err ? `<p class="msnote" style="color:var(--danger)">${esc(ms.err)}</p>` : ms.loading ? '<p class="msnote">Wczytywanie…</p>' : `
     <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([, n]) => `<span>${n}</span>`).join("")}</div>` : ""}
-      ${chars.map(c => `${c.pair === "a" ? '<div class="mspair"><span class="mspl">Para</span>' : ""}<div class="msrow" data-msc="${c.id}"${COLORS.includes(c.c) ? ` style="--mc:${c.c}"` : ""}><div class="msname"><button class="mscol" data-ms="opt" aria-expanded="${ms.opt === c.id}" title="Kolor i para" aria-label="Kolor i para: ${esc(c.n || "")}"></button><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
+      ${chars.map(c => `${c.pair === "a" ? '<div class="mspair"><span class="mspl">Para</span>' : ""}<div class="msrow" data-msc="${c.id}"${COLORS.includes(c.c) ? ` style="--mc:${c.c}"` : ""}><div class="msname"><span class="msgrip" title="Złap i przeciągnij, żeby zmienić kolejność${c.pair ? " (para przesuwa się razem)" : ""}" aria-hidden="true">⠿</span><button class="mscol" data-ms="opt" aria-expanded="${ms.opt === c.id}" title="Kolor i para" aria-label="Kolor i para: ${esc(c.n || "")}"></button><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
           <span class="msbtns"><button class="btn" data-ms="items" aria-expanded="${ms.open.has(c.id)}">Przedmioty${cnt(c) ? ` (${cnt(c)})` : ""} ${ms.open.has(c.id) ? "▴" : "▾"}</button><button class="btn" data-ms="cdel" title="Usuń postać" aria-label="Usuń postać ${esc(c.n || "")}">✕</button></span></div>
         ${MS_CAMPS.map(k => camp(c, k)).join("")}${ms.opt === c.id ? opts(c) : ""}${ms.open.has(c.id) ? items(c) : ""}</div>${c.pair === "b" ? "</div>" : ""}`).join("")}
       ${chars.length ? "" : '<p class="msnote">Nie ma jeszcze żadnej postaci. Dodaj pierwszą poniżej.</p>'}</div>
@@ -3393,7 +3395,11 @@ function msDraw(){
     else if (a === "cadd") addChar();
     else if (a === "items") { ms.open.has(cid) ? ms.open.delete(cid) : ms.open.add(cid); msDraw(); }
     else if (a === "opt") { ms.opt = ms.opt === cid ? null : cid; msDraw(); }
-    else if (a === "col") msPatch({[`${cid}/c`]: b.dataset.col || null});
+    else if (a === "col") {
+      // a pair shares its colour
+      const meC = msChars().find(x => x.id === cid), mate = meC && msMate(meC), col = b.dataset.col || null;
+      msPatch({[`${cid}/c`]: col, ...(mate ? {[`${mate.id}/c`]: col} : {})});
+    }
     else if (a === "cdel") {
       if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Usunąć?"; setTimeout(() => { if (b.isConnected) { b.dataset.sure = ""; b.textContent = "✕"; } }, 3000); return; }
       ms.open.delete(cid); msPatch({[cid]: null});
@@ -3418,7 +3424,11 @@ function msDraw(){
       // a pair is exactly two characters: whoever either of them was paired with before becomes single again
       const all = msChars(), meC = all.find(x => x.id === cid), other = all.find(x => x.id === t.value), ch = {};
       for (const x of [meC, other]) { const m = x && msMate(x); if (m) ch[`${m.id}/g`] = null; }
-      if (other) { const g = uid(); ch[`${cid}/g`] = g; ch[`${other.id}/g`] = g; } else ch[`${cid}/g`] = null;
+      if (other) {
+        const g = uid(), col = (meC && COLORS.includes(meC.c) && meC.c) || (COLORS.includes(other.c) && other.c) || null;
+        ch[`${cid}/g`] = g; ch[`${other.id}/g`] = g;
+        if (col) { ch[`${cid}/c`] = col; ch[`${other.id}/c`] = col; }          // the new pair takes one colour
+      } else ch[`${cid}/g`] = null;
       t.blur(); msPatch(ch); return;
     }
     if (f === "n") { const v = t.value.trim().slice(0, 24); if (v && v !== c.n) msPatch({[`${cid}/n`]: v}); else t.value = c.n || ""; }
@@ -3427,6 +3437,32 @@ function msDraw(){
       if (f === "in") { const v = msCanon(t.value).slice(0, 40); t.value = v; if (v) msPatch({[base + "/n"]: v}); else msPatch({[base]: null}); }
       else msPatch({[base + "/q"]: Math.max(0, Math.min(9999999, Math.round(+t.value) || 0))});
     }
+  });
+  // order: drag a character by its ⠿ handle (a pair moves as one) and drop it between the others
+  box.addEventListener("pointerdown", e => {
+    const grip = e.target.closest(".msgrip"); if (!grip || e.button > 0) return;
+    const unit = grip.closest(".mspair") || grip.closest(".msrow"), list = unit.parentNode;
+    // (listeners sit on the page box: the dragged row is re-inserted while moving, which would drop a capture on the handle)
+    e.preventDefault(); try { box.setPointerCapture(e.pointerId); } catch {}
+    const isUnit = x => x.matches && x.matches(".msrow, .mspair");
+    let started = false; const y0 = e.clientY;
+    const move = ev => {
+      if (!started) { if (Math.abs(ev.clientY - y0) < 5) return; started = true; ms.drag = true; unit.classList.add("msdrag"); }
+      ev.preventDefault();
+      const others = [...list.children].filter(x => x !== unit && isUnit(x));
+      const after = others.find(x => { const r = x.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+      if (after) { if (unit.nextElementSibling !== after) list.insertBefore(unit, after); }
+      else { const last = others[others.length - 1]; if (last && last.nextElementSibling !== unit) last.after(unit); }
+    };
+    const up = () => {
+      box.removeEventListener("pointermove", move); box.removeEventListener("pointerup", up); box.removeEventListener("pointercancel", up);
+      if (!started) return;
+      unit.classList.remove("msdrag"); ms.drag = false;
+      const ids = [...list.querySelectorAll("[data-msc]")].map(x => x.dataset.msc), cur = (ms.data || {}).ch || {}, ch = {};
+      ids.forEach((id, i) => { if (cur[id] && cur[id].o !== i + 1) ch[`${id}/o`] = i + 1; });
+      if (Object.keys(ch).length) msPatch(ch); else msDraw();
+    };
+    box.addEventListener("pointermove", move); box.addEventListener("pointerup", up); box.addEventListener("pointercancel", up);
   });
   // a field lost focus: show whatever arrived from others in the meantime – but not in the middle of a click
   // (a redraw between press and release would swallow the click on "+" or a checkbox)
