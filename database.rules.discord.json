@@ -801,6 +801,12 @@
             "o": {
               ".validate": "newData.isNumber()"
             },
+            "c": {
+              ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-f]{6}$/)"
+            },
+            "g": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-z0-9]{6,24}$/)"
+            },
             "d": {
               "$k": {
                 ".validate": "$k.matches(/^[spw]$/) && newData.isNumber()"

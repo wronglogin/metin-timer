@@ -84,6 +84,8 @@ Pustynia, Wężowe Pole** – dają każdej postaci jedną misję na tydzień.
 - **Przedmioty ▾** przy postaci: wpisz, co trzeba kupić na misję w każdym obozie (nazwa i ilość).
   Przy wpisywaniu timer podpowiada nazwy przedmiotów (ulepszacze, mikstury, ryby, ekwipunek…) i sam poprawia pisownię,
   żeby te same przedmioty zawsze się sumowały.
+- **Kolor i para:** kółko przed nickiem otwiera wybór koloru postaci i listę „Para z” – dwie połączone postacie
+  stoją zawsze obok siebie w ramce „Para”.
 - **Do kupienia – razem** na dole: suma przedmiotów wszystkich postaci, z podziałem na obozy.
   Liczy tylko misje jeszcze niezrobione (chyba że zaznaczysz „licz też misje już zrobione”).
 - Lista jest **prywatna** – przypisana do Twojego konta Discord, nie do pokoju. **Udostępnij** daje wybranym osobom
