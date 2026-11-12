@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794477655"><link rel="apple-touch-icon" href="icon-192.png?v=1794477655">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794478259"><link rel="apple-touch-icon" href="icon-192.png?v=1794478259">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -259,8 +259,6 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .msit input{min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:6px;color:var(--fg);padding:5px 6px;font-size:14px}
 .msit input[type=number]{text-align:center;font-family:var(--f-num)}
 .msit .btn{min-height:30px;padding:0}
-.mscopy{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:13px}
-.mscopy select{min-height:30px;background:var(--surface);color:var(--fg);border:1px solid var(--rule);border-radius:6px}
 .msadd{display:flex;gap:8px;flex-wrap:wrap}.msadd input{flex:1 1 180px;min-width:0;background:var(--bg);border:1px solid var(--rule);border-radius:8px;color:var(--fg);padding:8px 10px;font-size:15px}
 .mssum{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;overflow-x:auto}
 .mssum h2{margin:0;font-size:17px}.mssum label{color:var(--muted);font-size:14px;display:flex;gap:8px;align-items:center}
@@ -814,7 +812,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794477655";
+const BUILD = "1794478259";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3209,6 +3207,13 @@ setInterval(() => { if (online && radioOn && (ytReady || alt)) syncRadio(false);
    A ticked mission unticks itself 7 days after the tick – nothing is written for that, it is worked out from the time. */
 const MS_CAMPS = [["s", "Góra Sohan"], ["p", "Pustynia"], ["w", "Wężowe Pole"]];
 const MS_WEEK = 7 * 86400e3, MS_MAXCH = 40, MS_MAXIT = 30;
+// item names for the suggestions (so the same thing is always spelled the same and adds up): from the ElderMT2 wiki –
+// upgrade materials, potions, other items, soul stones, fish (baked and raw), then weapons, armour and jewellery
+const MS_ITEMS = "Futro Wilka|Futro Wilka +|Skóra Tygrysa|Futro Białego Tygrysa|Niedźwiedzia Skóra|Niedźwiedzia Skóra +|Żółć Niedźwiedzia|Żółć Niedźwiedzia +|Nos Świni|Ząb Dzika|Biała Wstęga|Biała Wstęga +|Czerwona Wstęga|Ozdobna Spinka do Włosów|Krem do Twarzy|Ornament|Kłąb|Flaga|Stłuczona Porcelana|Shuriken|Shuriken +|Kawałek Klejnotu|Kawałek Zepsutej Zbroi|Zardzewiałe Ostrze|Czarny Uniform|Czarny Uniform +|Zdobycz Dzikusa|Amulet Orka|Amulet Orka +|Ząb Orka|Ząb Orka +|Ezoteryczny Przewodnik|Ezoteryczny Przewodnik +|Księga Klątw|Igła Skorpiona|Ogon Skorpiona|Ogon Skorpiona +|Szpon Skorpiona|Oczy Pająka|Nogi Pająka|Pajęcza Sieć|Worek z Pajęczą Trucizną|Worek z Pajęczymi Jajami|Ogon Węża|Ogon Węża +|Skóra Węża|Księga Klątw +|Nieznany Talizman|Nieznany Talizman +|Liść|Język Żaby|Żabie Udka|Sztabka Magicznej Rudy|Futro Yeti|Futro Yeti +|Kawałek Lodu|Kawałek Lodu +|Matowy Lód|Matowy Lód +|Lodowy Róg Wieloryba|Kawałek Płótna|Kawałek Płótna +|Nieznane Lekarstwo|Nieznane Lekarstwo +|Symbol Wojownika|Płonąca Grzywa|Pazur Tygrysa|Czarna Materia|Mleczny Sok|Magiczne Nasiona|Klejnot Demona|Klejnot Demona +|Pamiątka po Demonie|Pamiątka po Demonie +|Kość Palca|Małż|Biała Perła|Niebieska Perła|Krwawa Perła|Rybia Ość|Akt Zasługi|Broszura Szermierki|Magiczny Pył|Czerwona Mikstura (M)|Czerwona Mikstura (Ś)|Czerwona Mikstura (D)|Niebieska Mikstura (M)|Niebieska Mikstura (Ś)|Niebieska Mikstura (D)|Sok z Kwiatu Brzoskwini|Sok z Pokrzywy|Sok z Kwiatu Kaki|Sok z Korzenia Gango|Woda Zin|Woda SamBo|Woda Mong|Woda Hwal|Woda Sim|Woda Dok|Woda Young|Woda Bo|Czerwona Rosa|Różowa Rosa|Żółta Rosa|Zielona Rosa|Niebieska Rosa|Biała Rosa|Esencja z Kokonu (I)|Esencja z Kokonu (II)|Esencja z Kokonu (III)|Esencja z Kokonu (IV)|Esencja z Kokonu (V)|Jad z Kokonu (I)|Jad z Kokonu (II)|Jad z Kokonu (III)|Jad z Kokonu (IV)|Jad z Kokonu (V)|Piekielna Rosa|Kropla Magmy|Diabelska Rosa|Mroczna Rosa|Kamień Duchowy|Rada Pustelnika|Zwój Egzorcyzmu|Rękawica Złodzieja|Błogosławieństwo Życia|Błogosławieństwo Magii|Błogosławieństwo Smoka|Łza Bogini|Pigułka Krwi|Kula Polimorfii|Fasolka Zen|Amulet Karmy|Zwój Kamienia Duszy|Rękawica Króla Przepowiedni|Symbol Króla Przepowiedni|Pierścień Lucy|Peleryna Maskująca|Bilet na Jazdę Konną|Siano|Marchewka|Czerwony Żeń-szeń|Zioło z Łatwych Małp|Zioło z Normalnych Małp|Zioło z Trudnych Małp|Srebrna Szkatułka|Srebrna Szkatułka +|Srebrny Klucz|Złota Szkatułka|Złota Szkatułka +|Złoty Klucz|Nieznana Stara Skrzynia|Pierścionek Zaręczynowy|Obrączka Ślubna|Kawałek Kamienia|Marmur Błogosławieństwa|Kamień Przyspieszenia|Kamień Magii|Kamień Witalności|Kamień Uchylenia|Kamień Uniku|Kamień Obrony|Kamień Potwora|Kamień Powtórki|Kamień Penetracji|Kamień Śmierci|Kamień Wojownika|Kamień Ninja|Kamień Sury|Kamień Szamana|Pieczony Karaś|Pieczona Ryba Mandaryna|Pieczony Duży Karaś|Pieczony Karp|Pieczony Łosoś|Pieczony Amur|Pieczony Pstrąg|Pieczony Węgorz|Pieczony Tęczowy Pstrąg|Pieczony Rzeczny Pstrąg|Pieczona Krasnopiórka|Pieczony Okoń|Pieczony Tenchi|Pieczony Sum|Pieczony Piskorz|Pieczona Ryba Lotosu|Pieczona Słodka Ryba|Pieczony Gromadnik|Pieczona Shiri|Pieczony Karp Lustrzenny|Pieczony Karaś Złocisty|Karaś|Ryba Mandaryna|Duży Karaś|Karp|Łosoś|Amur|Pstrąg|Węgorz|Tęczowy Pstrąg|Rzeczny Pstrąg|Krasnopiórka|Okoń|Tenchi|Sum|Piskorz|Ryba Lotosu|Słodka Ryba|Gromadnik|Shiri|Karp Lustrzenny|Karaś Złocisty|Miecz|Długi Miecz|Sejmitar|Stożkowy Miecz|Szeroki Miecz|Srebrny Miecz|Miecz Pełni Księżyca|Miecz Storczykowy|Miecz Półtoraręczny|Miecz Barbarzyńcy|Krwawy Miecz|Wielki Miecz|Miecz Lat. Maga|Pol-ksiezycowy Miecz|Miecz Bojowy|Miecz Szponu Ducha|Miecz Nimfy|Miecz Egzorcysty|Miecz Żądło|Demoniczne Ostrze|Zatruty miecz|Lwi Miecz|Miecz Trytona|Święty Miecz|Glewia|Włócznia|Gilotynowe Ostrze|Pajęcza Włócznia|Gizarma|Kosa Bojowa|Ostrze Z Czerw. Stali|Trójząb|Halabarda|Olbrz. Topór|Lodowa Iglica|Miecz Dwunastu Duchów|Ostrze Zbawienia|Zabójca Lwów|Partyzana|Magnetyczne Ostrze|Złodziej Dusz|Miecz Żalu|Ostrze Słońca|Sztylet|Amija|Sztylet Kobry|Dziewięć Ostrzy|Sztylet Nożycowy|Krotki Nóż|Kozik Czar. Lis.|Nóż Szczęścia|Ukąszenie Kota|Twarz Diabla|Sztylet Pięści Diab.|Krwawy Sztylet|Żebrowy Nóż|Chakram|Smocze Noże|Noże Błyskawic|Nóż Siamese|Skrzydła Demona Chakr.|Bezduszny Nóż|Łuk|Długi Łuk|Kompozytowy Łuk|Bojowy Łuk|Długi Łuk Jeźdźcy|Bojowy Łuk Jeźdźcy|Łuk Z Rogu Jelenia|Miedziany Łuk|Łuk Czarnych Ruin|Łuk Czerwonego Oka|Łuk Kolczastego Lis.|Łuk z rogu byka|Łuk Jednorożca|Olbrz. Skrzydl. Łuk|Boski Łuk Moreli|Olbrz. Łuk Żółt. Smoka|Łuk Niebieskiego Smoka|Stalowy Łuk Kruka|Olbrz. Łuk Diabła|Miedziany Dzwon|Srebrny Dzwon|Złoty Dzwon|Antyczny Dzwon|Jadeitowy Dzwon|Dzwon Fontanny|Morelowy Dzwon|Magiczny Dzwon|Złoty Robaczy Dzwon|Stalowy Robaczy Dzwon|Dzwon Burzowego Ptaka|Dzwon Nieba i Ziemi|Bambusowy Dzwon|Dzwon Szczęki Smoka|Wachlarz|Żelazny Wachlarz|Wachlarz Czarn. Tygr.|Żurawi Wachlarz|Pawi Wachlarz|Wodny Wachlarz|Wachlarz Jes. Wiatru|Kamienny Wachlarz|Oceaniczny Wachlarz|Żądłowy Wachlarz|Wachlarz Feniksa|Potrójny Wachlarz|Brwisty Wachlarz|Czarny Słoń. Wachlarz|Niebian. Ptasi Wachl.|Wachlarz Zbawienia|Ekstazyjny Wachlarz|Wachlarz Demona|Mnisia Zbr. Płyt.|Żelazna Zbr. Płyt.|Zbr. Płyt. Tygrysa|Lwia Zbroja Płytowa|Śmiert. Zbroja Płytowa|Smocza Zbroja Płytowa|Zbroja Płytowa Z Łusek|Złota Zbroja Płytowa|Zbroja Boga Smoków|Zbroja Z Czarnej Stali|Błękitne Ubranie|Kremowe Ubranie|Czerwone Ubranie|Czer. Ubranie Mrówki|Ubranie Lwiej Mrówki|Ubranie Zabójcy|Ubranie Młodego Smoka|Ubranie Zabój. Wiatru|Ubranie Fuksyjne|Ubranie Czarn. Wiatru|Żałobna Zbr. Płyt.|Burzowa Zbroj. Płyt.|Nieszczęsna Zbr. Płyt.|Upiorna Zbroja Płyt.|Zbroja Płyt. Yin-Yang|Mistyczna Zbroja Płyt.|Mglista Zbroja Płyt.|Zbroja Twarzy Ducha|Duchowa Zbroja Płyt.|Zbr. Płyt. Czar. Magii|Błękitna Szata|Turkusowa Szata|Różowa Szata|Miłosna Szata|Szata Zach. Nieba|Szata Słońca|Szata Moralności|Szata Pomarań. Kota|Szata Baronów|Czarna Szata|Tradycyjny Helm|Żelazny Helm|Upiorna Maska|Maska Strachu|Skórzana Maska|Maska Kolcza|Stalowa Maska|Orkowy Kaptur|Krwawy Helm|Wyzywający Helm|Zamkowy Helm|Rogowy Hełm|Czapka Mnicha|Czapka Feniksa|Świetlista Czapka|Kapelusz Kardynała|Bojowa Tarcza|Pięciokątna Tarcza|Czarna Okrągła Tarcza|Lwia Tarcza|Sokola Tarcza|Tarcza Smoka|Tarcza Tygrysa|Skórzane Buty|Bambusowe Buty|Drewniane Buty|Buty Wyszywane Zlotem|Skórzane Kozaki|Złote Buty|Buty Z Brązu|Jadeitowe Buty|Ekstazyjne Buty|Deszczowe Buty|Buty Feniksa|Buty Ognistego Ptaka|Drewniana Bransoleta|Miedziana Bransoleta|Srebrna Bransoleta|Złota Bransoleta|Jadeitowa Bransoleta|Ebonitowa Bransoleta|Perłowa Bransoleta|Bransol. Z Biał. Złota|Kryształową Bransoleta|Ametystowa Bransoleta|Bransol. Z Niebian.Lez|Drewniany Naszyjnik|Miedziany Naszyjnik|Srebrny Naszyjnik|Złoty Naszyjnik|Jadeitowy Naszyjnik|Ebonitowy Naszyjnik|Perłowy Naszyjnik|Naszyj. Z Biał. Złota|Kryształowy Naszyjnik|Ametystowy Naszyjnik|Naszyj. Z Niebian.Lez|Drewniane Kolczyki|Miedziane Kolczyki|Srebrne Kolczyki|Złote Kolczyki|Jadeitowe Kolczyki|Ebonitowe Kolczyki|Perłowe Kolczyki|Kolczyki Z Biał. Złota|Kryształowe Kolczyki|Ametystowe Kolczyki|Kolczyki Z Niebian.Lez".split("|");
+// compare names without caring about case, Polish letters or extra spaces: "zwoj egzorcyzmu" = "Zwój Egzorcyzmu"
+const msFold = t => String(t || "").toLowerCase().replace(/ł/g, "l").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+const MS_CANON = new Map(MS_ITEMS.map(n => [msFold(n), n]));
+const msCanon = t => MS_CANON.get(msFold(t)) || String(t || "").replace(/\s+/g, " ").trim();
 const ms = {owner: null, data: null, es: null, shares: {}, open: new Set(), all: false, shown: false, tick: null, loading: false, err: "", hold: 0};
 const msMe = () => (dSess() || {}).uid || null;
 const msMine = () => ms.owner === msMe();
@@ -3286,8 +3291,8 @@ function msSum(){
     if (!ms.all && msDone(c, k)) continue;                       // a mission already done this week needs nothing bought
     for (const it of Object.values((c.it || {})[k] || {})) {
       if (!it || !it.n) continue;
-      const key = String(it.n).trim().toLowerCase(); if (!key) continue;
-      const row = rows.get(key) || {n: String(it.n).trim(), s: 0, p: 0, w: 0};
+      const key = msFold(it.n); if (!key) continue;
+      const row = rows.get(key) || {n: msCanon(it.n), s: 0, p: 0, w: 0};
       row[k] += +it.q || 0; rows.set(key, row);
     }
   }
@@ -3308,7 +3313,7 @@ function msDraw(){
   const items = c => `<div class="msitems">${MS_CAMPS.map(([k, name]) => { const its = Object.entries((c.it || {})[k] || {}).filter(([, i]) => i);
       return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
         ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="ile" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
-      ${chars.length > 1 ? `<div class="mscopy">Te same przedmioty co inna postać: <select data-msf="copy"><option value="">skopiuj od…</option>${chars.filter(x => x.id !== c.id).map(x => `<option value="${x.id}">${esc(x.n)}</option>`).join("")}</select></div>` : ""}</div>`;
+</div>`;
   const cnt = c => MS_CAMPS.reduce((n, [k]) => n + Object.keys((c.it || {})[k] || {}).length, 0);
   const sum = msSum();
   box.innerHTML = `<div class="mshead"><h1>Misje tygodniowe</h1>
@@ -3327,7 +3332,7 @@ function msDraw(){
       ${sum.length ? `<table><thead><tr><th>Przedmiot</th>${MS_CAMPS.map(([, n]) => `<th>${n}</th>`).join("")}<th>Razem</th></tr></thead><tbody>
         ${sum.map(r => `<tr><td>${esc(r.n)}</td>${MS_CAMPS.map(([k]) => `<td class="${r[k] ? "" : "z"}">${r[k] || "–"}</td>`).join("")}<td>${r.s + r.p + r.w}</td></tr>`).join("")}</tbody></table>`
         : `<p class="msnote">${names.length ? "Wszystkie misje z wpisanymi przedmiotami są już zrobione." : "Rozwiń „Przedmioty” przy postaci i wpisz, co trzeba kupić na misję w każdym obozie – tutaj pojawi się suma dla wszystkich postaci."}</p>`}</div>
-    <datalist id="ms_names">${names.map(n => `<option value="${esc(n)}">`).join("")}</datalist>`}`;
+    <datalist id="ms_names">${[...new Map([...names.map(msCanon), ...MS_ITEMS].map(n => [msFold(n), n])).values()].map(n => `<option value="${esc(n)}">`).join("")}</datalist>`}`;
   box.querySelectorAll(".msnew").forEach(r => { const c = r.closest("[data-msc]"), k = r.closest("[data-msk]"), d = c && k && drafts[c.dataset.msc + "/" + k.dataset.msk]; if (d) r.querySelectorAll("input").forEach((i, n) => { i.value = d[n] || ""; }); });
   if (newName && box.querySelector("#ms_new")) box.querySelector("#ms_new").value = newName;
 }
@@ -3335,7 +3340,7 @@ function msDraw(){
   const box = document.getElementById("missions");
   const cidOf = el => { const r = el.closest("[data-msc]"); return r ? r.dataset.msc : null; };
   const addItem = row => {
-    const cid = cidOf(row), k = row.closest("[data-msk]").dataset.msk, n = row.querySelector('[data-msf="nn"]').value.trim().slice(0, 40), q = Math.max(0, Math.min(9999999, Math.round(+row.querySelector('[data-msf="nq"]').value) || 1));
+    const cid = cidOf(row), k = row.closest("[data-msk]").dataset.msk, n = msCanon(row.querySelector('[data-msf="nn"]').value).slice(0, 40), q = Math.max(0, Math.min(9999999, Math.round(+row.querySelector('[data-msf="nq"]').value) || 1));
     if (!n) { row.querySelector('[data-msf="nn"]').focus(); return; }
     row.querySelectorAll("input").forEach(i => { i.value = ""; });
     document.activeElement && document.activeElement.blur();
@@ -3382,13 +3387,8 @@ function msDraw(){
     if (f === "n") { const v = t.value.trim().slice(0, 24); if (v && v !== c.n) msPatch({[`${cid}/n`]: v}); else t.value = c.n || ""; }
     else if (f === "in" || f === "iq") {
       const row = t.closest("[data-msi]"), k = row.closest("[data-msk]").dataset.msk, base = `${cid}/it/${k}/${row.dataset.msi}`;
-      if (f === "in") { const v = t.value.trim().slice(0, 40); if (v) msPatch({[base + "/n"]: v}); else msPatch({[base]: null}); }
+      if (f === "in") { const v = msCanon(t.value).slice(0, 40); t.value = v; if (v) msPatch({[base + "/n"]: v}); else msPatch({[base]: null}); }
       else msPatch({[base + "/q"]: Math.max(0, Math.min(9999999, Math.round(+t.value) || 0))});
-    }
-    else if (f === "copy" && t.value) {
-      const src = ((ms.data || {}).ch || {})[t.value]; if (!src) return;
-      const it = {}; for (const [k] of MS_CAMPS) for (const i of Object.values((src.it || {})[k] || {})) if (i && i.n) (it[k] = it[k] || {})[uid()] = {n: i.n, q: +i.q || 0};
-      t.blur(); msPatch({[`${cid}/it`]: Object.keys(it).length ? it : null}); toast(`Skopiowano przedmioty od: ${src.n}`);
     }
   });
   // a field lost focus: show whatever arrived from others in the meantime – but not in the middle of a click
