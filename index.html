@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485203"><link rel="apple-touch-icon" href="icon-192.png?v=1794485203">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485484"><link rel="apple-touch-icon" href="icon-192.png?v=1794485484">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -12,7 +12,7 @@
 :root{
   --bg:#0f1417; --surface:#182026; --surface-2:#202a31; --rule:#2b3740;
   --fg:#e7ece9; --muted:#8c9b98; --accent:#c8955a; --accent-ink:#1b130a;
-  --wait:#9fb4c4; --window:#e8c24a; --ready:#4fd39b; --over:#4ea3e8; --danger:#ef6a5b;
+  --wait:#9fb4c4; --window:#e8c24a; --ready:#4fd39b; --over:#4ea3e8; --late:#f2913d; --danger:#ef6a5b;
   --f-ui:"Saira Condensed","Arial Narrow",system-ui,sans-serif;
   --f-num:"Chivo Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
   color-scheme:dark;
@@ -30,7 +30,15 @@ button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:tran
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
 /* title and clock centred on their own row; under them the radio and all the buttons as one centred row */
 .bar{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-width:0}
-.ctrls{display:flex;align-items:center;justify-content:center;gap:inherit;flex-wrap:wrap;min-width:0;flex:0 1 auto}
+.ctrls{display:flex;align-items:stretch;justify-content:center;gap:0;flex-wrap:wrap;min-width:0;flex:0 1 auto;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+/* the buttons sit edge to edge like one bar, split by thin lines */
+/* (every piece has a line on its left and is pulled 1px left, so the first visible one hides its line under the bar's edge) */
+.ctrls>*{border-radius:0!important;border:0!important;border-left:1px solid var(--rule)!important;margin:0 0 0 -1px!important;min-height:38px;box-shadow:none!important}
+.ctrls>.btn{background:transparent}.ctrls>.btn:hover:not(:disabled){background:var(--surface)}
+.ctrls>.mode{display:inline-flex;align-items:center;padding:0 12px;background:transparent}
+.ctrls>.roomsel{background:transparent}
+.ctrls>.people{background:transparent}
+.ctrls>.btn[aria-pressed="true"]{background:var(--surface);box-shadow:inset 0 -2px 0 var(--accent)!important}
 header{grid-template-columns:minmax(0,1fr)}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;flex:1 1 100%}
 .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}
@@ -380,6 +388,7 @@ main{padding-top:14px;display:grid;gap:14px}
 .cell.wait .ct{background:var(--danger);color:#2a0905;border-color:var(--danger)}
 .cell.window .ct{background:var(--window);color:#241a00;border-color:var(--window)}
 .cell.ready .ct{background:var(--over);color:#04192b;border-color:var(--over)}
+.cell.ready.late .ct{background:var(--late);color:#2a1300;border-color:var(--late)}
 .cell .rs{background:none;border:1px solid var(--rule);border-radius:5px;color:var(--muted);font-size:clamp(9px,calc(13cqi / var(--cols)),11px);letter-spacing:.08em;text-transform:uppercase;min-height:26px;padding:0}
 .cell .rs:hover:not(:disabled){color:var(--fg);border-color:var(--muted)}
 .cell .rs:disabled{opacity:.3;cursor:default}
@@ -390,7 +399,7 @@ main{padding-top:14px;display:grid;gap:14px}
 /* no text cursor on things you cannot type in (it shows up when the browser's "caret browsing", F7, is on) */
 html{caret-color:transparent}input,textarea,select,[contenteditable]{caret-color:auto}
 @media (min-width:521px){.legend{justify-content:center;text-align:center}}
-.legend .w{color:var(--danger)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)}
+.legend .w{color:var(--danger)} .legend .y{color:var(--window)} .legend .g{color:var(--ready)} .legend .b{color:var(--over)} .legend .o{color:var(--late)}
 
 /* compact view: only name, undo/redo and channel timers */
 .compact .tag,.compact .srow .more,.compact .cell .rs,.compact .ranges,.compact .legend,.compact .addrow{display:none}
@@ -839,7 +848,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794485203";
+const BUILD = "1794485484";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1355,9 +1364,11 @@ function status(s, c){
   const t = typeof v === "number" ? v : v.a;
   if (t < resetAt) return {cls:"idle", text:"--:--", label:"nie liczy"};
   const el = now() - t, mn = (v.mn || s.min)*60000, mx = (v.mx || s.max)*60000;
-  // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero
+  // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero,
+  // orange once even the longest respawn of the map has passed (e.g. Czerwony Las 35 min timer, max 47 → from -12)
   if (el < mn - SOON) return {cls:"wait", text: fmt(mn - el), label:"odlicza", phase:0};
   if (el < mn) return {cls:"window", text: fmt(mn - el), label:"za chwilę", phase:1};
+  if (mx > mn && el >= mx) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu", phase:2};
   return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie", phase:2};
 }
 function fmt(ms){
@@ -1480,13 +1491,13 @@ function scheduleRender(){ if (rafPending) return; rafPending = true; requestAni
 function renderTabs(){
   const html = visibleMaps().map(m => {
     const ss = mapSpots(m.id);
-    let ready = 0; for (const s of ss) for (const c of CHS()) if (status(s, c).cls === "ready") ready++;
+    let ready = 0; for (const s of ss) for (const c of CHS()) if (status(s, c).phase === 2) ready++;
     const b = ready ? `<span class="badge ready" title="Na minusie">${ready}</span>` : "";
     return `<button class="tab" role="tab" data-tab="${m.id}" aria-selected="${view === "maps" && tab === m.id}">${esc(m.name)}${b}</button>`;
   }).join("");
   let mine = "";
   if (showMine()) {
-    let r = 0; for (const m of visibleMaps()) for (const sp of mapSpots(m.id)) for (const c of CHS()) if (status(sp, c).cls === "ready") r++;
+    let r = 0; for (const m of visibleMaps()) for (const sp of mapSpots(m.id)) for (const c of CHS()) if (status(sp, c).phase === 2) r++;
     mine = `<button class="tab mine" role="tab" data-tab="mine" aria-selected="${view === "maps" && tab === "mine"}">Twoje mapy${r ? `<span class="badge ready" title="Na minusie">${r}</span>` : ""}</button>`;
   }
   // "+ Mapa": the room's own maps are added from the map bar, where everyone in the room sees them
@@ -1514,7 +1525,7 @@ function render(){
   if (view === "wiki" || !visibleMaps().length) { $("#main").innerHTML = wikiHtml(); return; }
   const ids = tab === "mine" ? visibleMaps().map(m => m.id) : [tab];
   $("#main").innerHTML = `<div class="panes${tab === "mine" ? " mineview" : ""}">${ids.map(paneHtml).join("")}</div>
-    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span></div>`;
+    <div class="legend"><span>Stuknij kanał, gdy zbijesz. Wszystkie liczniki zerują się codziennie o 01:00.</span><span><b class="g">Zielony</b> nie zaznaczony</span><span><b class="w">Czerwony</b> odlicza</span><span><b class="y">Żółty</b> ostatnie 4 minuty</span><span><b class="b">Niebieski</b> na minusie</span><span><b class="o">Pomarańczowy</b> po maksymalnym czasie respu</span></div>`;
   fitNames();
 }
 function paneHtml(id){
