@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480260"><link rel="apple-touch-icon" href="icon-192.png?v=1794480260">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794480336"><link rel="apple-touch-icon" href="icon-192.png?v=1794480336">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -239,6 +239,8 @@ canvas.htrack{width:100%;display:block;border-radius:8px}
 .mshead h1{font-family:var(--f-head);font-size:22px;margin:0 auto 0 0}
 .mshead select{min-height:36px;background:var(--surface);color:var(--fg);border:1px solid var(--rule);border-radius:8px;padding:0 8px;max-width:100%}
 .msnote{color:var(--muted);font-size:14px;margin:0}
+/* camp names: Góra Sohan blue, Pustynia yellow, Wężowe Pole brown */
+.missions .msk-s{color:#5bb8ef!important}.missions .msk-p{color:#e8c24a!important}.missions .msk-w{color:#b9814f!important}
 .mslist{display:grid;gap:8px}
 .mscols,.msrow{display:grid;grid-template-columns:minmax(250px,1.5fr) repeat(3,minmax(0,1fr));gap:8px;align-items:stretch}
 .mscols{padding:0 10px;color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
@@ -838,7 +840,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794480260";
+const BUILD = "1794480336";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -3346,11 +3348,11 @@ function msDraw(){
   const names = [...new Set(chars.flatMap(c => MS_CAMPS.flatMap(([k]) => Object.values((c.it || {})[k] || {}).map(i => i && String(i.n || "").trim()))).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pl"));
   const lists = `<option value="${esc(me)}"${mine ? " selected" : ""}>Moja lista</option>` + Object.entries(ms.shares).map(([u, n]) => `<option value="${esc(u)}"${u === ms.owner ? " selected" : ""}>Lista: ${esc(String(n))}</option>`).join("");
   const camp = (c, [k, name]) => { const t = msDone(c, k), ed = ms.when === c.id + "/" + k, rem = t ? Math.max(0, Math.ceil((t + MS_WEEK - now()) / 60000)) : 0;
-    return `<${ed ? "div" : "label"} class="mscamp ${t ? "done" : "todo"}${ed ? " ed" : ""}" title="${name}${t ? " – zrobiona " + msWhen(t) : ""}"><span class="mscn">${name}</span><input type="checkbox" data-msd="${k}"${t ? " checked" : ""} aria-label="${name}: ${esc(c.n)}">
+    return `<${ed ? "div" : "label"} class="mscamp ${t ? "done" : "todo"}${ed ? " ed" : ""}" title="${name}${t ? " – zrobiona " + msWhen(t) : ""}"><span class="mscn msk-${k}">${name}</span><input type="checkbox" data-msd="${k}"${t ? " checked" : ""} aria-label="${name}: ${esc(c.n)}">
       ${ed ? `<span class="mst">dostępna za:<span class="msrem" data-k="${k}"><input type="number" min="0" max="7" inputmode="numeric" value="${Math.floor(rem / 1440)}" data-msr="d" aria-label="dni">d<input type="number" min="0" max="23" inputmode="numeric" value="${Math.floor(rem % 1440 / 60)}" data-msr="h" aria-label="godzin">h<input type="number" min="0" max="59" inputmode="numeric" value="${rem % 60}" data-msr="m" aria-label="minut">min</span></span>`
         : `<span class="mst">${t ? `za <b>${msLeft(t + MS_WEEK - now())}</b><span class="msw">${msWhen(t + MS_WEEK)}</span>` : "do zrobienia"}</span><button class="msedit" data-ms="when" data-k="${k}" title="Wpisz, za ile misja będzie dostępna (tak jak pokazuje gra)" aria-label="Wpisz, za ile misja będzie dostępna">✎</button>`}</${ed ? "div" : "label"}>`; };
   const items = c => `<div class="msitems">${MS_CAMPS.map(([k, name]) => { const its = Object.entries((c.it || {})[k] || {}).filter(([, i]) => i);
-      return `<div data-msk="${k}"><h3>${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
+      return `<div data-msk="${k}"><h3 class="msk-${k}">${name}</h3>${its.map(([id, i]) => `<div class="msit" data-msi="${id}"><input list="ms_names" maxlength="40" value="${esc(i.n || "")}" data-msf="in" aria-label="Przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" value="${+i.q || 0}" data-msf="iq" aria-label="Ilość"><button class="btn" data-ms="idel" aria-label="Usuń przedmiot">✕</button></div>`).join("")}
         ${its.length < MS_MAXIT ? `<div class="msit msnew"><input list="ms_names" maxlength="40" placeholder="przedmiot" data-msf="nn" aria-label="Nowy przedmiot"><input type="number" min="0" max="9999999" inputmode="numeric" placeholder="x" data-msf="nq" aria-label="Ilość"><button class="btn" data-ms="iadd" aria-label="Dodaj przedmiot">+</button></div>` : ""}</div>`; }).join("")}
 </div>`;
   const opts = c => { const mate = msMate(c), others = chars.filter(x => x.id !== c.id);
@@ -3363,7 +3365,7 @@ function msDraw(){
       ${mine ? `<button class="btn" data-ms="share">Udostępnij${acl ? ` (${acl})` : ""}</button>` : `<button class="btn" data-ms="leave">Opuść tę listę</button>`}</div>
     <p class="msnote">${mine ? "To Twoja prywatna lista – widzą ją tylko osoby, którym dasz dostęp przyciskiem „Udostępnij”." : `Lista gracza <b>${esc(String(ms.shares[ms.owner] || (ms.data && ms.data.n) || "?"))}</b> – możesz ją edytować tak jak właściciel.`} Zaznacz misję, gdy postać ją zrobi: odznaczy się sama po 7 dniach.</p>
     ${ms.err ? `<p class="msnote" style="color:var(--danger)">${esc(ms.err)}</p>` : ms.loading ? '<p class="msnote">Wczytywanie…</p>' : `
-    <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([, n]) => `<span>${n}</span>`).join("")}</div>` : ""}
+    <div class="mslist">${chars.length ? `<div class="mscols"><span>Postać</span>${MS_CAMPS.map(([k, n]) => `<span class="msk-${k}">${n}</span>`).join("")}</div>` : ""}
       ${chars.map(c => `${c.pair === "a" ? '<div class="mspair"><span class="mspl">Para</span>' : ""}<div class="msrow" data-msc="${c.id}"${COLORS.includes(c.c) ? ` style="--mc:${c.c}"` : ""}><div class="msname"><span class="msgrip" title="Złap i przeciągnij, żeby zmienić kolejność${c.pair ? " (para przesuwa się razem)" : ""}" aria-hidden="true">⠿</span><button class="mscol" data-ms="opt" aria-expanded="${ms.opt === c.id}" title="Kolor i para" aria-label="Kolor i para: ${esc(c.n || "")}"></button><input maxlength="24" value="${esc(c.n || "")}" data-msf="n" aria-label="Nick postaci">
           <span class="msbtns"><button class="btn" data-ms="items" aria-expanded="${ms.open.has(c.id)}">Przedmioty${cnt(c) ? ` (${cnt(c)})` : ""} ${ms.open.has(c.id) ? "▴" : "▾"}</button><button class="btn" data-ms="cdel" title="Usuń postać" aria-label="Usuń postać ${esc(c.n || "")}">✕</button></span></div>
         ${MS_CAMPS.map(k => camp(c, k)).join("")}${ms.opt === c.id ? opts(c) : ""}${ms.open.has(c.id) ? items(c) : ""}</div>${c.pair === "b" ? "</div>" : ""}`).join("")}
@@ -3371,7 +3373,7 @@ function msDraw(){
     ${chars.length < MS_MAXCH ? `<div class="msadd"><input id="ms_new" maxlength="24" placeholder="Nick postaci" autocomplete="off"><button class="btn primary" data-ms="cadd">Dodaj postać</button></div>` : ""}
     <div class="mssum"><h2>Do kupienia – razem</h2>
       <label><input type="checkbox" id="ms_all"${ms.all ? " checked" : ""}> licz też misje, które są już zrobione w tym tygodniu</label>
-      ${sum.length ? `<table><thead><tr><th>Przedmiot</th>${MS_CAMPS.map(([, n]) => `<th>${n}</th>`).join("")}<th>Razem</th></tr></thead><tbody>
+      ${sum.length ? `<table><thead><tr><th>Przedmiot</th>${MS_CAMPS.map(([k, n]) => `<th class="msk-${k}">${n}</th>`).join("")}<th>Razem</th></tr></thead><tbody>
         ${sum.map(r => `<tr><td>${esc(r.n)}</td>${MS_CAMPS.map(([k]) => `<td class="${r[k] ? "" : "z"}">${r[k] || "–"}</td>`).join("")}<td>${r.s + r.p + r.w}</td></tr>`).join("")}</tbody></table>`
         : `<p class="msnote">${names.length ? "Wszystkie misje z wpisanymi przedmiotami są już zrobione." : "Rozwiń „Przedmioty” przy postaci i wpisz, co trzeba kupić na misję w każdym obozie – tutaj pojawi się suma dla wszystkich postaci."}</p>`}</div>
     <datalist id="ms_names">${[...new Map([...names.map(msCanon), ...MS_ITEMS].map(n => [msFold(n), n])).values()].map(n => `<option value="${esc(n)}">`).join("")}</datalist>`}`;
