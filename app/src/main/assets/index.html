@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485978"><link rel="apple-touch-icon" href="icon-192.png?v=1794485978">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794487111"><link rel="apple-touch-icon" href="icon-192.png?v=1794487111">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -859,7 +859,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794485978";
+const BUILD = "1794487111";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
@@ -1376,10 +1376,12 @@ function status(s, c){
   if (t < resetAt) return {cls:"idle", text:"--:--", label:"nie liczy"};
   const el = now() - t, mn = (v.mn || s.min)*60000, mx = (v.mx || s.max)*60000;
   // neutral while counting, yellow in the last 4 minutes, blue once the counter is below zero,
-  // orange once even the longest respawn of the map has passed (e.g. Czerwony Las 35 min timer, max 47 → from -12)
+  // purple once even the longest respawn of the map has passed (e.g. Czerwony Las 35 min timer, max 47 → from -12)
   if (el < mn - SOON) return {cls:"wait", text: fmt(mn - el), label:"odlicza", phase:0};
   if (el < mn) return {cls:"window", text: fmt(mn - el), label:"za chwilę", phase:1};
-  if (mx > mn && el >= mx) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu", phase:2};
+  // timers without their own range (e.g. imported from squadtimer: max = min) use the longest respawn of their map
+  let lim = mx; if (lim <= mn) { const r = mapById[s.map] && mapById[s.map][s.kind === "boss" ? "boss" : "metin"]; if (r && r[1] * 60000 > mn) lim = r[1] * 60000; }
+  if (lim > mn && el >= lim) return {cls:"ready late", text: "-" + fmt(el - mn), label:"po maksymalnym czasie respu", phase:2};
   return {cls:"ready", text: "-" + fmt(el - mn), label:"na minusie", phase:2};
 }
 function fmt(ms){
@@ -2102,7 +2104,7 @@ function importSheet(){
         if (mode === "replace") for (const s of existing) ch[s.id] = null;
         let o = mode === "add" && existing.length ? Math.max(...existing.map(s => s.o || 0)) + 1 : Date.now();
         for (const l of data) { const id = uid(); n++;
-          ch[id] = {id, map, name:l.name, kind:"metin", min:l.min, max:l.min, color:null, o:o++, t:l.t || {}}; }
+          ch[id] = {id, map, name:l.name, kind:"metin", min:l.min, max:Math.max(l.min, (mapById[map].metin || [0, 0])[1]), color:null, o:o++, t:l.t || {}}; }
       }
       close(); commit(ch); toast("Zaimportowano " + n + " respów");
     };
