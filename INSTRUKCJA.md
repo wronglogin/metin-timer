@@ -30,6 +30,7 @@ Pokój zmienisz albo opuścisz w **Menu → Wspólny pokój**. Tam jest też **T
   - **czerwony** – odlicza do respu,
   - **żółty** – ostatnie 4 minuty,
   - **niebieski** – na minusie (resp już powinien stać; licznik pokazuje, ile minęło).
+  - **pomarańczowy** – minął już nawet najdłuższy czas respu mapy (np. Czerwony Las: od -12), więc metin raczej już stoi.
 - Pole **min** przy respie to czas odliczania w minutach (domyślnie minutę krócej niż resp z Wiki,
   żeby być na miejscu przed respem).
 - **↶ / ↷** – cofnij i ponów (przy respie albo na górze dla całego pokoju; także Ctrl+Z / Ctrl+Y).
