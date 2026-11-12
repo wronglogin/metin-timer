@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f1417">
 <title>Unity Timer</title>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485484"><link rel="apple-touch-icon" href="icon-192.png?v=1794485484">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=1794485618"><link rel="apple-touch-icon" href="icon-192.png?v=1794485618">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style></head><body>
 <title>Unity Timer</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -30,15 +30,17 @@ button{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:tran
 header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 0;display:grid;gap:8px}
 /* title and clock centred on their own row; under them the radio and all the buttons as one centred row */
 .bar{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;min-width:0}
-.ctrls{display:flex;align-items:stretch;justify-content:center;gap:0;flex-wrap:wrap;min-width:0;flex:0 1 auto;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.ctrls{display:flex;align-items:stretch;justify-content:center;gap:8px;flex-wrap:wrap;min-width:0;flex:0 1 auto}
+/* two joined groups: the room (room, people, undo/redo) and the pages (Wiki … admin) */
+.cgroup{display:flex;align-items:stretch;flex-wrap:nowrap;min-width:0;background:var(--surface-2);border:1px solid var(--rule);border-radius:8px;overflow:hidden}
 /* the buttons sit edge to edge like one bar, split by thin lines */
 /* (every piece has a line on its left and is pulled 1px left, so the first visible one hides its line under the bar's edge) */
-.ctrls>*{border-radius:0!important;border:0!important;border-left:1px solid var(--rule)!important;margin:0 0 0 -1px!important;min-height:38px;box-shadow:none!important}
-.ctrls>.btn{background:transparent}.ctrls>.btn:hover:not(:disabled){background:var(--surface)}
-.ctrls>.mode{display:inline-flex;align-items:center;padding:0 12px;background:transparent}
-.ctrls>.roomsel{background:transparent}
-.ctrls>.people{background:transparent}
-.ctrls>.btn[aria-pressed="true"]{background:var(--surface);box-shadow:inset 0 -2px 0 var(--accent)!important}
+.cgroup>*{border-radius:0!important;border:0!important;border-left:1px solid var(--rule)!important;margin:0 0 0 -1px!important;min-height:38px;box-shadow:none!important}
+.cgroup>.btn{background:transparent}.cgroup>.btn:hover:not(:disabled){background:var(--surface)}
+.cgroup>.mode{display:inline-flex;align-items:center;padding:0 12px;background:transparent}
+.cgroup>.roomsel{background:transparent}
+.cgroup>.people{background:transparent}
+.cgroup>.btn[aria-pressed="true"]{background:var(--surface);box-shadow:inset 0 -2px 0 var(--accent)!important}
 header{grid-template-columns:minmax(0,1fr)}
 .brand{font-weight:700;font-size:22px;letter-spacing:.04em;text-transform:uppercase;flex:1 1 100%}
 .bar .brand{grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:center;text-align:center}
@@ -355,22 +357,23 @@ main{padding-top:14px;display:grid;gap:14px}
 /* phones: keep the whole top bar (room, people, undo/redo, MiniWiki, Gry, Menu) on one line */
 @media (max-width:760px){
   .ctrls{flex:1 1 100%;flex-wrap:nowrap}
-  .ctrls>*{flex:0 1 auto;min-width:0}
-  .ctrls>.btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ctrls>.people{flex-shrink:0}
-  .ctrls>.mode,.ctrls>.roomsel{flex-shrink:30;min-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cgroup{flex:0 1 auto}
+  .cgroup>*{flex:0 1 auto;min-width:0}
+  .cgroup>.btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cgroup>.people{flex-shrink:0}
+  .cgroup>.mode,.cgroup>.roomsel{flex-shrink:30;min-width:44px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 @media (max-width:440px){
-  .ctrls>.btn,.ctrls>.people{padding:4px 7px;min-height:34px;font-size:15px}
-  .ctrls>.icon{min-width:28px;padding:4px 2px}
-  .ctrls>.people{gap:3px}.ctrls>.people svg{width:14px;height:14px}
-  .ctrls>.mode{font-size:10px;padding:2px 5px;letter-spacing:.03em;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cgroup>.btn,.cgroup>.people{padding:4px 7px;min-height:34px;font-size:15px}
+  .cgroup>.icon{min-width:28px;padding:4px 2px}
+  .cgroup>.people{gap:3px}.cgroup>.people svg{width:14px;height:14px}
+  .cgroup>.mode{font-size:10px;padding:2px 5px;letter-spacing:.03em;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ctrls{gap:5px}
 }
 @media (max-width:400px){
-  .ctrls>.btn,.ctrls>.people{padding:3px 5px;font-size:13.5px}
-  .ctrls>.icon{min-width:24px;padding:3px 1px}
-  .ctrls>.mode{max-width:64px;padding:2px 4px}
+  .cgroup>.btn,.cgroup>.people{padding:3px 5px;font-size:13.5px}
+  .cgroup>.icon{min-width:24px;padding:3px 1px}
+  .cgroup>.mode{max-width:64px;padding:2px 4px}
   .ctrls{gap:3px}
 }
 .srow .sur{margin-left:auto;display:flex;gap:4px}
@@ -481,7 +484,7 @@ body.sizing{cursor:ew-resize;user-select:none}
 .field[hidden]{display:none}
 .btn[hidden]{display:none}
 #adminBtn{display:inline-grid;place-items:center}#adminBtn[hidden]{display:none}
-@media (max-width:440px){.ctrls>#adminBtn{padding:3px 5px;flex-shrink:0}}
+@media (max-width:440px){.cgroup>#adminBtn{padding:3px 5px;flex-shrink:0}}
 .stakein{display:flex;align-items:center;gap:8px}.stakein input{flex:1;min-width:0}.stakein span{color:var(--muted);font-weight:600;white-space:nowrap}
 .field label{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .field input,.field select,.field textarea{background:var(--bg);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;min-height:40px;width:100%}
@@ -525,16 +528,19 @@ body.sizing{cursor:ew-resize;user-select:none}
       <div class="brand">Unity Timer<small class="clock" id="clock" title="Aktualny czas polski (w pokoju zgrany z serwerem)"></small></div>
       <div id="radio" class="radio" hidden></div>
       <div class="ctrls">
+      <div class="cgroup">
       <span class="mode" id="mode" title="Pokój">Prywatny</span>
       <select id="roomSel" class="roomsel" aria-label="Pokój" hidden></select>
       <div id="people" class="people" hidden tabindex="0" role="button" aria-label="Osoby w pokoju"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M2.5 19c.6-3.6 3.3-5.5 6.5-5.5s5.9 1.9 6.5 5.5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".6"/><path d="M15.5 13.6c2.9-.3 5.4 1.4 6 4.4h-4.4c-.3-1.7-.8-3.1-1.6-4.4z" fill="currentColor" opacity=".6"/></svg><span class="pc">0</span><ul class="plist"></ul></div>
       <button class="btn icon" id="undo" title="Cofnij (Ctrl+Z)" aria-label="Cofnij">↶</button>
       <button class="btn icon" id="redo" title="Ponów (Ctrl+Y)" aria-label="Ponów">↷</button>
+      </div><div class="cgroup">
       <button class="btn" id="wikiBtn" aria-pressed="false">Wiki</button>
       <button class="btn" id="msBtn" aria-pressed="false" hidden title="Misje tygodniowe"><span class="mlong">Misje Tygodniowe</span><span class="mshort">Misje</span></button>
       <button class="btn" id="gamesBtn">Gry</button>
       <button class="btn icon" id="menuBtn" title="Menu (ustawienia)" aria-label="Menu">⚙</button>
       <button class="btn icon" id="adminBtn" hidden title="Panel admina" aria-label="Panel admina"><svg class="abico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.600-1.700 8-6 8-11V5zm0 2.200 6 2.200V11c0 3.900-2.500 7.400-6 8.900-3.500-1.500-6-5-6-8.900V6.400z"/></svg></button>
+      </div>
       </div>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
@@ -848,7 +854,7 @@ async function pruneDeletedRooms(){
    reloads itself – right away when nobody is in the middle of something (typing, an open window, a game),
    otherwise a bar asks to refresh and the reload happens as soon as it's safe. That way nobody keeps using an
    old version that could save timers differently from everyone else. */
-const BUILD = "1794485484";
+const BUILD = "1794485618";
 let newBuild = null;
 let lastKey = 0;
 document.addEventListener("keydown", () => { lastKey = Date.now(); }, true);
